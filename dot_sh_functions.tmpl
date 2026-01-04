@@ -1,0 +1,83 @@
+#!/bin/sh
+# Shared shell functions for both Zsh (Warp) and Bash (Dev Containers)
+# Uses POSIX-compliant syntax for maximum compatibility
+
+# Set AWS profile and environment to staging (or custom environment)
+# Usage: awstg [environment]
+# Example: awstg dev4
+awstg() {
+    local env="${1:-staging}"
+    export AWS_PROFILE=staging
+    export ENVIRONMENT="$env"
+    echo "✓ Switched to staging profile with ENVIRONMENT=$env"
+}
+
+# Set AWS profile and environment to production
+awspr() {
+    export AWS_PROFILE=production
+    export ENVIRONMENT=production
+    echo "✓ Switched to production environment"
+}
+
+# Load environment variables from a file
+# Usage: loadenv .env
+loadenv() {
+    if [ -z "$1" ]; then
+        echo "Usage: loadenv <file>"
+        return 1
+    fi
+    
+    if [ ! -f "$1" ]; then
+        echo "Error: File '$1' not found"
+        return 1
+    fi
+    
+    set -a
+    . "$1"
+    set +a
+    echo "✓ Loaded environment variables from $1"
+}
+
+# Reset minikube for the inspect-action project
+# Only works when inside the METR/inspect-action repository
+minikube_reset() {
+    # Check if we're in a git repository
+    if ! git rev-parse --git-dir > /dev/null 2>&1; then
+        echo "Error: Not in a git repository"
+        return 1
+    fi
+    
+    # Check if this is the inspect-action repo
+    local remote_url=$(git remote get-url origin 2>/dev/null)
+    if ! echo "$remote_url" | grep -q "METR/inspect-action"; then
+        echo "Error: This command only works in the METR/inspect-action repository"
+        echo "Current repository: $remote_url"
+        return 1
+    fi
+    
+    # Get the repository root
+    local repo_root=$(git rev-parse --show-toplevel)
+    
+    echo "🔄 Resetting minikube environment..."
+    
+    # Stop docker compose containers
+    if [ -f "$repo_root/docker-compose.yaml" ]; then
+        echo "→ Stopping docker compose containers..."
+        (cd "$repo_root" && docker compose down)
+    fi
+    
+    # Delete minikube cluster
+    echo "→ Deleting minikube cluster..."
+    minikube delete
+    
+    # Start minikube with the project script
+    if [ -f "$repo_root/scripts/dev/start-minikube.sh" ]; then
+        echo "→ Starting fresh minikube environment..."
+        (cd "$repo_root" && ./scripts/dev/start-minikube.sh)
+    else
+        echo "Warning: start-minikube.sh not found at $repo_root/scripts/dev/"
+        return 1
+    fi
+    
+    echo "✅ Minikube reset complete"
+}
