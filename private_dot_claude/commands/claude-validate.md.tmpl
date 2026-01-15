@@ -1,0 +1,238 @@
+---
+name: claude-validate
+description: Validate Claude Code setup and configuration
+---
+
+# Claude Validate Command
+
+Comprehensive validation of your Claude Code setup, checking configurations, dependencies, and integrations.
+
+## Usage
+
+```bash
+/claude-validate           # Run all validation checks
+/claude-validate --quiet   # Only show errors
+/claude-validate --fix     # Attempt to fix issues
+/claude-validate --json    # Output in JSON format
+```
+
+## What it Validates
+
+### Core Components
+- Claude Code binary installation
+- Configuration file syntax
+- Agent definitions
+- Command definitions
+- Skill definitions
+
+### Integrations
+- MCP server connectivity
+- 1Password CLI access
+- GitHub authentication
+- Linear API access
+- Notification system
+
+### Environment
+- Shell configuration
+- Environment variables
+- File permissions
+- Dependencies (jq, curl, etc.)
+
+## Implementation
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+MODE="${1:---verbose}"
+ERRORS=0
+WARNINGS=0
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Check function
+check() {
+    local name="$1"
+    local cmd="$2"
+    local fix="${3:-}"
+
+    if [ "$MODE" != "--quiet" ]; then
+        printf "%-40s" "$name..."
+    fi
+
+    if eval "$cmd" > /dev/null 2>&1; then
+        [ "$MODE" != "--quiet" ] && echo -e "${GREEN}✅${NC}"
+        return 0
+    else
+        [ "$MODE" != "--quiet" ] && echo -e "${RED}❌${NC}"
+        ((ERRORS++))
+
+        if [ -n "$fix" ] && [ "$MODE" = "--fix" ]; then
+            echo "  Attempting fix: $fix"
+            eval "$fix"
+        fi
+        return 1
+    fi
+}
+
+warn() {
+    local name="$1"
+    local cmd="$2"
+
+    if [ "$MODE" != "--quiet" ]; then
+        printf "%-40s" "$name..."
+    fi
+
+    if eval "$cmd" > /dev/null 2>&1; then
+        [ "$MODE" != "--quiet" ] && echo -e "${GREEN}✅${NC}"
+        return 0
+    else
+        [ "$MODE" != "--quiet" ] && echo -e "${YELLOW}⚠️${NC}"
+        ((WARNINGS++))
+        return 1
+    fi
+}
+
+echo -e "${BLUE}🔍 Claude Code Validation${NC}"
+echo ""
+
+# Core Components
+echo "Core Components:"
+check "Claude binary" "command -v claude" ""
+check "Claude config directory" "[ -d ~/.claude ]" "mkdir -p ~/.claude"
+check "settings.json" "[ -f ~/.claude/settings.json ] && jq . ~/.claude/settings.json" ""
+check "mcp.json" "[ -f ~/.claude/mcp.json ] && jq . ~/.claude/mcp.json" ""
+
+echo ""
+echo "Agents & Commands:"
+check "Agents directory" "[ -d ~/.claude/agents ]" "mkdir -p ~/.claude/agents"
+check "Commands directory" "[ -d ~/.claude/commands ]" "mkdir -p ~/.claude/commands"
+check "Skills directory" "[ -d ~/.claude/skills ]" "mkdir -p ~/.claude/skills"
+
+# Count items
+if [ -d ~/.claude/agents ]; then
+    AGENT_COUNT=$(find ~/.claude/agents -name "*.md" -type f | wc -l | tr -d ' ')
+    [ "$MODE" != "--quiet" ] && echo "  Found $AGENT_COUNT agents"
+fi
+
+if [ -d ~/.claude/commands ]; then
+    CMD_COUNT=$(find ~/.claude/commands -name "*.md" -type f | wc -l | tr -d ' ')
+    [ "$MODE" != "--quiet" ] && echo "  Found $CMD_COUNT commands"
+fi
+
+echo ""
+echo "Dependencies:"
+check "jq" "command -v jq" "brew install jq || sudo apt-get install jq"
+check "curl" "command -v curl" ""
+check "git" "command -v git" ""
+check "chezmoi" "command -v chezmoi" "brew install chezmoi || sh -c \"\$(curl -fsLS git.io/chezmoi)\""
+
+echo ""
+echo "Optional Dependencies:"
+warn "1Password CLI" "command -v op"
+warn "terminal-notifier" "command -v terminal-notifier"
+warn "GitHub CLI" "command -v gh"
+
+echo ""
+echo "Environment Variables:"
+check "HOME is set" "[ -n \"\$HOME\" ]" ""
+warn "LINEAR_API_KEY" "[ -n \"\$LINEAR_API_KEY\" ]"
+warn "GITHUB_TOKEN" "[ -n \"\$GITHUB_TOKEN\" ]"
+
+echo ""
+echo "MCP Servers:"
+if [ -f ~/.claude/mcp.json ]; then
+    # Test each MCP server
+    for server in $(jq -r '.mcpServers | keys[]' ~/.claude/mcp.json 2>/dev/null); do
+        case "$server" in
+            linear)
+                warn "MCP: Linear" "[ -n \"\$LINEAR_API_KEY\" ] && curl -s -H \"Authorization: Bearer \$LINEAR_API_KEY\" https://api.linear.app/graphql -d '{\"query\":\"{ viewer { id } }\"}' | jq -e '.data.viewer.id'"
+                ;;
+            github)
+                warn "MCP: GitHub" "[ -n \"\$GITHUB_TOKEN\" ] && curl -s -H \"Authorization: Bearer \$GITHUB_TOKEN\" https://api.github.com/user | jq -e '.login'"
+                ;;
+            *)
+                [ "$MODE" != "--quiet" ] && echo "  MCP: $server (unchecked)"
+                ;;
+        esac
+    done
+fi
+
+echo ""
+echo "Notification System:"
+warn "Notification daemon" "pgrep -f claude-notify-daemon"
+warn "Notification hooks" "[ -d ~/.claude/hooks ]"
+
+echo ""
+echo "File Permissions:"
+check "Claude binary executable" "[ -x \$(which claude) ]" "chmod +x \$(which claude)"
+check "Hook scripts executable" "[ ! -d ~/.claude/hooks ] || find ~/.claude/hooks -name \"*.sh\" -type f -perm +111 | grep -q ." "find ~/.claude/hooks -name \"*.sh\" -type f -exec chmod +x {} +"
+
+# Summary
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [ $ERRORS -eq 0 ] && [ $WARNINGS -eq 0 ]; then
+    echo -e "${GREEN}✅ All checks passed!${NC}"
+elif [ $ERRORS -eq 0 ]; then
+    echo -e "${YELLOW}⚠️  $WARNINGS warnings (optional features)${NC}"
+else
+    echo -e "${RED}❌ $ERRORS errors, $WARNINGS warnings${NC}"
+    [ "$MODE" = "--fix" ] && echo "Some issues may have been fixed. Run again to verify."
+    exit 1
+fi
+
+# JSON output
+if [ "$MODE" = "--json" ]; then
+    cat <<EOF
+
+{
+  "status": $([ $ERRORS -eq 0 ] && echo '"ok"' || echo '"error"'),
+  "errors": $ERRORS,
+  "warnings": $WARNINGS,
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+fi
+```
+
+## Common Issues and Fixes
+
+### Configuration Errors
+```bash
+# Fix invalid JSON
+jq . ~/.claude/settings.json > /tmp/fixed.json && mv /tmp/fixed.json ~/.claude/settings.json
+
+# Reset to defaults
+chezmoi apply --force ~/.claude/
+```
+
+### Permission Issues
+```bash
+# Fix all permissions
+chmod +x $(which claude)
+find ~/.claude/hooks -name "*.sh" -exec chmod +x {} +
+```
+
+### MCP Connection Issues
+```bash
+# Test credentials
+op read "op://Development/Linear MCP API Key/credential" || echo "1Password not configured"
+
+# Reload environment
+source ~/.zshrc
+```
+
+## Integration with CI/CD
+
+Add to your dotfiles CI:
+```yaml
+- name: Validate Claude Code
+  run: |
+    /claude-validate --json > validation.json
+    jq -e '.status == "ok"' validation.json
+```

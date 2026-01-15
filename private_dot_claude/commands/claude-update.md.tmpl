@@ -1,0 +1,186 @@
+---
+name: claude-update
+description: Update Claude Code and sync dotfiles from chezmoi
+---
+
+# Claude Update Command
+
+Update Claude Code to the latest version and sync configuration from your dotfiles repository.
+
+## Usage
+
+```bash
+/claude-update              # Update Claude Code and dotfiles
+/claude-update --code-only  # Only update Claude Code binary
+/claude-update --docs-only  # Only sync dotfiles via chezmoi
+/claude-update --check      # Check for updates without applying
+```
+
+## What it Does
+
+1. **Claude Code Update**
+   - Check current version: `claude --version`
+   - Download latest release
+   - Update binary with proper permissions
+   - Verify installation
+
+2. **Dotfiles Sync via chezmoi**
+   - Fetch latest changes: `chezmoi update`
+   - Show diff: `chezmoi diff`
+   - Apply changes: `chezmoi apply`
+   - Validate configuration
+
+3. **Post-Update Tasks**
+   - Reload shell configuration
+   - Restart notification daemon
+   - Validate MCP servers
+   - Run health checks
+
+## Implementation
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+MODE="${1:---all}"
+CLAUDE_BIN="/usr/local/bin/claude"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}🔄 Claude Update Tool${NC}"
+echo ""
+
+case "$MODE" in
+    --check)
+        echo "📊 Checking for updates..."
+
+        # Check Claude Code version
+        CURRENT_VERSION=$(claude --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        echo -e "Current Claude Code: ${YELLOW}$CURRENT_VERSION${NC}"
+
+        # Check dotfiles status
+        echo ""
+        echo "Checking dotfiles repository..."
+        chezmoi git status
+
+        exit 0
+        ;;
+
+    --code-only)
+        echo "⬇️  Updating Claude Code binary..."
+
+        # Download latest Claude Code
+        LATEST_URL="https://github.com/anthropics/claude-code/releases/latest/download/claude-$(uname -s)-$(uname -m)"
+
+        echo "Downloading from: $LATEST_URL"
+        if curl -fsSL "$LATEST_URL" -o /tmp/claude-new; then
+            chmod +x /tmp/claude-new
+
+            # Backup current version
+            if [ -f "$CLAUDE_BIN" ]; then
+                sudo cp "$CLAUDE_BIN" "${CLAUDE_BIN}.backup"
+            fi
+
+            # Install new version
+            sudo mv /tmp/claude-new "$CLAUDE_BIN"
+
+            # Verify
+            NEW_VERSION=$(claude --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')
+            echo -e "${GREEN}✅ Updated to version $NEW_VERSION${NC}"
+        else
+            echo -e "${RED}❌ Failed to download Claude Code${NC}"
+            exit 1
+        fi
+        ;;
+
+    --docs-only)
+        echo "📚 Updating dotfiles via chezmoi..."
+
+        # Update chezmoi
+        cd $(chezmoi source-path)
+        git fetch
+
+        # Show what changed
+        echo ""
+        echo "Changes available:"
+        git log HEAD..origin/main --oneline
+
+        echo ""
+        read -p "Apply updates? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            chezmoi update
+            echo -e "${GREEN}✅ Dotfiles updated${NC}"
+        else
+            echo -e "${YELLOW}⏭️  Skipped dotfiles update${NC}"
+        fi
+        ;;
+
+    --all|*)
+        echo "🚀 Full update: Claude Code + dotfiles"
+        echo ""
+
+        # Update Claude Code
+        $0 --code-only
+        echo ""
+
+        # Update dotfiles
+        $0 --docs-only
+        echo ""
+
+        # Post-update tasks
+        echo "🔧 Running post-update tasks..."
+
+        # Restart notification daemon if running
+        if pgrep -f claude-notify-daemon > /dev/null; then
+            echo "  Restarting notification daemon..."
+            pkill -f claude-notify-daemon
+            nohup ~/.local/bin/claude-notify-daemon.py > /dev/null 2>&1 &
+        fi
+
+        # Validate setup
+        echo "  Validating configuration..."
+        if command -v claude-validate > /dev/null; then
+            claude-validate --quiet || echo -e "${YELLOW}⚠️  Some validation checks failed${NC}"
+        fi
+
+        echo ""
+        echo -e "${GREEN}✅ Update complete!${NC}"
+        echo ""
+        echo "💡 Reload your shell to ensure all changes take effect:"
+        echo "   exec $SHELL"
+        ;;
+esac
+```
+
+## Update Schedule
+
+Recommended update frequency:
+- **Weekly**: Check for updates with `/claude-update --check`
+- **Monthly**: Apply updates with `/claude-update`
+- **Immediately**: When you encounter bugs or need new features
+
+## Rollback
+
+If an update causes issues:
+
+```bash
+# Rollback Claude Code binary
+sudo cp /usr/local/bin/claude.backup /usr/local/bin/claude
+
+# Rollback dotfiles
+chezmoi git -- checkout HEAD~1
+chezmoi apply
+```
+
+## Notes
+
+- Updates preserve your local customizations in `.claude/`
+- MCP credentials remain untouched
+- Custom agents and commands are preserved
+- Always backup before major updates

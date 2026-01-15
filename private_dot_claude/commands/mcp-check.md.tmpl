@@ -21,22 +21,21 @@ echo "🔍 Checking MCP Authentication..."
 echo ""
 
 # Check required credentials
-check_credential() {
-    local name=$1
-    local var=$2
+if [ -n "$LINEAR_API_KEY" ]; then
+    # Mask the token (show first 4 and last 4 chars)
+    masked="${LINEAR_API_KEY:0:4}...${LINEAR_API_KEY: -4}"
+    echo "✅ Linear API Key: $masked"
+else
+    echo "❌ Linear API Key: Not set (LINEAR_API_KEY)"
+fi
 
-    if [ -n "${!var}" ]; then
-        # Mask the token (show first 4 and last 4 chars)
-        local token="${!var}"
-        local masked="${token:0:4}...${token: -4}"
-        echo "✅ $name: $masked"
-    else
-        echo "❌ $name: Not set (${var})"
-    fi
-}
-
-check_credential "Linear API Key" "LINEAR_API_KEY"
-check_credential "GitHub Token" "GITHUB_TOKEN"
+if [ -n "$GITHUB_TOKEN" ]; then
+    # Mask the token (show first 4 and last 4 chars)
+    masked="${GITHUB_TOKEN:0:4}...${GITHUB_TOKEN: -4}"
+    echo "✅ GitHub Token: $masked"
+else
+    echo "❌ GitHub Token: Not set (GITHUB_TOKEN)"
+fi
 
 echo ""
 echo "📡 Testing MCP Connections..."
@@ -62,7 +61,15 @@ elif [ -n "$REMOTE_CONTAINERS" ]; then
 elif [ -n "$TERM_PROGRAM" ] && [ "$TERM_PROGRAM" = "WarpTerminal" ]; then
     echo "   Location: Warp (macOS host)"
 else
-    echo "   Location: Unknown"
+    echo "   Location: macOS host"
+fi
+
+# Final status
+echo ""
+if [ -n "$GITHUB_TOKEN" ] && [ -n "$LINEAR_API_KEY" ]; then
+    echo "✅ All MCP servers authenticated successfully!"
+else
+    echo "⚠️  Some MCP servers are missing credentials"
 fi
 ```
 

@@ -1,0 +1,28 @@
+{{- if .is_macos }}
+name: METR Quick Deploy
+description: Streamlined 2-tab workspace for rapid deployment
+
+tabs:
+  - name: "build"
+    directory: ~/code/inspect-action
+    commands:
+      - source ~/.sh_functions
+      - awstg
+      - echo "🔨 Build & Push Environment"
+      - echo "Commands:"
+      - echo "  docker build -t hawk:dev ."
+      - echo "  ./scripts/build-and-push.sh"
+
+  - name: "deploy"
+    directory: ~/code/mp4-deploy
+    commands:
+      - source ~/.sh_functions
+      - awstg
+      - kubectl config use-context metr-dev
+      - echo "📦 Deployment Environment"
+      - echo "Commands:"
+      - echo "  tofu plan -target=module.hawk"
+      - echo "  tofu apply -target=module.hawk"
+      - echo ""
+      - echo "Quick status: kubectl get pods -n metr-dev"
+{{- end }}

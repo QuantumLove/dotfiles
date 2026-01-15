@@ -84,6 +84,80 @@ jq --arg suffix "$SUFFIX" '
     end
   )' "$TEMP_DEVCONTAINER/devcontainer.json" > "$TEMP_DEVCONTAINER/devcontainer.json.tmp"
 mv "$TEMP_DEVCONTAINER/devcontainer.json.tmp" "$TEMP_DEVCONTAINER/devcontainer.json"
+
+# Pass MCP credentials from host to container
+jq '
+  .remoteEnv.LINEAR_API_KEY = "${localEnv:LINEAR_API_KEY}" |
+  .remoteEnv.GITHUB_TOKEN = "${localEnv:GITHUB_TOKEN}"
+' "$TEMP_DEVCONTAINER/devcontainer.json" > "$TEMP_DEVCONTAINER/devcontainer.json.tmp"
+mv "$TEMP_DEVCONTAINER/devcontainer.json.tmp" "$TEMP_DEVCONTAINER/devcontainer.json"
+
+# Add Claude session persistence mounts
+jq '
+  .mounts += [
+    {
+      "source": "${localEnv:HOME}/.claude/session-env",
+      "target": "/home/vscode/.claude/session-env",
+      "type": "bind"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/todos",
+      "target": "/home/vscode/.claude/todos",
+      "type": "bind"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/projects",
+      "target": "/home/vscode/.claude/projects",
+      "type": "bind"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/cache",
+      "target": "/home/vscode/.claude/cache",
+      "type": "bind"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/paste-cache",
+      "target": "/home/vscode/.claude/paste-cache",
+      "type": "bind"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/stats-cache.json",
+      "target": "/home/vscode/.claude/stats-cache.json",
+      "type": "bind"
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/agents",
+      "target": "/home/vscode/.claude/agents",
+      "type": "bind",
+      "readonly": true
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/commands",
+      "target": "/home/vscode/.claude/commands",
+      "type": "bind",
+      "readonly": true
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/skills",
+      "target": "/home/vscode/.claude/skills",
+      "type": "bind",
+      "readonly": true
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/settings.json",
+      "target": "/home/vscode/.claude/settings.json",
+      "type": "bind",
+      "readonly": true
+    },
+    {
+      "source": "${localEnv:HOME}/.claude/mcp.json",
+      "target": "/home/vscode/.claude/mcp.json",
+      "type": "bind",
+      "readonly": true
+    }
+  ]
+' "$TEMP_DEVCONTAINER/devcontainer.json" > "$TEMP_DEVCONTAINER/devcontainer.json.tmp"
+mv "$TEMP_DEVCONTAINER/devcontainer.json.tmp" "$TEMP_DEVCONTAINER/devcontainer.json"
 ```
 
 **Step 3: Open VSCode**

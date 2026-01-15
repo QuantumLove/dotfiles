@@ -8,14 +8,36 @@ export PATH="$HOME/bin:$PATH"
 # Load shared custom functions for Warp
 [ -f "$HOME/.sh_functions" ] && . "$HOME/.sh_functions"
 
+# 1Password Configuration
+# Option 1: Service Account Token (Recommended - no interactive login)
+# Get token from: https://my.1password.com → Integrations → Service Accounts
+
+# Method A: macOS Keychain (most secure)
+if [ -z "$OP_SERVICE_ACCOUNT_TOKEN" ] && command -v security &> /dev/null; then
+    export OP_SERVICE_ACCOUNT_TOKEN=$(security find-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w 2>/dev/null)
+fi
+
+# Method B: Secure file
+if [ -z "$OP_SERVICE_ACCOUNT_TOKEN" ] && [ -f ~/.config/op/service-account-token ]; then
+    export OP_SERVICE_ACCOUNT_TOKEN=$(cat ~/.config/op/service-account-token)
+fi
+
 # Load MCP credentials from 1Password (if 1Password CLI is available)
 if command -v op &> /dev/null; then
-    # Only load if not already set (allows manual override)
-    if [ -z "$LINEAR_API_KEY" ]; then
-        export LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential" 2>/dev/null || echo "")
-    fi
+    if [ -n "$OP_SERVICE_ACCOUNT_TOKEN" ]; then
+        # Service account mode - no signin required
 
-    if [ -z "$GITHUB_TOKEN" ]; then
-        export GITHUB_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null || echo "")
+        # Only load if not already set (allows manual override)
+        if [ -z "$LINEAR_API_KEY" ]; then
+            export LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential" 2>/dev/null || echo "")
+        fi
+
+        if [ -z "$GITHUB_TOKEN" ]; then
+            export GITHUB_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null || echo "")
+        fi
+    else
+        # Interactive mode notice
+        echo "💡 1Password: No service account token found. You may be prompted to sign in."
+        echo "   To enable automatic auth, see: ~/.local/share/chezmoi/1PASSWORD_SETUP.md"
     fi
 fi

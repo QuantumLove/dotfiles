@@ -1,0 +1,339 @@
+---
+name: claude-diagnostics
+description: Run diagnostics and generate debug report for Claude Code issues
+---
+
+# Claude Diagnostics Command
+
+Comprehensive diagnostics tool for troubleshooting Claude Code issues. Generates detailed reports for debugging and support.
+
+## Usage
+
+```bash
+/claude-diagnostics                    # Run full diagnostics
+/claude-diagnostics --quick            # Quick health check only
+/claude-diagnostics --report           # Generate shareable report
+/claude-diagnostics --test-mcp         # Test MCP server connections
+/claude-diagnostics --test-hooks       # Test notification hooks
+/claude-diagnostics --fix-permissions  # Fix common permission issues
+```
+
+## What it Checks
+
+### System Information
+- OS version and architecture
+- Shell environment
+- User permissions
+- Available disk space
+
+### Claude Code Setup
+- Installation integrity
+- Configuration validity
+- Agent/command loading
+- Skill availability
+
+### Integration Points
+- MCP server connectivity
+- 1Password CLI access
+- Git configuration
+- Docker availability
+
+### Common Issues
+- Permission problems
+- Missing dependencies
+- Configuration errors
+- Network connectivity
+
+## Implementation
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+ACTION="${1:---full}"
+REPORT_FILE="/tmp/claude-diagnostics-$(date +%Y%m%d-%H%M%S).txt"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Diagnostic functions
+header() {
+    echo ""
+    echo -e "${BLUE}=== $1 ===${NC}"
+    echo ""
+}
+
+info() {
+    echo "  $1: $2"
+}
+
+test_connectivity() {
+    local url="$1"
+    local name="$2"
+
+    if curl -s -f -m 5 "$url" > /dev/null 2>&1; then
+        echo -e "  $name: ${GREEN}✅ Connected${NC}"
+        return 0
+    else
+        echo -e "  $name: ${RED}❌ Failed${NC}"
+        return 1
+    fi
+}
+
+# Start diagnostics
+echo -e "${BLUE}🔬 Claude Code Diagnostics${NC}"
+echo "Running diagnostics..."
+
+# Redirect output for report mode
+if [ "$ACTION" = "--report" ]; then
+    exec > >(tee "$REPORT_FILE")
+    echo "Claude Code Diagnostics Report"
+    echo "Generated: $(date)"
+    echo "=================================="
+fi
+
+case "$ACTION" in
+    --quick)
+        header "Quick Health Check"
+
+        # Basic checks only
+        command -v claude &>/dev/null && echo -e "  Claude binary: ${GREEN}✅${NC}" || echo -e "  Claude binary: ${RED}❌${NC}"
+        [ -d ~/.claude ] && echo -e "  Config directory: ${GREEN}✅${NC}" || echo -e "  Config directory: ${RED}❌${NC}"
+        [ -f ~/.claude/settings.json ] && echo -e "  Settings file: ${GREEN}✅${NC}" || echo -e "  Settings file: ${RED}❌${NC}"
+        pgrep -f claude-notify-daemon &>/dev/null && echo -e "  Notification daemon: ${GREEN}✅${NC}" || echo -e "  Notification daemon: ${YELLOW}⚠️${NC}"
+
+        echo ""
+        echo -e "${GREEN}Quick check complete${NC}"
+        ;;
+
+    --test-mcp)
+        header "MCP Server Tests"
+
+        # Test Linear
+        if [ -n "${LINEAR_API_KEY:-}" ]; then
+            echo "Testing Linear API..."
+            if curl -s -H "Authorization: Bearer $LINEAR_API_KEY" \
+                 -H "Content-Type: application/json" \
+                 -d '{"query":"{ viewer { id name } }"}' \
+                 https://api.linear.app/graphql | jq -e '.data.viewer.id' > /dev/null 2>&1; then
+                echo -e "  Linear API: ${GREEN}✅ Authenticated${NC}"
+            else
+                echo -e "  Linear API: ${RED}❌ Authentication failed${NC}"
+            fi
+        else
+            echo -e "  Linear API: ${YELLOW}⚠️  No API key set${NC}"
+        fi
+
+        # Test GitHub
+        if [ -n "${GITHUB_TOKEN:-}" ]; then
+            echo "Testing GitHub API..."
+            if curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+                 https://api.github.com/user | jq -e '.login' > /dev/null 2>&1; then
+                echo -e "  GitHub API: ${GREEN}✅ Authenticated${NC}"
+            else
+                echo -e "  GitHub API: ${RED}❌ Authentication failed${NC}"
+            fi
+        else
+            echo -e "  GitHub API: ${YELLOW}⚠️  No token set${NC}"
+        fi
+
+        # Test other MCP servers
+        test_connectivity "https://pypi.org/pypi/requests/json" "PyPI"
+        test_connectivity "https://api.github.com" "GitHub (public)"
+        ;;
+
+    --test-hooks)
+        header "Notification Hooks Test"
+
+        # Check daemon
+        if pgrep -f claude-notify-daemon > /dev/null 2>&1; then
+            echo -e "  Daemon status: ${GREEN}✅ Running${NC}"
+
+            # Test notification
+            echo "  Sending test notification..."
+            if curl -s -X POST http://localhost:9876/notify \
+                 -H "Content-Type: application/json" \
+                 -d '{"title":"Claude Test","message":"Hook test successful","type":"info"}' \
+                 > /dev/null 2>&1; then
+                echo -e "  Notification sent: ${GREEN}✅${NC}"
+                echo "  Check your notification center!"
+            else
+                echo -e "  Notification failed: ${RED}❌${NC}"
+            fi
+        else
+            echo -e "  Daemon status: ${RED}❌ Not running${NC}"
+            echo "  Start with: nohup ~/.local/bin/claude-notify-daemon.py &"
+        fi
+        ;;
+
+    --fix-permissions)
+        header "Fixing Permissions"
+
+        # Fix Claude binary
+        if [ -f /usr/local/bin/claude ]; then
+            chmod +x /usr/local/bin/claude
+            echo "  ✅ Fixed Claude binary permissions"
+        fi
+
+        # Fix hook scripts
+        if [ -d ~/.claude/hooks ]; then
+            find ~/.claude/hooks -name "*.sh" -type f -exec chmod +x {} +
+            echo "  ✅ Fixed hook script permissions"
+        fi
+
+        # Fix local bin scripts
+        if [ -d ~/.local/bin ]; then
+            chmod +x ~/.local/bin/claude-notify-daemon.py 2>/dev/null || true
+            echo "  ✅ Fixed daemon permissions"
+        fi
+
+        echo ""
+        echo -e "${GREEN}Permissions fixed${NC}"
+        ;;
+
+    --full|--report|*)
+        # System Information
+        header "System Information"
+        info "OS" "$(uname -s) $(uname -r)"
+        info "Architecture" "$(uname -m)"
+        info "Shell" "$SHELL ($(echo $0))"
+        info "User" "$USER"
+        info "Home" "$HOME"
+        info "Working Directory" "$(pwd)"
+
+        # Claude Installation
+        header "Claude Installation"
+        if command -v claude &>/dev/null; then
+            info "Binary Location" "$(which claude)"
+            info "Version" "$(claude --version 2>&1 | head -1 || echo 'error getting version')"
+            info "Permissions" "$(ls -la $(which claude) | awk '{print $1}')"
+        else
+            echo -e "  ${RED}Claude binary not found in PATH${NC}"
+        fi
+
+        # Configuration
+        header "Configuration Files"
+        for file in ~/.claude/settings.json ~/.claude/mcp.json; do
+            if [ -f "$file" ]; then
+                if jq . "$file" > /dev/null 2>&1; then
+                    echo -e "  $(basename $file): ${GREEN}✅ Valid JSON${NC}"
+                else
+                    echo -e "  $(basename $file): ${RED}❌ Invalid JSON${NC}"
+                    jq . "$file" 2>&1 | head -5
+                fi
+            else
+                echo -e "  $(basename $file): ${YELLOW}⚠️  Not found${NC}"
+            fi
+        done
+
+        # Environment Variables
+        header "Environment Variables"
+        [ -n "${LINEAR_API_KEY:-}" ] && echo -e "  LINEAR_API_KEY: ${GREEN}✅ Set${NC}" || echo -e "  LINEAR_API_KEY: ${YELLOW}⚠️  Not set${NC}"
+        [ -n "${GITHUB_TOKEN:-}" ] && echo -e "  GITHUB_TOKEN: ${GREEN}✅ Set${NC}" || echo -e "  GITHUB_TOKEN: ${YELLOW}⚠️  Not set${NC}"
+        [ -n "${REMOTE_CONTAINERS:-}" ] && echo -e "  REMOTE_CONTAINERS: ${BLUE}ℹ️  DevContainer detected${NC}"
+
+        # Dependencies
+        header "Dependencies"
+        for cmd in jq curl git chezmoi op gh docker; do
+            if command -v $cmd &>/dev/null; then
+                echo -e "  $cmd: ${GREEN}✅ $(command -v $cmd)${NC}"
+            else
+                echo -e "  $cmd: ${YELLOW}⚠️  Not found${NC}"
+            fi
+        done
+
+        # Network Connectivity
+        header "Network Connectivity"
+        test_connectivity "https://api.anthropic.com" "Anthropic API"
+        test_connectivity "https://api.github.com" "GitHub API"
+        test_connectivity "https://api.linear.app" "Linear API"
+
+        # Disk Space
+        header "Disk Space"
+        df -h ~ | grep -E "Filesystem|$HOME" || df -h ~ | tail -1
+
+        # Recent Errors
+        header "Recent Claude Errors"
+        if [ -f ~/.claude/claude.log ]; then
+            echo "Last 10 error lines:"
+            grep -i error ~/.claude/claude.log | tail -10 || echo "  No errors found"
+        else
+            echo "  No log file found"
+        fi
+
+        # Summary
+        echo ""
+        echo "=================================="
+        if [ "$ACTION" = "--report" ]; then
+            echo ""
+            echo -e "${GREEN}Report saved to: $REPORT_FILE${NC}"
+            echo "Share this file when requesting support."
+        else
+            echo -e "${GREEN}Diagnostics complete${NC}"
+            echo ""
+            echo "💡 For a shareable report, run:"
+            echo "   /claude-diagnostics --report"
+        fi
+        ;;
+esac
+```
+
+## Common Issues and Solutions
+
+### Claude binary not found
+```bash
+# Check if installed
+which claude || echo "Not found"
+
+# Re-download
+curl -fsSL https://github.com/anthropics/claude-code/releases/latest/download/claude-$(uname -s)-$(uname -m) -o /tmp/claude
+chmod +x /tmp/claude
+sudo mv /tmp/claude /usr/local/bin/
+```
+
+### Invalid JSON configuration
+```bash
+# Validate and fix
+jq . ~/.claude/settings.json > /tmp/fixed.json
+mv /tmp/fixed.json ~/.claude/settings.json
+```
+
+### MCP authentication failures
+```bash
+# Test 1Password
+op whoami || op signin
+
+# Re-export credentials
+export LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential")
+export GITHUB_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential")
+```
+
+### Notification daemon not running
+```bash
+# Check if installed
+ls -la ~/.local/bin/claude-notify-daemon.py
+
+# Start daemon
+nohup ~/.local/bin/claude-notify-daemon.py > /dev/null 2>&1 &
+
+# Add to login items (macOS)
+launchctl load ~/Library/LaunchAgents/com.claude.notify.plist
+```
+
+## Sharing Diagnostics
+
+When reporting issues:
+1. Run `/claude-diagnostics --report`
+2. Review the report for sensitive information
+3. Share the generated file with support
+
+## Notes
+
+- Diagnostics never include credentials or API keys
+- Reports are saved to `/tmp/` and cleaned automatically
+- Run after any Claude Code issues or updates
+- Safe to run multiple times

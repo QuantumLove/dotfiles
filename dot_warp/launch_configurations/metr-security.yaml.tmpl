@@ -1,0 +1,33 @@
+{{- if .is_macos }}
+name: METR Security Review
+description: Security-focused workspace for threat modeling and audits
+
+tabs:
+  - name: "threat-model"
+    directory: ~/code/platform-threat-modeling
+    commands:
+      - source ~/.sh_functions
+      - echo "🔒 STRIDE Threat Model"
+      - cat findings/summary.md
+
+  - name: "code-audit"
+    directory: ~/code/inspect-action
+    commands:
+      - source ~/.sh_functions
+      - echo "🔍 Security Code Audit"
+      - echo "Run: /security-check full"
+
+  - name: "vulnerability-scan"
+    directory: ~/code/mp4-deploy
+    commands:
+      - source ~/.sh_functions
+      - echo "🛡️ Vulnerability Scanning"
+      - echo "Run: /security-check scan"
+
+  - name: "compliance"
+    directory: ~/code/metr-iam
+    commands:
+      - source ~/.sh_functions
+      - echo "📋 Compliance Verification"
+      - echo "IAM policies, encryption, access controls"
+{{- end }}
