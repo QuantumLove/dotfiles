@@ -2,7 +2,7 @@
 
 **Philosophy:** Build a comprehensive, AI-augmented development environment that reduces friction across all workflows while maintaining safety and flexibility.
 
-**Core Insight:** The most valuable automation comes from well-structured Claude Code agents, commands, and contextual awareness. Infrastructure (chezmoi) exists solely to manage and deploy the Claude Code layer.
+**Core Insight:** The most valuable automation comes from well-structured Claude Code agents, commands, and contextual awareness. Infrastructure (chezmoi) exists mainly to manage and deploy the Claude Code layer.
 
 **Key Principle:** Everything is a Claude command. No shell functions, no aliases. If I need to run something, I use Claude commands in the Claude terminal.
 
@@ -700,12 +700,7 @@ When deploying infrastructure that references ECR images:
 # 1. Authenticate to ECR
 /ecr-login
 
-# 2. Build and push images
-docker build -t myservice:v1.0 .
-docker tag myservice:v1.0 $ECR_REGISTRY/myservice:v1.0
-docker push $ECR_REGISTRY/myservice:v1.0
-
-# 3. Run Tofu apply (references ECR image)
+# 2. Run Tofu apply (builds and pushes the ECR image)
 /tf-apply
 ```
 
@@ -1120,32 +1115,9 @@ Then use: `code --folder-uri "vscode-remote://dev-container+${PWD}/.devcontainer
 - **Cleanup:** Remove temporary configs after container stops
 - **Dry run:** Show what would be created without creating it
 
-## Alternative: DevContainer Templates
+---
 
-Instead of dynamic generation, use chezmoi to manage worktree-specific DevContainer configs:
-
-**File:** `~/.local/share/chezmoi/private_dot_devcontainer.worktrees/`
-```
-private_dot_devcontainer.worktrees/
-├── fix-auth/
-│   └── devcontainer.json.tmpl
-├── feature-xyz/
-│   └── devcontainer.json.tmpl
-└── main/
-    └── devcontainer.json.tmpl
-```
-
-Each template has unique names:
-```json
-{
-  "name": "{{ .project }}-{{ .worktree }}",
-  "runArgs": [
-    "--name={{ .project }}-{{ .worktree }}",
-    ...
-  ]
-}
-```
-```
+## DevContainer Management Commands
 
 **File:** `private_dot_claude/commands/dev-list.md.tmpl`
 
@@ -2094,34 +2066,7 @@ When rotating credentials (1Password reminds you every 90 days):
 - ✅ Emergency access for account recovery
 - ✅ Travel mode to hide vaults when crossing borders
 
-### Alternative: AWS Secrets Manager (Team/Enterprise)
-
-If you're on a team and everyone needs to share service accounts:
-
-**Store in AWS Secrets Manager:**
-```bash
-# Store team-wide service account token
-aws secretsmanager create-secret \
-  --name metr/mcp/github-service-account \
-  --secret-string "ghp_TEAM_SERVICE_ACCOUNT_TOKEN" \
-  --description "GitHub PAT for team MCP access"
-```
-
-**Load in .zshrc:**
-```bash
-# Load team credentials from AWS Secrets Manager
-if command -v aws &> /dev/null; then
-    export GITHUB_TOKEN=$(aws secretsmanager get-secret-value \
-      --secret-id metr/mcp/github-service-account \
-      --query SecretString --output text)
-fi
-```
-
-**When to use AWS Secrets Manager vs 1Password:**
-- **1Password:** Personal credentials, local development
-- **AWS Secrets Manager:** Team service accounts, shared credentials, CI/CD
-
-You can use both! Personal 1Password for most things, AWS Secrets Manager for shared service accounts.
+---
 
 ### Claude Command: Set Up 1Password MCP Integration
 
@@ -2901,7 +2846,7 @@ terminal-notifier -title "Test" -message "Testing" -sender com.anthropic.claudef
 ---
 name: agent-name
 description: One-line description of what this agent does
-model: claude-sonnet-4
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -2940,7 +2885,7 @@ You are [specific role], an expert in [domain].
 ---
 name: code-reviewer
 description: Expert code reviewer providing thorough, critical reviews with actionable feedback
-model: claude-opus-4
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -3217,7 +3162,7 @@ When reviewing code in inspect-action, mp4-deploy, or iam repositories:
 ---
 name: security-specialist
 description: METR platform security specialist using STRIDE threat modeling methodology
-model: claude-opus-4
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -3586,7 +3531,7 @@ When both security-specialist and code-reviewer review the same PR:
 ---
 name: orchestrator
 description: Decomposes complex work into parallel sub-tasks with Linear issue tracking
-model: claude-opus-4
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -4026,7 +3971,7 @@ done
 ---
 name: adversary
 description: Critical code critic that challenges design decisions and finds complexity
-model: claude-opus-4
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -4474,7 +4419,7 @@ def get_eval_result(eval_id: str) -> EvalResult:
 ---
 name: performance-engineer
 description: Performance optimization specialist focused on measurements and data-driven decisions
-model: claude-sonnet-4
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -4858,7 +4803,7 @@ def get_eval(eval_id: str):
 ---
 name: Bug Finder
 description: Systematic bug detection and root cause analysis specialist
-model: claude-sonnet-4-5
+model: claude-opus-4.5
 ---
 
 # Role
@@ -5166,7 +5111,7 @@ aws ecr get-login-password --region us-west-2 | docker login --username AWS --pa
 ---
 name: Code Architect
 description: System design and architectural pattern specialist for METR platform
-model: claude-sonnet-4-5
+model: claude-opus-4.5
 ---
 
 # Role
@@ -5603,7 +5548,7 @@ When reviewing code as an architect:
 ---
 name: dev4-deployment-manager
 description: METR-specific deployment automation for dev4 environment from worktrees
-model: claude-sonnet-4-5
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -6062,7 +6007,7 @@ Summary: 6 passed, 1 skipped, 0 failed
 ---
 name: pr-review-responder
 description: Autonomously responds to PR review comments by implementing changes or providing clarifications
-model: claude-sonnet-4-5
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -6437,7 +6382,7 @@ $ claude agent run pr-review-responder --pr 456
 ---
 name: proficiency-coach
 description: Interactive learning agent that teaches and quizzes you on this development setup
-model: claude-opus-4
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -6883,7 +6828,7 @@ Coach: Perfect! I'll send you a reminder. See you then! 👋
 ---
 name: chezmoi-manager
 description: Manages chezmoi dotfiles configuration for Claude Code setup
-model: claude-sonnet-4
+model: claude-opus-4.5
 ---
 
 # Role Definition
@@ -9337,9 +9282,9 @@ After implementing each component, verify it works correctly with non-destructiv
 - Okay to create draft PRs since they'll be deleted immediately
 
 **Steps:**
-1. Create or use a dedicated test repository:
+1. Create a dedicated test repository:
    ```bash
-   # Option 1: Create new test repo
+   # Create new test repo for validation
    mkdir -p ~/code/claude-test-repo
    cd ~/code/claude-test-repo
    git init
@@ -9348,12 +9293,9 @@ After implementing each component, verify it works correctly with non-destructiv
    git add README.md
    git commit -m "Initial commit"
    git push -u origin main
-
-   # Option 2: Use existing test repo
-   cd ~/code/claude-test-repo  # Your existing test repo
-   git checkout main
-   git pull
    ```
+
+   > **Note:** If you already have a test repo, simply `cd` into it and ensure you're on main branch.
 
 2. Create a test branch:
    ```bash
@@ -10116,6 +10058,59 @@ Results: 7 passed, 0 failed
 ✅ All foundation tests passed!
 ```
 ```
+
+---
+
+## Documentation Strategy
+
+As you implement this plan, maintain comprehensive documentation to ensure long-term maintainability:
+
+### Script Documentation
+
+All validation and setup scripts should include:
+- **Header comments** explaining purpose, safety guarantees (non-destructive), and usage
+- **Inline comments** for complex logic or environment-specific behavior
+- **Example output** showing what success looks like
+- **Error messages** that are actionable and suggest fixes
+
+Example:
+```bash
+#!/bin/bash
+# Validate Claude Code foundation is correctly configured
+# This script is 100% non-destructive - it only reads configuration
+# Usage: ./validate-foundation.sh
+
+echo "🧪 Testing Chezmoi Foundation"
+echo "These tests are completely safe and only check configuration."
+```
+
+### Component READMEs
+
+Create README files in key directories:
+
+- **`~/.claude/agents/README.md`**: Overview of all agents, when to use each, model choices
+- **`~/.claude/commands/README.md`**: Command catalog with examples and workflows
+- **`~/.claude/skills/README.md`**: Skill system explanation and how to add skills
+- **`~/code/mp4-deploy/.claude/README.md`**: Project-specific agent setup
+
+### Main Repository README
+
+Update `~/Local/share/chezmoi/README.md` to include:
+- **Quick Start**: Get from zero to working setup in 5 minutes
+- **Prerequisites**: Required tools with installation commands
+- **Architecture Overview**: High-level diagram and explanation
+- **Troubleshooting**: Common issues and solutions
+- **Testing**: How to validate the setup works
+
+### Progress Tracking
+
+Use the Progress Tracker at the end of this document during implementation:
+- Mark components as you complete them
+- Document any deviations from the plan
+- Note issues encountered and how you solved them
+- Track which tests pass at each phase
+
+**Goal:** Anyone (including future you) should be able to understand, maintain, and extend this setup without re-reading this entire 10,000+ line plan.
 
 ---
 
