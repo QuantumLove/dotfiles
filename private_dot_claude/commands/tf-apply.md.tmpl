@@ -1,0 +1,332 @@
+---
+name: tf-apply
+description: Apply Terraform/OpenTofu changes with validation and safety checks
+permissions:
+  - Bash(tofu *)
+  - Bash(terraform *)
+---
+
+# TF Apply - Safe Terraform/OpenTofu Application
+
+Apply infrastructure changes with comprehensive validation, planning, and rollback support.
+
+## Usage
+
+```bash
+/tf-apply                    # Full workflow: plan → review → apply
+/tf-apply --auto-approve     # Skip confirmation (use carefully!)
+/tf-apply --target RESOURCE  # Apply specific resource only
+/tf-apply --workspace dev4   # Apply to specific workspace
+```
+
+## Workflow
+
+1. **Workspace selection** - Ensure correct environment
+2. **Terraform plan** - Preview changes
+3. **Cost estimation** - Show resource changes (add/change/destroy)
+4. **Manual review** - Require explicit approval
+5. **Apply changes** - Execute with progress tracking
+6. **Output capture** - Save important outputs
+
+## Implementation
+
+```bash
+#!/bin/bash
+set -e
+
+echo "🏗️  TF Apply - Safe Infrastructure Changes"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+AUTO_APPROVE=false
+TARGET=""
+WORKSPACE=""
+
+# Parse arguments
+for arg in "$@"; do
+  case $arg in
+    --auto-approve)
+      AUTO_APPROVE=true
+      ;;
+    --target)
+      shift
+      TARGET=$1
+      ;;
+    --target=*)
+      TARGET="${arg#*=}"
+      ;;
+    --workspace)
+      shift
+      WORKSPACE=$1
+      ;;
+    --workspace=*)
+      WORKSPACE="${arg#*=}"
+      ;;
+  esac
+done
+
+# Detect tool (tofu or terraform)
+if command -v tofu &> /dev/null; then
+  TF_CMD="tofu"
+elif command -v terraform &> /dev/null; then
+  TF_CMD="terraform"
+else
+  echo "❌ Neither tofu nor terraform found"
+  echo "   Install: brew install opentofu"
+  exit 1
+fi
+
+echo "Using: $TF_CMD"
+echo ""
+
+# Check if in terraform directory
+if [ ! -f "main.tf" ] && [ ! -f "*.tf" ]; then
+  echo "⚠️  No Terraform files found in current directory"
+  read -p "Continue anyway? (y/n): " -n 1 -r
+  echo ""
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    exit 0
+  fi
+fi
+
+# Select workspace if specified
+if [ -n "$WORKSPACE" ]; then
+  echo "📂 Selecting workspace: $WORKSPACE"
+  if ! $TF_CMD workspace select "$WORKSPACE" 2>/dev/null; then
+    echo "Creating workspace: $WORKSPACE"
+    $TF_CMD workspace new "$WORKSPACE"
+  fi
+  echo ""
+fi
+
+# Show current workspace
+CURRENT_WORKSPACE=$($TF_CMD workspace show)
+echo "📍 Current workspace: $CURRENT_WORKSPACE"
+echo ""
+
+# Confirm workspace if production
+if [[ "$CURRENT_WORKSPACE" == *"prod"* ]] || [[ "$CURRENT_WORKSPACE" == *"production"* ]]; then
+  echo "⚠️  WARNING: You are in PRODUCTION workspace!"
+  read -p "Are you ABSOLUTELY sure you want to apply to production? (type 'yes'): " -r
+  if [[ ! $REPLY == "yes" ]]; then
+    echo "Aborted."
+    exit 0
+  fi
+fi
+
+# Initialize if needed
+if [ ! -d ".terraform" ]; then
+  echo "🔧 Initializing Terraform..."
+  $TF_CMD init
+  echo ""
+fi
+
+# Create plan
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📝 Creating Terraform Plan"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+PLAN_FILE="tfplan-$(date +%Y%m%d-%H%M%S)"
+
+if [ -n "$TARGET" ]; then
+  echo "🎯 Targeting specific resource: $TARGET"
+  $TF_CMD plan -out="$PLAN_FILE" -target="$TARGET"
+else
+  $TF_CMD plan -out="$PLAN_FILE"
+fi
+
+# Parse plan output
+PLAN_OUTPUT=$($TF_CMD show "$PLAN_FILE")
+ADD_COUNT=$(echo "$PLAN_OUTPUT" | grep -c "will be created" || echo 0)
+CHANGE_COUNT=$(echo "$PLAN_OUTPUT" | grep -c "will be updated" || echo 0)
+DESTROY_COUNT=$(echo "$PLAN_OUTPUT" | grep -c "will be destroyed" || echo 0)
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📊 Plan Summary"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Add:     $ADD_COUNT resources"
+echo "  Change:  $CHANGE_COUNT resources"
+echo "  Destroy: $DESTROY_COUNT resources"
+echo ""
+
+# Warning if destroying resources
+if [ "$DESTROY_COUNT" -gt 0 ]; then
+  echo "⚠️  WARNING: This plan will DESTROY $DESTROY_COUNT resource(s)!"
+  echo "   Review the plan above carefully before proceeding."
+  echo ""
+fi
+
+# Get approval (unless auto-approve)
+if [ "$AUTO_APPROVE" = false ]; then
+  read -p "Apply these changes? (yes/no): " -r
+  if [[ ! $REPLY == "yes" ]]; then
+    echo "Aborted."
+    rm "$PLAN_FILE"
+    exit 0
+  fi
+  echo ""
+fi
+
+# Apply the plan
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚀 Applying Changes"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+if $TF_CMD apply "$PLAN_FILE"; then
+  echo ""
+  echo "✅ Terraform apply successful!"
+
+  # Capture outputs
+  if $TF_CMD output &> /dev/null; then
+    echo ""
+    echo "📤 Outputs:"
+    $TF_CMD output
+  fi
+
+  # Clean up plan file
+  rm "$PLAN_FILE"
+
+  # Show state
+  echo ""
+  echo "📦 Current State:"
+  $TF_CMD state list | head -20
+  TOTAL_RESOURCES=$($TF_CMD state list | wc -l | tr -d ' ')
+  echo "   Total: $TOTAL_RESOURCES resources"
+
+else
+  echo ""
+  echo "❌ Terraform apply failed!"
+  echo ""
+  echo "Rollback options:"
+  echo "  1. Fix the issue and re-run: /tf-apply"
+  echo "  2. Revert code changes: git revert HEAD"
+  echo "  3. Manual intervention needed - check logs above"
+  echo ""
+  echo "Plan file preserved: $PLAN_FILE"
+  echo "To retry: $TF_CMD apply $PLAN_FILE"
+  exit 1
+fi
+```
+
+## Example Output
+
+```
+🏗️  TF Apply - Safe Infrastructure Changes
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Using: tofu
+
+📍 Current workspace: dev4
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 Creating Terraform Plan
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Terraform will perform the following actions:
+
+  # aws_s3_bucket.eval_logs will be updated in-place
+  ~ resource "aws_s3_bucket" "eval_logs" {
+      ~ tags = {
+          - "OldTag" = "value"
+          + "NewTag" = "value"
+        }
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 Plan Summary
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Add:     0 resources
+  Change:  1 resources
+  Destroy: 0 resources
+
+Apply these changes? (yes/no): yes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 Applying Changes
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+aws_s3_bucket.eval_logs: Modifying...
+aws_s3_bucket.eval_logs: Modifications complete after 2s
+
+Apply complete! Resources: 0 added, 1 changed, 0 destroyed.
+
+✅ Terraform apply successful!
+
+📤 Outputs:
+bucket_name = "metr-eval-logs-dev4"
+bucket_arn = "arn:aws:s3:::metr-eval-logs-dev4"
+```
+
+## Safety Features
+
+1. **Plan preview** - Always show what will change
+2. **Manual approval** - Requires typing "yes" to proceed
+3. **Production safeguards** - Extra confirmation for prod workspaces
+4. **Change summary** - Clear count of adds/changes/destroys
+5. **Plan file preservation** - Keep plan if apply fails
+6. **State backup** - Terraform maintains state backups automatically
+
+## Advanced Usage
+
+**Target specific resource:**
+```bash
+/tf-apply --target aws_s3_bucket.eval_logs
+```
+
+**Switch workspace and apply:**
+```bash
+/tf-apply --workspace staging
+```
+
+**Automated CI/CD (use with caution):**
+```bash
+/tf-apply --auto-approve     # Skip confirmation
+```
+
+## Common Patterns
+
+**Deploying new feature:**
+```bash
+# 1. Make Terraform changes
+# 2. Preview
+/tf-apply
+
+# 3. Review plan, type "yes"
+# 4. Verify outputs
+```
+
+**Updating existing resource:**
+```bash
+# Target just the changed resource
+/tf-apply --target aws_ecs_task_definition.api
+```
+
+**Multi-environment workflow:**
+```bash
+# Apply to dev first
+/tf-apply --workspace dev4
+
+# Test, then apply to staging
+/tf-apply --workspace staging
+
+# Finally production (with extra care)
+/tf-apply --workspace production
+```
+
+## Integration
+
+Works with:
+- `/deploy-dev` - Full deployment workflow (includes tf-apply)
+- `/aws-preflight` - Verify credentials before applying
+- `@dev4-deployment-manager` - Specialized deployment agent
+
+## Related Commands
+
+- `/deploy-dev` - Full METR dev4 deployment
+- `/aws-switch` - Switch AWS profiles
+- `/aws-preflight` - Pre-flight checks

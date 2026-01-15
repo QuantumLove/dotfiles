@@ -1,0 +1,191 @@
+---
+name: dev-clean
+description: Clean up stopped DevContainers and orphaned volumes
+permissions:
+  - Bash(docker ps *)
+  - Bash(docker rm *)
+  - Bash(docker volume prune *)
+---
+
+# Dev Clean - DevContainer Cleanup
+
+Safely remove stopped DevContainers and clean up orphaned Docker volumes to free disk space.
+
+## Usage
+
+```bash
+/dev-clean                # Interactive cleanup
+/dev-clean --all          # Remove all stopped containers
+/dev-clean --volumes      # Also prune unused volumes
+/dev-clean --dry-run      # Preview what would be removed
+```
+
+## What It Cleans
+
+1. **Stopped DevContainers** - Containers that are no longer running
+2. **Orphaned volumes** - Volumes not associated with any container
+3. **Dangling images** - Unused DevContainer images (optional)
+
+## Implementation
+
+```bash
+#!/bin/bash
+
+echo "🧹 DevContainer Cleanup"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+ALL=false
+VOLUMES=false
+DRY_RUN=false
+
+# Parse arguments
+for arg in "$@"; do
+  case $arg in
+    --all)
+      ALL=true
+      ;;
+    --volumes)
+      VOLUMES=true
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      ;;
+  esac
+done
+
+# Find stopped DevContainers
+STOPPED=$(docker ps -a --filter "status=exited" --filter "label=devcontainer.metadata" --format "{{ "{{" }}.Names{{ "}}" }}")
+
+if [ -z "$STOPPED" ]; then
+  echo "✅ No stopped DevContainers to clean up."
+else
+  echo "📋 Stopped DevContainers:"
+  for container in $STOPPED; do
+    CREATED=$(docker inspect --format='{{ "{{" }}.Created{{ "}}" }}' "$container" | cut -d'T' -f1)
+    SIZE=$(docker inspect --format='{{ "{{" }}.SizeRootFs{{ "}}" }}' "$container" 2>/dev/null | numfmt --to=iec 2>/dev/null || echo "unknown")
+    echo "  • $container (created: $CREATED, size: $SIZE)"
+  done
+  echo ""
+
+  if [ "$DRY_RUN" = true ]; then
+    echo "🔍 Dry-run mode: Would remove $(echo "$STOPPED" | wc -l | tr -d ' ') containers"
+  elif [ "$ALL" = true ]; then
+    echo "Removing all stopped containers..."
+    for container in $STOPPED; do
+      docker rm "$container"
+      echo "  ✅ Removed: $container"
+    done
+  else
+    # Interactive mode
+    for container in $STOPPED; do
+      read -p "Remove $container? (y/n): " -n 1 -r
+      echo ""
+      if [[ $REPLY =~ ^[Yy]$ ]]; then
+        docker rm "$container"
+        echo "  ✅ Removed: $container"
+      else
+        echo "  ⏭️  Skipped: $container"
+      fi
+    done
+  fi
+fi
+
+# Clean up volumes if requested
+if [ "$VOLUMES" = true ]; then
+  echo ""
+  echo "🗑️  Cleaning up orphaned volumes..."
+
+  if [ "$DRY_RUN" = true ]; then
+    ORPHANED=$(docker volume ls -qf dangling=true | wc -l | tr -d ' ')
+    echo "🔍 Dry-run mode: Would prune $ORPHANED orphaned volumes"
+  else
+    docker volume prune -f
+    echo "✅ Orphaned volumes removed"
+  fi
+fi
+
+# Show disk space saved
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "💾 Docker Disk Usage:"
+docker system df
+
+echo ""
+echo "💡 Tip: Run '/dev-clean --all --volumes' to aggressively clean up"
+echo "💡 Tip: Run 'docker system prune -a' for deep cleanup (removes all unused images)"
+```
+
+## Example Output
+
+```
+🧹 DevContainer Cleanup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 Stopped DevContainers:
+  • inspect-action-dev (created: 2025-01-10, size: 1.2G)
+  • mp4-deploy-old (created: 2025-01-05, size: 890M)
+
+Remove inspect-action-dev? (y/n): y
+  ✅ Removed: inspect-action-dev
+
+Remove mp4-deploy-old? (y/n): y
+  ✅ Removed: mp4-deploy-old
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💾 Docker Disk Usage:
+TYPE           TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images         15        3         8.5GB     6.2GB (73%)
+Containers     5         2         120MB     45MB (37%)
+Local Volumes  8         3         2.1GB     890MB (42%)
+
+💡 Tip: Run '/dev-clean --all --volumes' to aggressively clean up
+```
+
+## Safety Features
+
+1. **Interactive by default** - Asks before removing each container
+2. **DevContainer-only** - Only touches containers with devcontainer labels
+3. **Dry-run mode** - Preview changes before executing
+4. **Running containers protected** - Only removes stopped containers
+
+## When To Use
+
+**Weekly cleanup:**
+```bash
+/dev-clean                   # Interactive review and cleanup
+```
+
+**After finishing work on issue:**
+```bash
+/dev-clean --all             # Remove all stopped containers
+```
+
+**Deep cleanup (free lots of space):**
+```bash
+/dev-clean --all --volumes   # Remove containers and volumes
+```
+
+**Preview before cleaning:**
+```bash
+/dev-clean --dry-run --all --volumes
+```
+
+## Disk Space Management
+
+**Check usage:**
+```bash
+docker system df             # See what's using space
+```
+
+**Aggressive cleanup (beyond DevContainers):**
+```bash
+docker system prune -a       # Remove ALL unused Docker data
+# Warning: Removes all unused images, not just DevContainers!
+```
+
+## Related Commands
+
+- `/dev-list` - See what containers are running
+- `/dev-open` - Open new DevContainer
+- `/start-work` - Create worktree + DevContainer

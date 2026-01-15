@@ -1,0 +1,168 @@
+---
+name: dev-list
+description: List all running DevContainers with their worktree associations
+permissions:
+  - Bash(docker ps *)
+  - Bash(docker inspect *)
+---
+
+# Dev List - List Running DevContainers
+
+Shows all running DevContainers with their associated worktrees, helping you navigate between multiple container environments.
+
+## Usage
+
+```bash
+/dev-list                 # List all running DevContainers
+/dev-list --verbose       # Show detailed information
+/dev-list --json          # Output as JSON
+```
+
+## What It Shows
+
+- Container name
+- Associated worktree (if detected)
+- Status (running/stopped)
+- Ports exposed
+- Created time
+- Resource usage (CPU/Memory)
+
+## Implementation
+
+```bash
+#!/bin/bash
+
+echo "🐳 DevContainer List"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+VERBOSE=false
+JSON_OUTPUT=false
+
+# Parse arguments
+for arg in "$@"; do
+  case $arg in
+    --verbose)
+      VERBOSE=true
+      ;;
+    --json)
+      JSON_OUTPUT=true
+      ;;
+  esac
+done
+
+# Find all DevContainers (containers with vscode labels)
+CONTAINERS=$(docker ps -a --filter "label=devcontainer.metadata" --format "{{ "{{" }}.Names{{ "}}" }}")
+
+if [ -z "$CONTAINERS" ]; then
+  echo "No DevContainers found."
+  exit 0
+fi
+
+if [ "$JSON_OUTPUT" = true ]; then
+  # JSON output
+  echo "["
+  FIRST=true
+  for container in $CONTAINERS; do
+    if [ "$FIRST" = false ]; then
+      echo ","
+    fi
+    FIRST=false
+
+    STATUS=$(docker inspect --format='{{ "{{" }}.State.Status{{ "}}" }}' "$container")
+    CREATED=$(docker inspect --format='{{ "{{" }}.Created{{ "}}" }}' "$container" | cut -d'T' -f1)
+    PORTS=$(docker inspect --format='{{ "{{" }}range $p, $conf := .NetworkSettings.Ports{{ "}}" }}{{ "{{" }}if $conf{{ "}}" }}{{ "{{" }}$p{{ "}}" }} {{ "{{" }}end{{ "}}" }}{{ "{{" }}end{{ "}}" }}' "$container")
+
+    cat <<EOF
+  {
+    "name": "$container",
+    "status": "$STATUS",
+    "created": "$CREATED",
+    "ports": "$PORTS"
+  }
+EOF
+  done
+  echo ""
+  echo "]"
+  exit 0
+fi
+
+# Human-readable output
+printf "%-40s %-12s %-15s %-30s\n" "CONTAINER NAME" "STATUS" "CREATED" "PORTS"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+for container in $CONTAINERS; do
+  STATUS=$(docker inspect --format='{{ "{{" }}.State.Status{{ "}}" }}' "$container")
+  CREATED=$(docker inspect --format='{{ "{{" }}.Created{{ "}}" }}' "$container" | cut -d'T' -f1)
+  PORTS=$(docker inspect --format='{{ "{{" }}range $p, $conf := .NetworkSettings.Ports{{ "}}" }}{{ "{{" }}if $conf{{ "}}" }}{{ "{{" }}$p{{ "}}" }} {{ "{{" }}end{{ "}}" }}{{ "{{" }}end{{ "}}" }}' "$container" | head -c 30)
+
+  # Color code status
+  if [ "$STATUS" = "running" ]; then
+    STATUS_DISPLAY="✅ $STATUS"
+  else
+    STATUS_DISPLAY="❌ $STATUS"
+  fi
+
+  printf "%-40s %-12s %-15s %-30s\n" "$container" "$STATUS_DISPLAY" "$CREATED" "$PORTS"
+
+  # Verbose mode - show resource usage
+  if [ "$VERBOSE" = true ] && [ "$STATUS" = "running" ]; then
+    CPU=$(docker stats "$container" --no-stream --format "{{ "{{" }}.CPUPerc{{ "}}" }}" 2>/dev/null || echo "N/A")
+    MEM=$(docker stats "$container" --no-stream --format "{{ "{{" }}.MemUsage{{ "}}" }}" 2>/dev/null || echo "N/A")
+    echo "  └─ Resources: CPU: $CPU | Memory: $MEM"
+  fi
+done
+
+echo ""
+echo "Total containers: $(echo "$CONTAINERS" | wc -l | tr -d ' ')"
+
+# Show quick actions
+echo ""
+echo "Quick Actions:"
+echo "  • Connect to container:  docker exec -it <container-name> bash"
+echo "  • View logs:             docker logs <container-name>"
+echo "  • Stop container:        docker stop <container-name>"
+echo "  • Remove stopped:        /dev-clean"
+```
+
+## Example Output
+
+```
+🐳 DevContainer List
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CONTAINER NAME                           STATUS       CREATED         PORTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+inspect-action-dev-worktree-metr-123    ✅ running   2025-01-15     8000/tcp, 5432/tcp
+mp4-deploy-dev-worktree-metr-456        ✅ running   2025-01-14     3000/tcp
+inspect-action-dev                      ❌ exited    2025-01-10
+
+Total containers: 3
+
+Quick Actions:
+  • Connect to container:  docker exec -it <container-name> bash
+  • View logs:             docker logs <container-name>
+  • Stop container:        docker stop <container-name>
+  • Remove stopped:        /dev-clean
+```
+
+## Integration
+
+**After creating worktree:**
+```bash
+/start-work METR-123     # Creates worktree
+/dev-open                 # Opens DevContainer
+/dev-list                 # See all your environments
+```
+
+**Navigate between containers:**
+```bash
+/dev-list                            # See what's running
+docker exec -it inspect-action-dev bash  # Jump into container
+```
+
+## Related Commands
+
+- `/dev-open` - Open DevContainer for worktree
+- `/dev-clean` - Clean up stopped containers
+- `/start-work` - Create worktree and open DevContainer

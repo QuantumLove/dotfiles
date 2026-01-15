@@ -7,3 +7,19 @@ export PATH="$HOME/bin:$PATH"
 
 # Load shared custom functions for Warp
 [ -f "$HOME/.sh_functions" ] && . "$HOME/.sh_functions"
+
+# Load MCP credentials from 1Password (if 1Password CLI is available)
+if command -v op &> /dev/null; then
+    # Only load if not already set (allows manual override)
+    if [ -z "$LINEAR_API_KEY" ]; then
+        export LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential" 2>/dev/null || echo "")
+    fi
+
+    if [ -z "$GITHUB_TOKEN" ]; then
+        export GITHUB_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null || echo "")
+    fi
+
+    if [ -z "$CONTEXT7_API_KEY" ]; then
+        export CONTEXT7_API_KEY=$(op read "op://Development/Context7 API Key/credential" 2>/dev/null || echo "")
+    fi
+fi

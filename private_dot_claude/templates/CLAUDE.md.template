@@ -1,0 +1,53 @@
+# {Project Name}
+
+## Quick Start
+
+```bash
+# Clone and setup
+git clone {repo}
+cd {project}
+{setup commands}
+```
+
+## Architecture
+
+{High-level overview}
+
+### Key Components
+- **Component 1:** {description}
+- **Component 2:** {description}
+
+## Security Constraints
+
+⚠️ **CRITICAL:**
+- {constraint 1}
+- {constraint 2}
+
+## Common Tasks
+
+### {Task 1}
+```bash
+{commands}
+```
+
+### {Task 2}
+```bash
+{commands}
+```
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| {file} | {description} |
+
+## Gotchas
+
+- ⚠️ {gotcha 1}
+- ⚠️ {gotcha 2}
+
+## Development Workflow
+
+1. {step 1}
+2. {step 2}
+3. {step 3}
