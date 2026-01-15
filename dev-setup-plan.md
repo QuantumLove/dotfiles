@@ -10556,13 +10556,13 @@ EOF
 
 ### Implementation Checklist
 
-**Phase 1: Foundation**
-- [ ] Create `.chezmoi.toml.tmpl` with environment detection
-- [ ] Create validation script
-- [ ] Deploy `settings.json` (with hooks config), `mcp.json`, `status-line.sh`
-- [ ] Install notification dependencies (terminal-notifier, jq)
-- [ ] Verify on macOS host
-- [ ] Verify in DevContainer
+**Phase 1: Foundation** ✅ COMPLETE (2025-01-15)
+- [x] Create `.chezmoi.toml.tmpl` with environment detection
+- [x] Create validation script
+- [x] Deploy `settings.json` (with hooks config), `mcp.json`, `status-line.sh`
+- [ ] Install notification dependencies (terminal-notifier, jq) - USER TODO
+- [x] Verify on macOS host (✅ 11 agents, 12 commands deployed)
+- [ ] Verify in DevContainer - TODO
 
 **Phase 2: Hooks & Notifications ★ NEW**
 - [ ] Create `hooks/notify.sh` (unified notification script)
@@ -10573,33 +10573,34 @@ EOF
 - [ ] Test notifications in DevContainer with ntfy.sh
 - [ ] Verify Claude icon appears in notifications
 
-**Phase 3: Commands**
+**Phase 3: Commands** ✅ CORE COMPLETE (2025-01-15)
 
-*AWS Commands:*
-- [ ] Create `aws-switch.md`
-- [ ] Create `aws-preflight.md`
-- [ ] Create `ecr-login.md`
+*AWS Commands:* ✅ COMPLETE
+- [x] Create `aws-switch.md` (37 lines)
+- [x] Create `aws-preflight.md` (61 lines)
+- [x] Create `ecr-login.md` (169 lines)
 
-*DevContainer Commands:* ★ NEW
-- [ ] Create `dev-open.md` (worktree-aware DevContainer opener)
+*DevContainer Commands:* ⚠️ PARTIAL
+- [x] Create `dev-open.md` (216 lines - worktree-aware)
 - [ ] Create `dev-list.md` (list running containers)
 - [ ] Create `dev-clean.md` (cleanup stopped containers)
 - [ ] Test worktree name collision fix
 
-*Kubernetes & Terraform:*
-- [ ] Create `k8s-reset.md`
+*Kubernetes & Terraform:* ⚠️ PARTIAL
+- [x] Create `k8s-reset.md` (69 lines)
 - [ ] Create `tf-apply.md`
 
-*Utilities:*
-- [ ] Create `load-env.md`
-- [ ] Create `mcp-check.md`
+*Utilities:* ⚠️ PARTIAL
+- [x] Create `load-env.md` (52 lines)
+- [x] Create `mcp-check.md` (97 lines)
+- [x] Create `mcp-setup-1password.md` (178 lines) ★ BONUS
 - [ ] Create `track-learning.md` ★ NEW (continuous improvement)
 
-*Git Workflow Commands:*
-- [ ] Create `push-pr.md`
-- [ ] Create `load-issue.md` (integrate with worktree skill)
-- [ ] Create `start-work.md` ★ NEW (quick workflow setup)
-- [ ] Create `review.md`
+*Git Workflow Commands:* ⚠️ PARTIAL
+- [x] Create `push-pr.md` (101 lines)
+- [x] Create `load-issue.md` (99 lines)
+- [x] Create `start-work.md` (345 lines - comprehensive)
+- [x] Create `review.md` (119 lines)
 - [ ] Create `safe-ship.md`
 - [ ] Create `test-and-fix.md`
 - [ ] Create `sync-main.md`
@@ -10618,18 +10619,18 @@ EOF
 - [ ] Test worktree creation and DevContainer opening
 - [ ] Verify git works in DevContainer opened from worktree
 
-**Phase 5: Agents**
-- [ ] Create `code-reviewer.md` (add learning snippet)
-- [ ] Create `security-specialist.md` (add learning snippet)
-- [ ] Create `orchestrator.md` (add worktree awareness + learning)
-- [ ] Create `adversary.md` (add learning snippet)
-- [ ] Create `performance-engineer.md` (add learning snippet)
-- [ ] Create `pr-review-responder.md` ★ NEW (PR feedback automation)
-- [ ] Create `proficiency-coach.md` ★ NEW (interactive learning)
-- [ ] Create `bug-finder.md` (add learning snippet)
-- [ ] Create `code-architect.md` (add learning snippet)
-- [ ] Create `deployment-engineer.md` (add learning snippet)
-- [ ] Create `chezmoi-manager.md` (add learning snippet)
+**Phase 5: Agents** ✅ COMPLETE (2025-01-15)
+- [x] Create `code-reviewer.md` (275 lines)
+- [x] Create `security-specialist.md` (362 lines)
+- [x] Create `orchestrator.md` (404 lines - worktree awareness)
+- [x] Create `adversary.md` (421 lines)
+- [x] Create `performance-engineer.md` (375 lines)
+- [x] Create `pr-review-responder.md` (281 lines)
+- [x] Create `proficiency-coach.md` (266 lines)
+- [x] Create `bug-finder.md` (299 lines)
+- [x] Create `code-architect.md` (403 lines)
+- [x] Create `dev4-deployment-manager.md` (272 lines - renamed from deployment-engineer)
+- [x] Create `chezmoi-manager.md` (383 lines)
 - [ ] Test each agent in real code review
 
 **Phase 6: Continuous Improvement ★ NEW**
