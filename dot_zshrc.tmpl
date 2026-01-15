@@ -2,5 +2,8 @@
 # Warp handles themes, completions, and most shell features
 # This file only loads our custom shell functions
 
+# Add ~/bin to PATH
+export PATH="$HOME/bin:$PATH"
+
 # Load shared custom functions for Warp
 [ -f "$HOME/.sh_functions" ] && . "$HOME/.sh_functions"
