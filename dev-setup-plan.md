@@ -115,7 +115,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │           Environment Integration (Priority 3)               │
 │  - Warp terminal integration (notifications + workflows)   │
-│  - MCP servers (Linear, GitHub, context7, pypi, fetch)     │
+│  - MCP servers (Linear, GitHub, pypi, fetch)              │
 │  - 1Password CLI (credential management)                    │
 │  - terminal-notifier (macOS notifications) ★ NEW           │
 │  - ntfy.sh (DevContainer notifications) ★ NEW              │

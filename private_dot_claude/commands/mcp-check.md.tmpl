@@ -37,7 +37,6 @@ check_credential() {
 
 check_credential "Linear API Key" "LINEAR_API_KEY"
 check_credential "GitHub Token" "GITHUB_TOKEN"
-check_credential "Context7 API Key" "CONTEXT7_API_KEY"
 
 echo ""
 echo "📡 Testing MCP Connections..."
@@ -50,16 +49,6 @@ if [ -n "$GITHUB_TOKEN" ]; then
             https://api.github.com/user | jq -r '.login'))"
     else
         echo "❌ GitHub API: Authentication failed"
-    fi
-fi
-
-# Test Context7 API
-if [ -n "$CONTEXT7_API_KEY" ]; then
-    if curl -s -H "Authorization: Bearer $CONTEXT7_API_KEY" \
-            https://mcp.context7.com/health > /dev/null 2>&1; then
-        echo "✅ Context7 API: Connected"
-    else
-        echo "❌ Context7 API: Authentication failed"
     fi
 fi
 
@@ -84,11 +73,9 @@ fi
 
 ✅ Linear API Key: lin_...xyz
 ✅ GitHub Token: ghp_...abc
-✅ Context7 API Key: c7_...def
 
 📡 Testing MCP Connections...
 ✅ GitHub API: Connected (rafaelcarvalho)
-✅ Context7 API: Connected
 
 📍 Environment:
    Location: DevContainer

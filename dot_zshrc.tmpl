@@ -18,8 +18,4 @@ if command -v op &> /dev/null; then
     if [ -z "$GITHUB_TOKEN" ]; then
         export GITHUB_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null || echo "")
     fi
-
-    if [ -z "$CONTEXT7_API_KEY" ]; then
-        export CONTEXT7_API_KEY=$(op read "op://Development/Context7 API Key/credential" 2>/dev/null || echo "")
-    fi
 fi

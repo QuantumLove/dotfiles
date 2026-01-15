@@ -8,8 +8,7 @@
   "containerEnv": {
     "GIT_DIR": "/workspace-git",
     "LINEAR_API_KEY": "${localEnv:LINEAR_API_KEY}",
-    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
-    "CONTEXT7_API_KEY": "${localEnv:CONTEXT7_API_KEY}"
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
   },
   "workspaceFolder": "/workspace",
   "postCreateCommand": "git config --global --add safe.directory /workspace",
