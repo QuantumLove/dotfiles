@@ -10564,14 +10564,18 @@ EOF
 - [x] Verify on macOS host (✅ 11 agents, 12 commands deployed)
 - [ ] Verify in DevContainer - TODO
 
-**Phase 2: Hooks & Notifications ★ NEW**
-- [ ] Create `hooks/notify.sh` (unified notification script)
-- [ ] Create `hooks/notify-stop.sh`
-- [ ] Create `hooks/notify-permission.sh`
-- [ ] Create `hooks/notify-notification.sh`
-- [ ] Test notifications on macOS with terminal-notifier
-- [ ] Test notifications in DevContainer with ntfy.sh
-- [ ] Verify Claude icon appears in notifications
+**Phase 2: Hooks & Notifications ★ NEW** ✅ COMPLETE (2025-01-15)
+- [x] Create `hooks/notify.sh` (51 lines - unified notification script)
+- [x] Create `hooks/notify-stop.sh` (11 lines)
+- [x] Create `hooks/notify-permission.sh` (11 lines)
+- [x] Create `hooks/notify-notification.sh` (18 lines)
+- [x] Create `bin/claude-notify-daemon.py` (107 lines - HTTP daemon)
+- [x] Create `Library/LaunchAgents/com.claude.notify-daemon.plist` (31 lines)
+- [x] Create `.chezmoiscripts/run_once_install-notification-deps.sh` (40 lines)
+- [x] Update `settings.json` with hooks configuration
+- [x] Test notifications on macOS with terminal-notifier (daemon running PID 80510)
+- [ ] Test notifications in DevContainer with ntfy.sh - TODO
+- [x] Verify Claude icon appears in notifications (uses com.anthropic.claudefordesktop sender)
 
 **Phase 3: Commands** ✅ CORE COMPLETE (2025-01-15)
 
@@ -10580,15 +10584,15 @@ EOF
 - [x] Create `aws-preflight.md` (61 lines)
 - [x] Create `ecr-login.md` (169 lines)
 
-*DevContainer Commands:* ⚠️ PARTIAL
+*DevContainer Commands:* ✅ COMPLETE
 - [x] Create `dev-open.md` (216 lines - worktree-aware)
-- [ ] Create `dev-list.md` (list running containers)
-- [ ] Create `dev-clean.md` (cleanup stopped containers)
-- [ ] Test worktree name collision fix
+- [x] Create `dev-list.md` (169 lines - list running containers with resource usage)
+- [x] Create `dev-clean.md` (192 lines - cleanup stopped containers and volumes)
+- [ ] Test worktree name collision fix - TODO
 
-*Kubernetes & Terraform:* ⚠️ PARTIAL
+*Kubernetes & Terraform:* ✅ COMPLETE
 - [x] Create `k8s-reset.md` (69 lines)
-- [ ] Create `tf-apply.md`
+- [x] Create `tf-apply.md` (333 lines - safe Terraform/OpenTofu workflow)
 
 *Utilities:* ⚠️ PARTIAL
 - [x] Create `load-env.md` (52 lines)
@@ -10611,13 +10615,13 @@ EOF
 - [ ] Test all commands with `--dry-run`
 - [ ] Test all commands in real scenarios
 
-**Phase 4: Skills ★ NEW**
-- [ ] Create `skills/worktree/SKILL.md` (worktree management)
-- [ ] Create `skills/worktree/scripts/create-worktree.sh`
-- [ ] Create `skills/worktree/scripts/cleanup-worktree.sh`
-- [ ] Create `skills/worktree/templates/devcontainer.json`
-- [ ] Test worktree creation and DevContainer opening
-- [ ] Verify git works in DevContainer opened from worktree
+**Phase 4: Skills ★ NEW** ✅ COMPLETE (2025-01-15)
+- [x] Create `skills/worktree/SKILL.md` (265 lines - comprehensive worktree management)
+- [x] Create `skills/worktree/scripts/create-worktree.sh` (76 lines)
+- [x] Create `skills/worktree/scripts/cleanup-worktree.sh` (94 lines)
+- [x] Create `skills/worktree/templates/devcontainer.json` (53 lines - worktree-compatible)
+- [ ] Test worktree creation and DevContainer opening - TODO
+- [ ] Verify git works in DevContainer opened from worktree - TODO
 
 **Phase 5: Agents** ✅ COMPLETE (2025-01-15)
 - [x] Create `code-reviewer.md` (275 lines)
@@ -10633,14 +10637,15 @@ EOF
 - [x] Create `chezmoi-manager.md` (383 lines)
 - [ ] Test each agent in real code review
 
-**Phase 6: Continuous Improvement ★ NEW**
-- [ ] Create `templates/CLAUDE.md.template`
-- [ ] Create `templates/LEARNING.md.template`
-- [ ] Add CLAUDE.md to dev-one project
-- [ ] Add LEARNING.md to dev-one project
-- [ ] Test `/track-learning` command
-- [ ] Verify learning detection in agents
-- [ ] Document first learning and update
+**Phase 6: Continuous Improvement ★ NEW** ⚠️ PARTIAL
+- [x] Create `templates/CLAUDE.md.template` (54 lines - project context template)
+- [x] Create `templates/LEARNING.md.template` (38 lines - learning log template)
+- [ ] Create `/track-learning` command - TODO
+- [ ] Add CLAUDE.md to dev-one project - USER TODO
+- [ ] Add LEARNING.md to dev-one project - USER TODO
+- [ ] Test `/track-learning` command - TODO
+- [ ] Verify learning detection in agents - TODO
+- [ ] Document first learning and update - TODO
 
 **Phase 7: MCP & Authentication** ⚠️ IN PROGRESS
 - [x] Install 1Password CLI (user confirmed)
