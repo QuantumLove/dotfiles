@@ -1,0 +1,52 @@
+{
+  "name": "METR Development (Worktree-Compatible)",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "source=${localWorkspaceFolder}/../metr-repo/.git,target=/workspace-git,type=bind"
+  ],
+  "containerEnv": {
+    "GIT_DIR": "/workspace-git",
+    "LINEAR_API_KEY": "${localEnv:LINEAR_API_KEY}",
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "CONTEXT7_API_KEY": "${localEnv:CONTEXT7_API_KEY}"
+  },
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "git config --global --add safe.directory /workspace",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "github.vscode-pull-request-github",
+        "eamodio.gitlens",
+        "mhutchie.git-graph",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "git.detectSubmodules": false,
+        "git.detectWorktrees": true,
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": true
+        }
+      }
+    }
+  },
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true
+}

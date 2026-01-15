@@ -1,0 +1,251 @@
+---
+name: worktree
+description: Git worktree management for parallel development workflows with DevContainer support
+tags: [git, workflow, parallel-development, devcontainer]
+version: 1.0.0
+---
+
+# Git Worktree Management Skill
+
+## Core Problem
+
+Git worktrees allow multiple branches checked out simultaneously, but two issues prevent smooth DevContainer workflows:
+
+1. **The .git File Problem:** In worktrees, `.git` is a FILE (not directory) containing:
+   ```
+   gitdir: /Users/user/code/metr-repo/.git/worktrees/issue-METR-123
+   ```
+   This causes DevContainers to fail because the path doesn't exist in the container.
+
+2. **Name Collisions:** Multiple worktrees opening DevContainers with the same hard-coded container name collide.
+
+## Solution: Directory Structure + DevContainer Configuration
+
+**Recommended layout:**
+```
+~/code/
+  metr-repo/              # Main repository (keep on main/stable branch)
+  metr-worktrees/         # All worktrees live here
+    issue-METR-123/       # Worktree for METR-123
+    issue-METR-456/       # Worktree for METR-456
+```
+
+**Naming Convention:**
+- Format: `issue-{LINEAR_ID}` or `issue-{LINEAR_ID}-{short-description}`
+- Examples: `issue-METR-123`, `issue-METR-456-auth-fix`
+- Lowercase with hyphens
+
+## Key Operations
+
+### Create Worktree for Issue
+```bash
+# From main repository
+cd ~/code/metr-repo
+git fetch origin
+
+# Create worktree for new feature
+git worktree add ../metr-worktrees/issue-METR-123 -b metr-123/implement-feature origin/main
+```
+
+### DevContainer Configuration for Worktrees
+
+The critical fix - mount the main repo's .git directory:
+
+```json
+{
+  "name": "METR Development",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "source=${localWorkspaceFolder}/../metr-repo/.git,target=/workspace-git,type=bind"
+  ],
+  "containerEnv": {
+    "GIT_DIR": "/workspace-git"
+  },
+  "postCreateCommand": "git config --global --add safe.directory /workspace"
+}
+```
+
+This makes git commands work inside DevContainers opened from worktrees.
+
+### Helper Scripts
+
+**File:** `~/.claude/skills/worktree/scripts/create-worktree.sh`
+
+```bash
+#!/bin/bash
+set -e
+
+ISSUE_ID="$1"
+BRANCH_NAME="${2:-${ISSUE_ID}/feature}"
+MAIN_REPO="$HOME/code/metr-repo"
+WORKTREE_BASE="$HOME/code/metr-worktrees"
+WORKTREE_PATH="$WORKTREE_BASE/issue-$ISSUE_ID"
+
+if [ -z "$ISSUE_ID" ]; then
+    echo "Usage: create-worktree.sh <issue-id> [branch-name]"
+    exit 1
+fi
+
+cd "$MAIN_REPO"
+git fetch origin
+git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" origin/main
+
+echo "✅ Worktree created: $WORKTREE_PATH"
+```
+
+**File:** `~/.claude/skills/worktree/scripts/cleanup-worktree.sh`
+
+```bash
+#!/bin/bash
+set -e
+
+ISSUE_ID="$1"
+MAIN_REPO="$HOME/code/metr-repo"
+WORKTREE_PATH="$HOME/code/metr-worktrees/issue-$ISSUE_ID"
+
+cd "$MAIN_REPO"
+git worktree remove "$WORKTREE_PATH"
+git worktree prune
+
+echo "✅ Worktree cleaned up"
+```
+
+## Integration with Commands
+
+### With /start-work
+When `/start-work` creates a worktree:
+1. Create worktree with standard naming
+2. Rename Warp tab to match issue ID
+3. Set tab color based on repo
+4. Load issue context
+
+```bash
+# After worktree creation in /start-work
+if command -v warp-cli &> /dev/null; then
+  # Rename current tab to issue ID
+  warp-cli rename-tab "METR-123: Fix auth timeout"
+
+  # Set tab color based on repo (optional)
+  case "$REPO_NAME" in
+    inspect-action) warp-cli set-tab-color "blue" ;;
+    mp4-deploy)     warp-cli set-tab-color "green" ;;
+    *)              warp-cli set-tab-color "default" ;;
+  esac
+fi
+```
+
+### With /load-issue
+When user runs `/load-issue METR-123`, Claude should suggest:
+```bash
+cd ~/code/metr-repo
+git worktree add ../metr-worktrees/issue-METR-123 -b metr-123/implement-feature origin/main
+cd ../metr-worktrees/issue-METR-123
+
+# Rename Warp tab if available
+warp-cli rename-tab "METR-123: Implement feature"
+```
+
+### With /dev-open
+When opening a DevContainer in a worktree:
+1. Check if `.git` is a file (indicates worktree)
+2. Verify `.devcontainer/devcontainer.json` has proper mounts
+3. Auto-fix configuration if missing
+4. Open VS Code with correct DevContainer settings
+5. Rename Warp tab to match container name
+
+### With /push-pr
+After PR merged, suggest cleanup:
+```bash
+cd ~/code/metr-repo
+git worktree remove ../metr-worktrees/issue-METR-123
+git branch -d metr-123/implement-feature
+
+# Reset Warp tab name (optional)
+warp-cli rename-tab "$(basename $(pwd))"
+```
+
+## Warp CLI Integration
+
+**Available Commands:**
+```bash
+# Rename current tab
+warp-cli rename-tab "METR-123: Fix bug"
+
+# Set tab color (colors: blue, green, red, yellow, purple, default)
+warp-cli set-tab-color "blue"
+
+# Create new tab in specific directory
+warp-cli new-tab --cwd ~/code/worktrees/inspect-action-METR-123
+
+# List all tabs
+warp-cli list-tabs
+```
+
+**Automatic Tab Naming Pattern:**
+- Format: `{ISSUE_ID}: {Short Title}`
+- Example: `METR-456: Fix timeout`
+- Truncate at 50 chars if too long
+
+**Color Scheme:**
+- `blue`: inspect-action (Hawk) worktrees
+- `green`: mp4-deploy worktrees
+- `purple`: platform-threat-modeling worktrees
+- `yellow`: Quick mode worktrees (--quick flag)
+- `red`: Emergency hotfix worktrees
+- `default`: Other repos
+
+## When to Suggest Worktrees
+
+**Suggest when:**
+- User is working on multiple Linear issues simultaneously
+- User mentions "parallel development" or "multiple features"
+- User wants to keep a stable environment while experimenting
+- User needs to quickly switch between unrelated tasks
+
+**Don't suggest when:**
+- User is only working on one issue at a time
+- Simple bug fixes (just use branches)
+- Project is very small
+- User explicitly prefers traditional branch workflow
+
+## Best Practices
+
+1. **Keep main repo clean** - Never work directly in main repo, only in worktrees
+2. **One issue per worktree** - Don't reuse worktrees for multiple issues
+3. **Delete after merge** - Clean up worktrees after PR is merged
+4. **Consistent naming** - Always use `issue-{LINEAR_ID}` pattern
+5. **Fetch before create** - Always `git fetch origin` before creating worktrees
+6. **Use proper removal** - Always use `git worktree remove`, never `rm -rf`
+
+## Troubleshooting
+
+### "fatal: not a git repository" in DevContainer
+- Check if `.devcontainer/devcontainer.json` has git directory mount
+- Run: `cat .git` (should show gitdir path)
+- Verify: `echo $GIT_DIR` (should be set in container)
+- Fix: Add mount for `../<main-repo>/.git` directory
+
+### Worktree disappeared after reboot
+```bash
+cd ~/code/metr-repo
+git worktree repair
+```
+
+### DevContainer name collision
+- Check `.devcontainer/devcontainer.json` for hardcoded container name
+- Update to use dynamic naming: `"name": "${localWorkspaceFolderBasename}"`
+- Rebuild DevContainer
+
+### Warp CLI not found
+```bash
+# Warp CLI is not installed by default
+# If you want Warp tab integration, install Warp terminal first
+# Otherwise, worktrees work fine without Warp
+```
+
+## Reference Files
+
+Helper scripts and templates are available in:
+- `~/.claude/skills/worktree/scripts/create-worktree.sh`
+- `~/.claude/skills/worktree/scripts/cleanup-worktree.sh`
+- `~/.claude/skills/worktree/templates/devcontainer.json`
