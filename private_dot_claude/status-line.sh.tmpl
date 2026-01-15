@@ -1,0 +1,28 @@
+#!/bin/bash
+# Claude Code status line script
+# Displays: Project | Branch | AWS Profile | K8s Context
+
+# Detect project
+PROJECT="unknown"
+if [ -f "package.json" ]; then
+    PROJECT=$(jq -r '.name // "unknown"' package.json 2>/dev/null)
+elif [ -f "pyproject.toml" ]; then
+    PROJECT=$(grep "^name" pyproject.toml | cut -d'"' -f2 2>/dev/null)
+elif [ -f "Cargo.toml" ]; then
+    PROJECT=$(grep "^name" Cargo.toml | cut -d'"' -f2 2>/dev/null)
+fi
+
+# Git branch
+BRANCH=$(git branch --show-current 2>/dev/null || echo "no-git")
+
+# AWS profile
+AWS_PROF="${AWS_PROFILE:-none}"
+
+# K8s context
+K8S_CTX=$(kubectl config current-context 2>/dev/null || echo "none")
+
+# Environment
+ENV="${ENVIRONMENT:-none}"
+
+# Output format: project | branch | aws:profile | k8s:context | env:environment
+echo "$PROJECT | $BRANCH | aws:$AWS_PROF | k8s:$K8S_CTX | env:$ENV"

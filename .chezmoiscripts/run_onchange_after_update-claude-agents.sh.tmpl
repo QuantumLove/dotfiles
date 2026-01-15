@@ -1,0 +1,31 @@
+#!/bin/bash
+# This script runs whenever Claude agent/command files change
+
+echo "🔄 Updating Claude Code agents and commands..."
+
+# Verify agent files
+AGENT_COUNT=$(ls -1 ~/.claude/agents/*.md 2>/dev/null | wc -l)
+COMMAND_COUNT=$(ls -1 ~/.claude/commands/*.md 2>/dev/null | wc -l)
+
+echo "   Agents: $AGENT_COUNT"
+echo "   Commands: $COMMAND_COUNT"
+
+# Validate agent frontmatter (basic check)
+for agent in ~/.claude/agents/*.md; do
+    if [ -f "$agent" ]; then
+        if ! grep -q "^name:" "$agent"; then
+            echo "⚠️  Missing 'name:' in $(basename $agent)"
+        fi
+    fi
+done
+
+# Validate command frontmatter
+for command in ~/.claude/commands/*.md; do
+    if [ -f "$command" ]; then
+        if ! grep -q "^name:" "$command"; then
+            echo "⚠️  Missing 'name:' in $(basename $command)"
+        fi
+    fi
+done
+
+echo "✅ Claude Code agents and commands updated"

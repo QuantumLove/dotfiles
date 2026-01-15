@@ -1,0 +1,33 @@
+{{- $email := env "GIT_AUTHOR_EMAIL" | default "rafael@example.com" -}}
+{{- $name := env "GIT_AUTHOR_NAME" | default "Rafael Carvalho" -}}
+{{- $github_user := env "GITHUB_USER" | default "rafaelcarvalho" -}}
+
+[data]
+    email = {{ $email | quote }}
+    name = {{ $name | quote }}
+    github_user = {{ $github_user | quote }}
+
+    # Environment detection
+    is_macos = {{ eq .chezmoi.os "darwin" }}
+    is_linux = {{ eq .chezmoi.os "linux" }}
+    is_devcontainer = {{ env "REMOTE_CONTAINERS" | not | not }}
+    is_codespaces = {{ env "CODESPACES" | not | not }}
+    is_warp = {{ env "TERM_PROGRAM" | eq "WarpTerminal" }}
+
+    # Project detection
+    is_inspect_action = {{ or (env "DEVCONTAINER_ID" | contains "inspect-action") (env "PWD" | contains "inspect-action") }}
+    is_mp4_deploy = {{ or (env "DEVCONTAINER_ID" | contains "mp4-deploy") (env "PWD" | contains "mp4-deploy") }}
+    is_threat_modeling = {{ env "PWD" | contains "platform-threat-modeling" }}
+
+    # Tool availability
+    has_docker = {{ lookPath "docker" | not | not }}
+    has_kubectl = {{ lookPath "kubectl" | not | not }}
+    has_aws = {{ lookPath "aws" | not | not }}
+    has_tofu = {{ lookPath "tofu" | not | not }}
+    has_gh = {{ lookPath "gh" | not | not }}
+
+    # AWS configuration
+    aws_default_profile = {{ env "AWS_PROFILE" | default "staging" | quote }}
+    aws_default_region = "us-west-1"
+    aws_staging_account = {{ env "AWS_STAGING_ACCOUNT_ID" | quote }}
+    aws_production_account = {{ env "AWS_PRODUCTION_ACCOUNT_ID" | quote }}

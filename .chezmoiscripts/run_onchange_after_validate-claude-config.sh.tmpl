@@ -1,0 +1,114 @@
+#!/bin/bash
+set -e
+
+echo "🔍 Validating Claude Code configuration..."
+
+# Check Claude Code is installed (but don't install it)
+if ! command -v claude &> /dev/null; then
+    echo "⚠️  Claude Code not found. Please install it manually:"
+    echo ""
+    {{- if .is_macos }}
+    echo "   macOS: brew install claude-code"
+    {{- else if .is_devcontainer }}
+    echo "   DevContainer: Add to devcontainer.json:"
+    echo '   "features": { "ghcr.io/anthropics/devcontainer-features/claude-code:1": {} }'
+    {{- else }}
+    echo "   Linux: npm install -g @anthropics/claude-code"
+    {{- end }}
+    echo ""
+    exit 1
+fi
+
+echo "✅ Claude Code found: $(claude --version)"
+
+# Validate directory structure
+if [ ! -d ~/.claude ]; then
+    echo "❌ ~/.claude directory missing"
+    exit 1
+fi
+
+if [ ! -d ~/.claude/agents ]; then
+    echo "❌ ~/.claude/agents directory missing"
+    exit 1
+fi
+
+if [ ! -d ~/.claude/commands ]; then
+    echo "❌ ~/.claude/commands directory missing"
+    exit 1
+fi
+
+echo "✅ Directory structure valid"
+
+# Validate core files exist
+REQUIRED_FILES=(
+    "~/.claude/settings.json"
+    "~/.claude/mcp.json"
+    "~/.claude/status-line.sh"
+)
+
+for file in "${REQUIRED_FILES[@]}"; do
+    expanded_file=$(eval echo "$file")
+    if [ ! -f "$expanded_file" ]; then
+        echo "❌ Required file missing: $file"
+        exit 1
+    fi
+done
+
+echo "✅ Core configuration files present"
+
+# Validate JSON files
+if command -v jq &> /dev/null; then
+    if ! jq empty ~/.claude/settings.json 2>/dev/null; then
+        echo "❌ settings.json is not valid JSON"
+        exit 1
+    fi
+
+    if ! jq empty ~/.claude/mcp.json 2>/dev/null; then
+        echo "❌ mcp.json is not valid JSON"
+        exit 1
+    fi
+
+    echo "✅ JSON configuration files are valid"
+else
+    echo "⚠️  jq not found, skipping JSON validation"
+fi
+
+# Count agents and commands
+AGENT_COUNT=$(find ~/.claude/agents -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+COMMAND_COUNT=$(find ~/.claude/commands -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+
+echo "✅ Found $AGENT_COUNT agents"
+echo "✅ Found $COMMAND_COUNT commands"
+
+# Validate agents have proper frontmatter
+INVALID_AGENTS=0
+for agent in ~/.claude/agents/*.md; do
+    if [ -f "$agent" ]; then
+        if ! grep -q "^name:" "$agent" || ! grep -q "^description:" "$agent"; then
+            echo "⚠️  Invalid frontmatter in $(basename "$agent")"
+            INVALID_AGENTS=$((INVALID_AGENTS + 1))
+        fi
+    fi
+done
+
+# Validate commands have proper frontmatter
+INVALID_COMMANDS=0
+for command in ~/.claude/commands/*.md; do
+    if [ -f "$command" ]; then
+        if ! grep -q "^name:" "$command"; then
+            echo "⚠️  Invalid frontmatter in $(basename "$command")"
+            INVALID_COMMANDS=$((INVALID_COMMANDS + 1))
+        fi
+    fi
+done
+
+if [ $INVALID_AGENTS -gt 0 ] || [ $INVALID_COMMANDS -gt 0 ]; then
+    echo "⚠️  Found $INVALID_AGENTS invalid agents and $INVALID_COMMANDS invalid commands"
+    echo "    Claude Code may not load these correctly"
+fi
+
+echo ""
+echo "✅ Claude Code configuration validation complete"
+echo "   Agents: $AGENT_COUNT"
+echo "   Commands: $COMMAND_COUNT"
+echo "   Environment: {{ if .is_devcontainer }}DevContainer{{ else if .is_macos }}macOS{{ else }}Linux{{ end }}"
