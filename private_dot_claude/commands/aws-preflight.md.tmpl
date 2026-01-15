@@ -1,0 +1,61 @@
+---
+name: aws-preflight
+description: Pre-flight checks before AWS operations
+---
+
+# AWS Pre-Flight Checks
+
+Run comprehensive checks before performing AWS operations.
+
+## Usage
+
+```
+/aws-preflight
+/aws-preflight --account staging
+```
+
+## Checks Performed
+
+1. **Authentication:** Verify current AWS credentials are valid
+2. **Account Verification:** Confirm you're in the expected AWS account
+3. **Permissions:** Check IAM permissions for common operations
+4. **Network:** Verify connectivity to AWS endpoints
+5. **Tools:** Confirm required tools are installed (aws-cli, tofu, kubectl)
+
+## Output Format
+
+```
+AWS Pre-Flight Checks
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Authentication
+   Profile: staging
+   Account: ${AWS_STAGING_ACCOUNT_ID}
+   Role: Admin
+   Expiry: 2 hours
+
+✅ Permissions
+   ✓ S3 read/write
+   ✓ ECS describe/update
+   ✓ ECR push/pull
+
+✅ Network
+   ✓ AWS endpoints reachable
+   ✓ VPN connected (if required)
+
+✅ Tools
+   ✓ aws-cli 2.15.0
+   ✓ tofu 1.8.0
+   ✓ kubectl 1.28.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ All pre-flight checks passed
+```
+
+## Failure Handling
+
+If any check fails, display:
+- What failed
+- Why it might have failed
+- How to fix it
+- Whether it's safe to proceed anyway

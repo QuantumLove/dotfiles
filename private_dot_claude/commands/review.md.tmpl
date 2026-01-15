@@ -1,0 +1,119 @@
+---
+name: review
+description: Invoke Code Reviewer agent on staged changes, branch, or PR
+---
+
+# Review - Code Review
+
+Invoke the Code Reviewer agent to review staged changes, an entire branch, or a pull request.
+
+## Usage
+
+```bash
+# Review staged changes only
+/review
+
+# Review all changes in current branch
+/review --branch
+
+# Review specific PR
+/review pr/456
+/review https://github.com/metr/inspect-action/pull/456
+
+# Review with specific focus
+/review --focus security
+/review --focus performance
+/review --focus testing
+
+# Generate review without making changes
+/review --report-only
+```
+
+## What It Does
+
+1. **Prepare code for review:**
+   - Gather staged changes or branch diff
+   - Download relevant issue context
+   - Analyze PR metadata (title, description, files)
+
+2. **Invoke Code Reviewer agent:**
+   - Perform comprehensive code review
+   - Check code quality and standards
+   - Verify test coverage
+   - Identify potential bugs and issues
+   - Check security implications
+
+3. **Generate review output:**
+   - Structured review comments
+   - Suggestions for improvements
+   - Risk assessment
+   - Go/no-go recommendation
+
+4. **Post review:**
+   - Create GitHub PR review
+   - Leave detailed comments on changed lines
+   - Request changes or approve
+
+## Example Output
+
+```
+📊 Code Review Analysis
+
+Repository: inspect-action
+Branch: feature/add-caching
+
+Files Changed: 5
+  • src/cache.py (156 lines)
+  • src/redis_backend.py (234 lines)
+  • tests/test_cache.py (189 lines)
+  • pyproject.toml (2 lines)
+  • README.md (15 lines)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Code Quality
+  • Type hints complete
+  • Naming conventions followed
+  • Documentation present
+
+⚠️  Testing Coverage
+  • Coverage: 87% (target: 90%)
+  • Missing tests: 3 edge cases
+  • Suggestions: Add tests for cache invalidation
+
+⚠️  Performance Considerations
+  • Redis connection pooling recommended
+  • Consider implementing cache key versioning
+
+✅ Security Review
+  • No hardcoded credentials
+  • Input validation present
+  • Error messages safe
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Decision: CONDITIONAL APPROVAL
+
+Changes needed before merge:
+  1. Increase test coverage to 90%
+  2. Add connection pooling for Redis
+  3. Document cache invalidation strategy
+
+Post review as GitHub comment? (yes/no):
+```
+
+## Safety Features
+
+- **Non-blocking:** Review is advisory by default
+- **Report-only mode:** Generate review without posting to GitHub
+- **Reversible:** Posted reviews can be edited or dismissed
+- **Context-aware:** Review considers issue requirements and acceptance criteria
+
+## Note
+
+Full implementation will leverage the Code Reviewer agent with:
+- Comprehensive code analysis
+- Security threat modeling
+- Performance profiling suggestions
+- Test coverage analysis
+- GitHub PR integration
+- Review comment threading

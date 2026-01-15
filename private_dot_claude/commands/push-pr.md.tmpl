@@ -1,0 +1,101 @@
+---
+name: push-pr
+description: Push changes and create PR with standardized formatting
+---
+
+# Push PR - Create Pull Request
+
+Push changes to a branch and create a pull request with standardized formatting.
+
+## Usage
+
+```bash
+# Create PR with auto-generated title and description
+/push-pr
+
+# Create PR with custom title
+/push-pr "Fix: authentication timeout issue"
+
+# Create PR with specific reviewers
+/push-pr --reviewer @alice --reviewer @bob
+
+# Create as draft PR
+/push-pr --draft
+
+# Run all checks before creating PR
+/push-pr --check-all
+```
+
+## What It Does
+
+1. **Pre-flight checks:**
+   - Verify you're in a git repository
+   - Check branch is not main
+   - Confirm there are staged or unstaged changes
+   - Optionally run: linter, type checker, tests, security scan
+
+2. **Commit and push:**
+   - Commit staged changes (or prompt to stage)
+   - Push branch to origin
+   - Create upstream tracking branch
+
+3. **Generate PR:**
+   - Create pull request with standardized formatting
+   - Include issue reference if branch has issue ID (e.g., METR-123)
+   - Auto-generate description from commit messages
+   - Request reviewers (if specified)
+   - Mark as draft (if --draft flag)
+
+4. **Post-PR:**
+   - Display PR URL
+   - Show pending checks status
+   - Provide next steps
+
+## Safety Features
+
+- **Branch protection:** Never push directly to main/master
+- **Checks before push:** Optionally run tests/linter first
+- **Confirmation required:** Review changes before pushing
+- **Draft by default:** Create as draft to avoid auto-merge
+- **Rollback instructions:** Show how to close PR if needed
+
+## Example Output
+
+```
+📝 Creating Pull Request
+
+Branch: feature/add-caching
+Commits: 3
+  • Implement cache interface
+  • Add Redis backend
+  • Update tests
+
+Ready to push? (yes/no): yes
+
+🚀 Pushing to origin...
+   ✅ Pushed feature/add-caching
+
+📋 Creating pull request...
+   Title: Feature: Implement caching layer
+   Base: main
+   Head: feature/add-caching
+
+✅ Pull request created!
+   URL: https://github.com/metr/inspect-action/pull/456
+   Status: DRAFT
+
+Next steps:
+  1. Review the PR in GitHub
+  2. Request reviewers with /review
+  3. Address any check failures
+  4. Mark ready for review when complete
+```
+
+## Note
+
+Full implementation details will be expanded with:
+- Git workflow integration
+- GitHub PR API usage
+- Automatic title/description generation
+- Check result monitoring
+- Integration with issue trackers

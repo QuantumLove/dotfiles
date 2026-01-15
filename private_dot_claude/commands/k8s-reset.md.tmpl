@@ -1,0 +1,69 @@
+---
+name: k8s-reset
+description: Reset Kubernetes cluster to clean state
+---
+
+# Kubernetes Cluster Reset
+
+Reset local Kubernetes cluster (minikube/kind) to clean state.
+
+## Usage
+
+```
+/k8s-reset
+/k8s-reset --confirm
+/k8s-reset --keep-namespaces dev,staging
+```
+
+## Implementation
+
+1. Detect cluster type (minikube/kind/k3s)
+2. List all resources to be deleted
+3. Ask for confirmation (unless `--confirm` passed)
+4. Delete resources in safe order:
+   - Deployments
+   - StatefulSets
+   - DaemonSets
+   - Services
+   - ConfigMaps/Secrets
+   - PVCs
+   - Namespaces (except kube-system)
+5. Restart cluster if needed
+
+## Safety Features
+
+- **Dry run first:** Show what will be deleted
+- **Namespace protection:** Never delete kube-system, kube-public
+- **Confirmation required:** User must confirm destructive operation
+- **Backup option:** Offer to export resources before deletion
+
+## Example Output
+
+```
+🔄 Kubernetes Cluster Reset
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Cluster: minikube
+Context: minikube
+
+Resources to be deleted:
+  • Namespaces: dev, staging (2)
+  • Deployments: 8
+  • Services: 12
+  • ConfigMaps: 15
+  • Secrets: 6
+  • PVCs: 3
+
+⚠️  This will DELETE all resources listed above.
+
+Continue? (yes/no): yes
+
+🗑️  Deleting resources...
+   ✅ Deleted deployments in dev
+   ✅ Deleted deployments in staging
+   ✅ Deleted services in dev
+   ...
+
+✅ Cluster reset complete
+   Ready to deploy fresh resources
+```

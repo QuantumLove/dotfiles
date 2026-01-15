@@ -1,0 +1,37 @@
+---
+name: aws-switch
+description: Switch AWS profile and verify credentials
+---
+
+# AWS Profile Switcher
+
+Switch between AWS profiles (staging/production) with automatic verification.
+
+## Usage
+
+```
+/aws-switch staging
+/aws-switch production
+```
+
+## Implementation
+
+1. Set `AWS_PROFILE` environment variable
+2. Run `aws sts get-caller-identity` to verify
+3. Display account ID and current role
+4. Update status line
+
+## Safety Checks
+
+- Verify profile exists in `~/.aws/config`
+- Confirm successful authentication before declaring success
+- Warn if credentials are expired
+- Display account ID to prevent production accidents
+
+## Example Output
+
+```
+✅ Switched to staging (${AWS_STAGING_ACCOUNT_ID})
+   Role: arn:aws:iam::${AWS_STAGING_ACCOUNT_ID}:role/Admin
+   Expiry: 2025-01-15T18:30:00Z
+```

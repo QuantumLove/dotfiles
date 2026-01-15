@@ -1,0 +1,52 @@
+---
+name: load-env
+description: Load environment variables from .env file
+---
+
+# Load Environment File
+
+Load environment variables from `.env` file into current session.
+
+## Usage
+
+```
+/load-env
+/load-env .env.staging
+/load-env --validate
+```
+
+## Implementation
+
+1. Find `.env` file (current dir or specified path)
+2. Parse and validate syntax
+3. Check for sensitive values (API keys, passwords)
+4. Warn about overwriting existing variables
+5. Load into environment
+6. Display loaded variables (with secrets redacted)
+
+## Safety Features
+
+- **Syntax validation:** Check for malformed lines
+- **Secret detection:** Identify and redact sensitive values in output
+- **Conflict detection:** Warn if overwriting existing env vars
+- **Dry run:** Show what will be loaded without loading
+
+## Example Output
+
+```
+📂 Loading environment from .env
+
+Found variables:
+  DATABASE_URL=postgresql://localhost:5432/***
+  AWS_REGION=us-west-1
+  LOG_LEVEL=debug
+  API_KEY=****** (redacted)
+
+⚠️  The following variables will be overwritten:
+  • AWS_REGION (current: us-east-1 → new: us-west-1)
+
+Continue? (yes/no): yes
+
+✅ Loaded 4 environment variables
+   Secrets: 2 (redacted in output)
+```

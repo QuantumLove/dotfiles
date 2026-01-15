@@ -1,0 +1,169 @@
+---
+name: ecr-login
+description: Authenticate Docker to AWS ECR for image push/pull
+---
+
+# ECR Login
+
+Authenticate Docker to AWS Elastic Container Registry for pushing and pulling images.
+
+**Common Use Cases:**
+- Pushing images before Tofu deployment
+- Pulling private base images
+- CI/CD image operations
+
+## Usage
+
+```
+/ecr-login                          # Auto-detect account and use us-west-1
+/ecr-login --region us-west-1       # Specify region
+/ecr-login --account ${AWS_STAGING_ACCOUNT_ID}   # Specify account (otherwise auto-detected)
+/ecr-login --profile staging        # Use specific AWS profile
+```
+
+## Implementation
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Parse arguments
+REGION="${1:-us-west-1}"
+ACCOUNT="${2:-}"
+PROFILE="${AWS_PROFILE:-default}"
+
+echo "🔐 Authenticating to AWS ECR..."
+
+# Get AWS account ID if not provided
+if [ -z "$ACCOUNT" ]; then
+    echo "   Detecting AWS account ID..."
+    ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+    echo "   Account: $ACCOUNT"
+fi
+
+# Construct ECR registry URL
+REGISTRY="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com"
+echo "   Region: $REGION"
+echo "   Registry: $REGISTRY"
+
+# Get ECR login password and authenticate Docker
+echo "   Authenticating Docker..."
+aws ecr get-login-password --region "$REGION" | \
+    docker login --username AWS --password-stdin "$REGISTRY"
+
+# Verify authentication
+echo ""
+echo "✅ Successfully authenticated to ECR"
+echo "   Token expires: $(date -u -v+12H '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -d '+12 hours' '+%Y-%m-%dT%H:%M:%SZ')"
+
+# List available repositories (if any)
+REPO_COUNT=$(aws ecr describe-repositories --region "$REGION" 2>/dev/null | jq '.repositories | length' || echo "0")
+echo "   Available repositories: $REPO_COUNT"
+
+# Export variables for subsequent use
+export ECR_REGISTRY="$REGISTRY"
+export ECR_ACCOUNT="$ACCOUNT"
+export ECR_REGION="$REGION"
+
+echo ""
+echo "💡 Environment variables set:"
+echo "   ECR_REGISTRY=$ECR_REGISTRY"
+echo "   ECR_ACCOUNT=$ECR_ACCOUNT"
+echo "   ECR_REGION=$ECR_REGION"
+echo ""
+echo "📦 Ready to push/pull images:"
+echo "   docker tag myimage:latest \$ECR_REGISTRY/myimage:latest"
+echo "   docker push \$ECR_REGISTRY/myimage:latest"
+```
+
+## Workflow Integration
+
+### Before Tofu Deployment
+
+When deploying infrastructure that references ECR images:
+
+```bash
+# 1. Authenticate to ECR
+/ecr-login
+
+# 2. Run Tofu apply (builds and pushes the ECR image)
+/tf-apply
+```
+
+### Standalone Image Push
+
+When you just need to push an image:
+
+```bash
+# 1. Authenticate
+/ecr-login
+
+# 2. Tag and push
+docker tag local-image:latest $ECR_REGISTRY/repo-name:tag
+docker push $ECR_REGISTRY/repo-name:tag
+```
+
+## Cross-Environment Handling
+
+**Host (macOS):**
+- Use Docker Desktop
+- Credentials stored in macOS Keychain (`~/.docker/config.json`)
+- Socket: `/var/run/docker.sock`
+
+**DevContainer:**
+- Use Docker from host (via socket mount `/var/run/docker.sock`)
+- Credentials stored in container's Docker config (`~/.docker/config.json` in container)
+- Shares Docker daemon with host
+
+## Troubleshooting
+
+### "no basic auth credentials"
+
+```bash
+# Token expired (12-hour limit), re-authenticate:
+/ecr-login
+```
+
+### "cannot connect to Docker daemon"
+
+```bash
+# Check Docker is running
+docker ps
+
+# In DevContainer, verify socket is mounted
+ls -la /var/run/docker.sock
+```
+
+### "denied: Your authorization token has expired"
+
+```bash
+# AWS credentials expired, re-authenticate:
+/aws-switch staging  # or /aws-switch production
+/ecr-login
+```
+
+## Example Output
+
+```
+🔐 Authenticating to AWS ECR...
+   Detecting AWS account ID...
+   Account: ${AWS_ACCOUNT_ID}
+   Region: us-west-1
+   Registry: ${AWS_ACCOUNT_ID}.dkr.ecr.us-west-1.amazonaws.com
+   Authenticating Docker...
+
+Login Succeeded
+
+✅ Successfully authenticated to ECR
+   Token expires: 2025-01-15T23:45:00Z
+   Available repositories: 12
+
+💡 Environment variables set:
+   ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.us-west-1.amazonaws.com
+   ECR_ACCOUNT=${AWS_ACCOUNT_ID}
+   ECR_REGION=us-west-1
+
+📦 Ready to push/pull images:
+   docker tag myimage:latest $ECR_REGISTRY/myimage:latest
+   docker push $ECR_REGISTRY/myimage:latest
+```

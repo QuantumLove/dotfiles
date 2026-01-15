@@ -1,0 +1,216 @@
+---
+name: dev-open
+description: Open VSCode DevContainer with unique name per worktree
+---
+
+# DevContainer Opener
+
+Open VSCode DevContainer from Warp terminal with worktree-aware unique naming.
+
+## Problem
+
+VSCode DevContainers use hard-coded container names:
+- `inspect-action-dev`
+- `mp4-deploy-devcontainer`
+- `metr-iam-devcontainer`
+
+When working with multiple git worktrees, these names collide - Docker can't run two containers with the same name.
+
+## Solution
+
+Dynamically generate unique DevContainer configurations per worktree:
+1. Detect worktree name/branch from current directory
+2. Create temporary `.devcontainer/` with unique container name
+3. Open VSCode with that configuration
+4. Clean up temporary config when container stops
+
+## Usage
+
+```bash
+# From within a worktree
+/dev-open
+
+# Specify project explicitly
+/dev-open inspect-action
+
+# With custom suffix
+/dev-open --suffix fix-auth
+```
+
+## Implementation
+
+**Step 1: Detect Context**
+```bash
+# Get project name (inspect-action, mp4-deploy, iam)
+PROJECT=$(basename $(git rev-parse --show-toplevel))
+
+# Get worktree name or branch
+WORKTREE=$(basename $(git rev-parse --show-toplevel))
+BRANCH=$(git branch --show-current)
+
+# Generate unique suffix
+SUFFIX="${WORKTREE##*-}"  # Get last part after dash
+if [ "$SUFFIX" = "$WORKTREE" ]; then
+    SUFFIX="$BRANCH"
+fi
+```
+
+**Step 2: Generate Unique DevContainer Config**
+```bash
+# Copy original devcontainer.json
+TEMP_DEVCONTAINER=".devcontainer.${SUFFIX}"
+mkdir -p "$TEMP_DEVCONTAINER"
+cp .devcontainer/devcontainer.json "$TEMP_DEVCONTAINER/"
+
+# Update container name
+UNIQUE_NAME="${PROJECT}-${SUFFIX}"
+jq --arg name "$UNIQUE_NAME" '
+  .runArgs |= map(
+    if startswith("--name=") then
+      "--name=\($name)"
+    else
+      .
+    end
+  )' "$TEMP_DEVCONTAINER/devcontainer.json" > "$TEMP_DEVCONTAINER/devcontainer.json.tmp"
+mv "$TEMP_DEVCONTAINER/devcontainer.json.tmp" "$TEMP_DEVCONTAINER/devcontainer.json"
+
+# Update volume names
+jq --arg suffix "$SUFFIX" '
+  .mounts |= map(
+    if .type == "volume" then
+      .source += "-\($suffix)"
+    else
+      .
+    end
+  )' "$TEMP_DEVCONTAINER/devcontainer.json" > "$TEMP_DEVCONTAINER/devcontainer.json.tmp"
+mv "$TEMP_DEVCONTAINER/devcontainer.json.tmp" "$TEMP_DEVCONTAINER/devcontainer.json"
+```
+
+**Step 3: Open VSCode**
+```bash
+# Open VSCode with custom devcontainer folder
+code --folder-uri "vscode-remote://dev-container+${PWD}/${TEMP_DEVCONTAINER}/devcontainer.json"
+
+# Or use devcontainer CLI (if available)
+devcontainer up --workspace-folder . --config "$TEMP_DEVCONTAINER/devcontainer.json"
+```
+
+**Step 4: Cleanup Hook**
+```bash
+# Add cleanup to devcontainer.json postStopCommand
+jq '.postStopCommand = "rm -rf .devcontainer.${BRANCH}"' \
+  "$TEMP_DEVCONTAINER/devcontainer.json" > "$TEMP_DEVCONTAINER/devcontainer.json.tmp"
+mv "$TEMP_DEVCONTAINER/devcontainer.json.tmp" "$TEMP_DEVCONTAINER/devcontainer.json"
+```
+
+## Example Output
+
+```
+🔍 Detecting environment...
+   Project: inspect-action
+   Worktree: inspect-action-fix-auth
+   Branch: fix-auth
+   Unique suffix: fix-auth
+
+📝 Generating DevContainer config...
+   Container name: inspect-action-fix-auth
+   Volumes:
+     • inspect-action-home-fix-auth
+     • inspect-action-docker-data-fix-auth
+
+🚀 Opening VSCode DevContainer...
+   Config: .devcontainer.fix-auth/devcontainer.json
+
+✅ DevContainer opened in VSCode
+   You can now work on this worktree without collisions
+   Other worktrees can open their own containers simultaneously
+```
+
+## Warp Integration
+
+To open DevContainers directly from Warp tabs:
+
+**Step 1: Configure Warp Launch Configuration**
+```yaml
+# ~/.warp/launch_configurations/dev-inspect-action.yaml
+name: "DevContainer: inspect-action (auto-detect worktree)"
+command: |
+  cd ~/code/inspect-action-* 2>/dev/null || cd ~/code/inspect-action
+  claude
+  # In Claude: /dev-open
+```
+
+**Step 2: Use Warp Workflows**
+```bash
+# Create Warp workflow to open multiple DevContainers in tabs
+# File: ~/.warp/workflows/open-all-worktrees.yaml
+
+name: Open All Worktrees
+commands:
+  - name: Open main
+    command: |
+      cd ~/code/inspect-action
+      /dev-open
+    new_tab: true
+
+  - name: Open fix-auth worktree
+    command: |
+      cd ~/code/inspect-action-fix-auth
+      /dev-open
+    new_tab: true
+
+  - name: Open feature-xyz worktree
+    command: |
+      cd ~/code/inspect-action-feature-xyz
+      /dev-open
+    new_tab: true
+```
+
+## Advanced: Persistent DevContainer Configs
+
+Instead of temporary configs, create permanent worktree-specific configs:
+
+**File:** `.devcontainer.worktrees/fix-auth/devcontainer.json`
+```json
+{
+  "name": "inspect-action-fix-auth",
+  "runArgs": [
+    "--name=inspect-action-fix-auth",
+    "--privileged",
+    "--hostname=inspect-action-fix-auth"
+  ],
+  "mounts": [
+    {
+      "type": "volume",
+      "source": "inspect-action-home-fix-auth",
+      "target": "/home/metr"
+    },
+    {
+      "type": "volume",
+      "source": "inspect-action-docker-data-fix-auth",
+      "target": "/var/lib/docker"
+    }
+  ],
+  // ... rest of config
+}
+```
+
+Then use: `code --folder-uri "vscode-remote://dev-container+${PWD}/.devcontainer.worktrees/fix-auth"`
+
+## Cross-Environment Handling
+
+**Host (macOS):**
+- Full VSCode with DevContainer extension
+- Warp terminal for management
+- `code` CLI available
+
+**DevContainer (already inside):**
+- No nested DevContainers needed
+- Command becomes no-op or shows warning
+
+## Safety Features
+
+- **Collision detection:** Check if container name already exists
+- **Volume isolation:** Each worktree gets its own volumes
+- **Cleanup:** Remove temporary configs after container stops
+- **Dry run:** Show what would be created without creating it

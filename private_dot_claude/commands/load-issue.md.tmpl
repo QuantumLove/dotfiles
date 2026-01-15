@@ -1,0 +1,99 @@
+---
+name: load-issue
+description: Fetch Linear/GitHub issue context into conversation via MCP
+---
+
+# Load Issue - Get Issue Context
+
+Fetch and load issue context from Linear or GitHub into your Claude conversation.
+
+## Usage
+
+```bash
+# Load from current branch (auto-detects issue ID)
+/load-issue
+
+# Load specific Linear issue
+/load-issue METR-123
+
+# Load specific GitHub issue
+/load-issue gh#456
+
+# Load with full details
+/load-issue METR-123 --full
+
+# Load and include linked issues
+/load-issue METR-123 --linked
+```
+
+## What It Does
+
+1. **Detect issue ID:**
+   - From current branch name (e.g., METR-123/fix-auth)
+   - Or use provided issue ID (METR-123 or gh#456)
+
+2. **Fetch issue details via MCP:**
+   - Title and description
+   - Current status and priority
+   - Assignees and due date
+   - Linked pull requests
+   - Comments and activity
+   - Acceptance criteria
+
+3. **Format and display:**
+   - Render issue as markdown in conversation
+   - Include issue metadata
+   - Show related issues or PRs
+   - Highlight acceptance criteria
+
+4. **Context awareness:**
+   - Link to issue tracker
+   - Show estimated time to completion
+   - Display team assignments
+
+## Example Output
+
+```
+📥 Loading issue context...
+
+# Issue: METR-123 - Fix authentication timeout
+
+**Status:** In Progress
+**Priority:** High
+**Assignee:** @alice
+**Due:** 2025-01-20
+
+## Description
+Users are experiencing timeouts when authenticating through OAuth providers. The timeout occurs after 30 seconds, even for fast connections. This is blocking production deployment.
+
+## Acceptance Criteria
+- [ ] Timeout configurable via environment variable
+- [ ] Timeouts logged with request ID for debugging
+- [ ] Tests verify timeout behavior
+- [ ] Documentation updated for timeout configuration
+
+## Linked Issues
+- METR-100: Improve error messages
+- METR-456: Security audit findings
+
+## Activity
+Last updated 2 hours ago
+3 comments
+2 linked PRs
+```
+
+## Safety Features
+
+- **MCP authentication:** Verify credentials before fetching
+- **Rate limiting:** Respect API rate limits
+- **Caching:** Cache issue details to avoid repeated fetches
+- **Error handling:** Show helpful messages if issue not found
+
+## Note
+
+Full implementation details will be expanded with:
+- Linear MCP integration
+- GitHub API integration
+- Issue caching strategy
+- Cross-workspace issue linking
+- Priority and deadline highlighting

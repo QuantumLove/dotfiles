@@ -1,0 +1,345 @@
+---
+name: start-work
+description: Quick workflow setup for small changes (worktree + issue + branch)
+permissions:
+  - Bash(git worktree add *)
+  - Bash(git worktree list)
+  - Bash(git fetch *)
+  - Bash(git branch *)
+  - Read(**/*.json)
+  - mcp__linear__create_issue
+  - mcp__linear__get_issue
+  - mcp__github__create_branch
+---
+
+# Start Work - Quick Workflow Setup
+
+Streamlined command for starting work on a small change with proper isolation and tracking.
+
+## Usage
+
+```bash
+# Interactive mode - prompts for options
+/start-work
+
+# Load existing Linear issue
+/start-work METR-123
+
+# Create new Linear issue
+/start-work --new "Fix authentication timeout bug"
+
+# Quick mode - no Linear tracking
+/start-work --quick "experiment-oauth-flow"
+
+# With team assignment
+/start-work --new "Add rate limiting" --team Platform --assign @me
+```
+
+## What It Does
+
+**Full Flow:**
+1. Verifies current repo is clean (no uncommitted changes)
+2. Fetches latest from origin
+3. **If existing issue:** Loads issue details via MCP (Linear or GitHub)
+4. **If --new flag:** Creates new Linear issue with provided title
+5. **If --quick flag:** Skips Linear entirely
+6. Creates worktree with consistent naming: `~/code/worktrees/{repo}-{issue-id}`
+7. Creates branch: `{issue-id}/{slug}` or `quick/{slug}`
+8. Opens worktree in new terminal/VSCode (optional)
+9. Loads issue context into Claude conversation
+10. Provides next steps (make changes → `/push-pr`)
+
+## Implementation
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Parse arguments
+MODE="interactive"
+ISSUE_ID=""
+TITLE=""
+TEAM=""
+ASSIGN=""
+QUICK=false
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --new)
+      MODE="create"
+      TITLE="$2"
+      shift 2
+      ;;
+    --quick)
+      QUICK=true
+      TITLE="${2:-quick-fix}"
+      shift 2
+      ;;
+    --team)
+      TEAM="$2"
+      shift 2
+      ;;
+    --assign)
+      ASSIGN="$2"
+      shift 2
+      ;;
+    *)
+      ISSUE_ID="$1"
+      MODE="existing"
+      shift
+      ;;
+  esac
+done
+
+# Verify in git repo
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "❌ Not in a git repository"
+  exit 1
+fi
+
+# Check for uncommitted changes
+if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+  echo "❌ You have uncommitted changes. Commit or stash them first."
+  git status --short
+  exit 1
+fi
+
+REPO_NAME=$(basename $(git rev-parse --show-toplevel))
+WORKTREE_BASE="$HOME/code/worktrees"
+mkdir -p "$WORKTREE_BASE"
+
+# Fetch latest
+echo "📡 Fetching latest from origin..."
+git fetch origin
+
+# Handle different modes
+if [ "$MODE" = "interactive" ]; then
+  echo "🚀 Start Work - Quick Setup"
+  echo ""
+  echo "Choose an option:"
+  echo "  1) Load existing Linear issue"
+  echo "  2) Create new Linear issue"
+  echo "  3) Quick mode (no issue tracking)"
+  read -p "Selection (1-3): " choice
+
+  case $choice in
+    1)
+      read -p "Linear issue ID (e.g., METR-123): " ISSUE_ID
+      MODE="existing"
+      ;;
+    2)
+      read -p "Issue title: " TITLE
+      read -p "Team (optional): " TEAM
+      MODE="create"
+      ;;
+    3)
+      read -p "Branch name slug: " TITLE
+      QUICK=true
+      ;;
+    *)
+      echo "Invalid choice"
+      exit 1
+      ;;
+  esac
+fi
+
+# Process based on mode
+if [ "$QUICK" = true ]; then
+  # Quick mode - no Linear
+  SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
+  BRANCH_NAME="quick/$SLUG"
+  WORKTREE_NAME="${REPO_NAME}-quick-${SLUG}"
+  WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
+
+  echo "⚡ Quick mode - skipping Linear"
+
+elif [ "$MODE" = "existing" ]; then
+  # Load existing issue
+  echo "📋 Loading issue $ISSUE_ID..."
+
+  # Use MCP to fetch issue details
+  ISSUE_JSON=$(claude mcp call linear get_issue --issue-id "$ISSUE_ID" 2>/dev/null || echo "{}")
+
+  if [ "$ISSUE_JSON" = "{}" ]; then
+    echo "❌ Could not load issue $ISSUE_ID"
+    exit 1
+  fi
+
+  ISSUE_TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
+  ISSUE_STATE=$(echo "$ISSUE_JSON" | jq -r '.state.name')
+
+  echo "   Title: $ISSUE_TITLE"
+  echo "   State: $ISSUE_STATE"
+
+  SLUG=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g' | cut -c1-50)
+  BRANCH_NAME="$ISSUE_ID/$SLUG"
+  WORKTREE_NAME="${REPO_NAME}-${ISSUE_ID}"
+  WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
+
+elif [ "$MODE" = "create" ]; then
+  # Create new Linear issue
+  echo "📝 Creating Linear issue: $TITLE"
+
+  TEAM_ARG=""
+  if [ -n "$TEAM" ]; then
+    TEAM_ARG="--team $TEAM"
+  fi
+
+  ASSIGN_ARG=""
+  if [ -n "$ASSIGN" ]; then
+    ASSIGN_ARG="--assignee $ASSIGN"
+  fi
+
+  # Create issue via MCP
+  ISSUE_JSON=$(claude mcp call linear create_issue \
+    --title "$TITLE" \
+    $TEAM_ARG \
+    $ASSIGN_ARG \
+    2>/dev/null || echo "{}")
+
+  if [ "$ISSUE_JSON" = "{}" ]; then
+    echo "❌ Could not create Linear issue"
+    exit 1
+  fi
+
+  ISSUE_ID=$(echo "$ISSUE_JSON" | jq -r '.identifier')
+  echo "   Created: $ISSUE_ID"
+
+  SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g' | cut -c1-50)
+  BRANCH_NAME="$ISSUE_ID/$SLUG"
+  WORKTREE_NAME="${REPO_NAME}-${ISSUE_ID}"
+  WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
+fi
+
+# Check if worktree already exists
+if [ -d "$WORKTREE_PATH" ]; then
+  echo "⚠️  Worktree already exists: $WORKTREE_PATH"
+  read -p "Remove and recreate? (yes/no): " confirm
+  if [ "$confirm" = "yes" ]; then
+    git worktree remove "$WORKTREE_PATH" --force
+  else
+    echo "Cancelled"
+    exit 1
+  fi
+fi
+
+# Create worktree
+echo "🌳 Creating worktree: $WORKTREE_NAME"
+git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" origin/main
+
+echo ""
+echo "✅ Workspace ready!"
+echo ""
+echo "📂 Worktree: $WORKTREE_PATH"
+echo "🌿 Branch: $BRANCH_NAME"
+if [ "$QUICK" = false ]; then
+  echo "🎫 Issue: $ISSUE_ID"
+fi
+echo ""
+echo "Next steps:"
+echo "  1. cd $WORKTREE_PATH"
+if [ -d "$WORKTREE_PATH/.devcontainer" ]; then
+  echo "  2. code . (or use /dev-open to open in DevContainer)"
+else
+  echo "  2. code . (or open in your editor)"
+fi
+echo "  3. Make your changes"
+echo "  4. /push-pr (to create PR)"
+echo ""
+
+# Optionally open in new terminal/editor
+if command -v code &> /dev/null; then
+  read -p "Open in VSCode now? (yes/no): " open_editor
+  if [ "$open_editor" = "yes" ]; then
+    code "$WORKTREE_PATH"
+  fi
+fi
+
+# Load issue context into Claude conversation
+if [ "$QUICK" = false ] && [ -n "$ISSUE_ID" ]; then
+  echo "📥 Loading issue context into conversation..."
+  claude mcp call linear get_issue --issue-id "$ISSUE_ID" | \
+    jq -r '"# Issue: \(.identifier) - \(.title)\n\n**Status:** \(.state.name)\n**Priority:** \(.priority)\n\n## Description\n\(.description // "No description")\n\n## Acceptance Criteria\n\(.acceptanceCriteria // "None specified")"'
+fi
+```
+
+## Examples
+
+### Example 1: Existing Linear Issue
+
+```bash
+$ /start-work METR-456
+
+📡 Fetching latest from origin...
+📋 Loading issue METR-456...
+   Title: Fix timeout in evaluation runner
+   State: In Progress
+🌳 Creating worktree: inspect-action-METR-456
+
+✅ Workspace ready!
+
+📂 Worktree: ~/code/worktrees/inspect-action-METR-456
+🌿 Branch: METR-456/fix-timeout-in-evaluation-runner
+🎫 Issue: METR-456
+
+Next steps:
+  1. cd ~/code/worktrees/inspect-action-METR-456
+  2. code . (or use /dev-open to open in DevContainer)
+  3. Make your changes
+  4. /push-pr (to create PR)
+
+📥 Loading issue context into conversation...
+
+# Issue: METR-456 - Fix timeout in evaluation runner
+
+**Status:** In Progress
+**Priority:** High
+
+## Description
+Evaluation runner times out after 30s when task initialization takes longer...
+```
+
+### Example 2: New Issue with Team Assignment
+
+```bash
+$ /start-work --new "Implement rate limiting middleware" --team Platform --assign @me
+
+📡 Fetching latest from origin...
+📝 Creating Linear issue: Implement rate limiting middleware
+   Created: METR-789
+
+🌳 Creating worktree: mp4-deploy-METR-789
+
+✅ Workspace ready!
+
+📂 Worktree: ~/code/worktrees/mp4-deploy-METR-789
+🌿 Branch: METR-789/implement-rate-limiting-middleware
+🎫 Issue: METR-789
+
+Next steps:
+  1. cd ~/code/worktrees/mp4-deploy-METR-789
+  2. code . (or use /dev-open to open in DevContainer)
+  3. Make your changes
+  4. /push-pr (to create PR)
+```
+
+### Example 3: Quick Mode (No Issue Tracking)
+
+```bash
+$ /start-work --quick "test-new-cache-layer"
+
+📡 Fetching latest from origin...
+⚡ Quick mode - skipping Linear
+🌳 Creating worktree: inspect-action-quick-test-new-cache-layer
+
+✅ Workspace ready!
+
+📂 Worktree: ~/code/worktrees/inspect-action-quick-test-new-cache-layer
+🌿 Branch: quick/test-new-cache-layer
+
+Next steps:
+  1. cd ~/code/worktrees/inspect-action-quick-test-new-cache-layer
+  2. code . (or use /dev-open to open in DevContainer)
+  3. Make your changes
+  4. /push-pr (to create PR)
+```
