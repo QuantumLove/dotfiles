@@ -1,0 +1,304 @@
+---
+name: security-check
+description: STRIDE threat analysis using Security Specialist agent on code changes
+permissions:
+  - Bash(git diff *)
+  - Bash(grep -r *)
+---
+
+# Security Check - STRIDE Threat Analysis
+
+Invoke the Security Specialist agent to perform STRIDE-based threat analysis on your code changes, with context from METR's platform threat models.
+
+## Philosophy
+Security is easier to build in than bolt on. Catch vulnerabilities before they reach production.
+
+## Usage
+
+```bash
+/security-check                 # Analyze staged changes
+/security-check --full          # Full codebase analysis
+/security-check --pr PR_NUMBER  # Analyze specific PR
+/security-check --quick         # Quick scan (OWASP Top 10 only)
+```
+
+## What It Checks
+
+1. **STRIDE Categories:**
+   - Spoofing (authentication)
+   - Tampering (data integrity)
+   - Repudiation (audit logging)
+   - Information Disclosure (data leaks)
+   - Denial of Service (resource exhaustion)
+   - Elevation of Privilege (authorization bypass)
+
+2. **Known Findings** (from platform-threat-modeling):
+   - F#34: S3 key collision
+   - F#2: Over-permissive IAM
+   - F#39: Supply chain RCE
+   - F#3: Model group access control bypass
+
+3. **OWASP Top 10:**
+   - Injection vulnerabilities
+   - Broken authentication
+   - Sensitive data exposure
+   - XML External Entities (XXE)
+   - Broken access control
+   - Security misconfiguration
+   - Cross-Site Scripting (XSS)
+   - Insecure deserialization
+   - Using components with known vulnerabilities
+   - Insufficient logging & monitoring
+
+## Implementation
+
+```bash
+#!/bin/bash
+
+echo "🔒 Security Check - STRIDE Threat Analysis"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+MODE="staged"
+QUICK=false
+
+# Parse arguments
+for arg in "$@"; do
+  case $arg in
+    --full)
+      MODE="full"
+      ;;
+    --quick)
+      QUICK=true
+      ;;
+    --pr)
+      shift
+      MODE="pr"
+      PR_NUMBER=$1
+      ;;
+    --pr=*)
+      MODE="pr"
+      PR_NUMBER="${arg#*=}"
+      ;;
+  esac
+done
+
+# Detect repository
+REPO=$(basename $(git rev-parse --show-toplevel 2>/dev/null) || echo "unknown")
+echo "📂 Repository: $REPO"
+
+# Check for threat model
+THREAT_MODEL_PATH="$HOME/code/platform-threat-modeling/threat-models/$REPO/ThreatModel.md"
+
+if [ -f "$THREAT_MODEL_PATH" ]; then
+  echo "📋 Threat model found: $THREAT_MODEL_PATH"
+  echo ""
+else
+  echo "⚠️  No threat model found for this repository"
+  echo "   Location checked: $THREAT_MODEL_PATH"
+  echo ""
+fi
+
+# Determine what to analyze
+case $MODE in
+  staged)
+    echo "🔍 Analyzing: Staged changes"
+    CHANGED_FILES=$(git diff --cached --name-only)
+    ;;
+  full)
+    echo "🔍 Analyzing: Full codebase"
+    CHANGED_FILES=$(find . -type f \( -name "*.py" -o -name "*.ts" -o -name "*.js" -o -name "*.tf" \) | grep -v node_modules | grep -v .venv)
+    ;;
+  pr)
+    echo "🔍 Analyzing: PR #$PR_NUMBER"
+    CHANGED_FILES=$(gh pr diff $PR_NUMBER --name-only)
+    ;;
+esac
+
+if [ -z "$CHANGED_FILES" ]; then
+  echo "❌ No files to analyze. Stage changes or use --full"
+  exit 1
+fi
+
+echo "📄 Files to analyze:"
+echo "$CHANGED_FILES" | head -10
+if [ $(echo "$CHANGED_FILES" | wc -l) -gt 10 ]; then
+  echo "   ... and $(( $(echo "$CHANGED_FILES" | wc -l) - 10 )) more"
+fi
+echo ""
+
+# Quick automated checks
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "⚡ Quick Automated Scan"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+FINDINGS=()
+
+# Check 1: Hardcoded secrets
+echo "1. Checking for hardcoded secrets..."
+for file in $CHANGED_FILES; do
+  if [ -f "$file" ]; then
+    # Check for AWS keys, tokens, passwords
+    if grep -Hn -E "(AWS_ACCESS_KEY|AWS_SECRET|api[_-]key|password|secret|token)[\s]*=[\s]*['\"][a-zA-Z0-9]{20,}" "$file" 2>/dev/null; then
+      FINDINGS+=("Possible hardcoded secret in $file")
+    fi
+  fi
+done
+
+# Check 2: SQL injection risk
+echo "2. Checking for SQL injection risks..."
+for file in $CHANGED_FILES; do
+  if [ -f "$file" ] && [[ "$file" == *.py ]]; then
+    # Check for string concatenation in SQL
+    if grep -Hn -E "(execute|cursor\.execute).*[f'\"].*\{.*\}" "$file" 2>/dev/null; then
+      FINDINGS+=("Possible SQL injection via f-string in $file")
+    fi
+  fi
+done
+
+# Check 3: IAM wildcards (Terraform)
+echo "3. Checking IAM policies for wildcards..."
+for file in $CHANGED_FILES; do
+  if [ -f "$file" ] && [[ "$file" == *.tf ]]; then
+    if grep -Hn 'Resource.*=.*\[.*"\*"' "$file" 2>/dev/null; then
+      FINDINGS+=("Wildcard IAM resource in $file (F#2 related)")
+    fi
+  fi
+done
+
+# Check 4: User-controlled file paths
+echo "4. Checking for path traversal risks..."
+for file in $CHANGED_FILES; do
+  if [ -f "$file" ]; then
+    # Check for user input in file paths without validation
+    if grep -Hn -E "(s3_key|file_path|filename).*=.*request\." "$file" 2>/dev/null; then
+      FINDINGS+=("User input in file path without validation in $file (F#34 related)")
+    fi
+  fi
+done
+
+echo ""
+
+# Report findings
+if [ ${#FINDINGS[@]} -gt 0 ]; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "⚠️  Automated Scan Found ${#FINDINGS[@]} Issue(s)"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  for finding in "${FINDINGS[@]}"; do
+    echo "  - $finding"
+  done
+  echo ""
+else
+  echo "✅ No issues found in automated scan"
+  echo ""
+fi
+
+# Recommend deep analysis
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🎯 Recommended Next Steps"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+if [ "$QUICK" = false ]; then
+  echo "For deep STRIDE analysis, invoke Security Specialist agent:"
+  echo ""
+  echo "  @security-specialist \"Perform STRIDE threat analysis on:"
+  echo ""
+  echo "  Changed files:"
+  for file in $(echo "$CHANGED_FILES" | head -5); do
+    echo "    - $file"
+  done
+  echo ""
+  if [ -f "$THREAT_MODEL_PATH" ]; then
+    echo "  Context:"
+    echo "    - Threat model: $THREAT_MODEL_PATH"
+    echo "    - Known findings: F#34 (S3), F#2 (IAM), F#39 (supply chain)"
+  fi
+  echo ""
+  echo "  Focus on:"
+  echo "    - Authentication/authorization changes"
+  echo "    - Data handling (S3 keys, database queries)"
+  echo "    - IAM policy modifications"
+  echo "    - External API integrations\""
+  echo ""
+else
+  echo "Quick scan complete. For comprehensive analysis:"
+  echo "  /security-check  # Run without --quick flag"
+fi
+
+# Exit with warning if findings
+if [ ${#FINDINGS[@]} -gt 0 ]; then
+  exit 1
+else
+  exit 0
+fi
+```
+
+## Integration with Security Specialist Agent
+
+The automated scan catches obvious issues. For thorough analysis:
+
+```bash
+# 1. Run quick automated check
+/security-check
+
+# 2. For deep analysis, invoke Security Specialist
+@security-specialist "Perform STRIDE threat analysis on these changes:
+
+Files modified:
+- hawk/api/routes/eval_sets.py (authorization logic)
+- terraform/modules/api/iam.tf (IAM policy updates)
+
+Context:
+- Repository: inspect-action
+- Known findings: F#3 (model group access control bypass)
+
+Focus areas:
+- Does new authorization logic prevent F#3 bypass?
+- Are IAM policies scoped correctly (no wildcards)?
+- Any new API endpoints missing auth checks?"
+
+# 3. Security Specialist will:
+#    - Load threat model context
+#    - Apply STRIDE methodology
+#    - Check against known findings
+#    - Provide severity ratings and mitigation steps
+```
+
+## When to Use
+
+**Before every commit** (in METR repos):
+```bash
+git add .
+/security-check
+```
+
+**Before creating PR:**
+```bash
+/security-check --full
+```
+
+**Reviewing PR security:**
+```bash
+/security-check --pr 123
+```
+
+**Quick check during development:**
+```bash
+/security-check --quick
+```
+
+## Related Commands
+
+- `@security-specialist` - Deep threat analysis agent
+- `/safe-ship` - Comprehensive pre-deployment checks (includes security)
+- `/review` - General code review (includes security basics)
+- `@code-reviewer` - Code review agent (has security checklist)
+
+## Related Files
+
+- `~/code/platform-threat-modeling/RISK-REGISTER.md` - All known findings
+- `~/code/platform-threat-modeling/threat-models/{repo}/ThreatModel.md` - Repo-specific threats
+- `~/code/platform-threat-modeling/threat-models/{repo}/investigations/` - Deep-dive analyses

@@ -1,0 +1,259 @@
+---
+name: test-and-fix
+description: Iteratively run tests and fix failures using Bug Finder agent
+permissions:
+  - Bash(pytest *)
+  - Bash(npm test *)
+  - Bash(uv run pytest *)
+---
+
+# Test and Fix - Iterative Test Failure Resolution
+
+Automatically run tests, analyze failures, and invoke Bug Finder agent to help fix them. Repeats until all tests pass.
+
+## Philosophy
+Tests are specifications. Use AI to debug failures systematically, not randomly.
+
+## Usage
+
+```bash
+/test-and-fix                    # Run all tests, fix failures
+/test-and-fix --unit-only        # Only run unit tests
+/test-and-fix --max-iterations 5 # Limit fix attempts
+/test-and-fix tests/test_api.py  # Test specific file
+```
+
+## Workflow
+
+1. **Run tests** (pytest or npm test)
+2. **Capture failures** (test name, error, traceback)
+3. **Invoke Bug Finder agent** with failure context
+4. **Apply suggested fixes** (with user approval)
+5. **Re-run tests** to verify fix
+6. **Repeat** until all tests pass or max iterations reached
+
+## Implementation
+
+```bash
+#!/bin/bash
+
+echo "🧪 Test and Fix - Iterative Debugging"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+MAX_ITERATIONS=10
+UNIT_ONLY=false
+TEST_PATH=""
+ITERATION=1
+
+# Parse arguments
+for arg in "$@"; do
+  case $arg in
+    --unit-only)
+      UNIT_ONLY=true
+      ;;
+    --max-iterations)
+      shift
+      MAX_ITERATIONS=$1
+      ;;
+    --max-iterations=*)
+      MAX_ITERATIONS="${arg#*=}"
+      ;;
+    tests/*)
+      TEST_PATH="$arg"
+      ;;
+    */test_*.py)
+      TEST_PATH="$arg"
+      ;;
+  esac
+done
+
+# Detect project type
+if [ -f "pyproject.toml" ] || [ -f "pytest.ini" ]; then
+  PROJECT_TYPE="python"
+  TEST_COMMAND="pytest"
+  if command -v uv &> /dev/null; then
+    TEST_COMMAND="uv run pytest"
+  fi
+elif [ -f "package.json" ]; then
+  PROJECT_TYPE="typescript"
+  TEST_COMMAND="npm test"
+else
+  echo "❌ Unknown project type. No pyproject.toml or package.json found."
+  exit 1
+fi
+
+echo "📋 Configuration:"
+echo "   Project type: $PROJECT_TYPE"
+echo "   Test command: $TEST_COMMAND"
+echo "   Max iterations: $MAX_ITERATIONS"
+if [ -n "$TEST_PATH" ]; then
+  echo "   Test path: $TEST_PATH"
+fi
+echo ""
+
+# Main loop
+while [ $ITERATION -le $MAX_ITERATIONS ]; do
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "🔄 Iteration $ITERATION/$MAX_ITERATIONS"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  # Run tests and capture output
+  echo "Running tests..."
+  if [ -n "$TEST_PATH" ]; then
+    TEST_OUTPUT=$($TEST_COMMAND "$TEST_PATH" 2>&1)
+  else
+    if [ "$UNIT_ONLY" = true ] && [ "$PROJECT_TYPE" = "python" ]; then
+      TEST_OUTPUT=$($TEST_COMMAND -m "not integration" 2>&1)
+    else
+      TEST_OUTPUT=$($TEST_COMMAND 2>&1)
+    fi
+  fi
+
+  TEST_EXIT_CODE=$?
+
+  # Check if tests passed
+  if [ $TEST_EXIT_CODE -eq 0 ]; then
+    echo "✅ All tests passed!"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "✅ Success after $ITERATION iteration(s)!"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    exit 0
+  fi
+
+  # Tests failed - analyze failures
+  echo "❌ Tests failed. Analyzing failures..."
+  echo ""
+
+  # Extract failure information
+  if [ "$PROJECT_TYPE" = "python" ]; then
+    # Extract failed test names and tracebacks
+    FAILED_TESTS=$(echo "$TEST_OUTPUT" | grep "FAILED" | head -5)
+    FAILURE_SUMMARY=$(echo "$TEST_OUTPUT" | grep -A 20 "FAILED\|ERROR" | head -30)
+  else
+    # TypeScript/Jest
+    FAILED_TESTS=$(echo "$TEST_OUTPUT" | grep "✕" | head -5)
+    FAILURE_SUMMARY=$(echo "$TEST_OUTPUT" | tail -30)
+  fi
+
+  echo "Failed tests:"
+  echo "$FAILED_TESTS"
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  # Show failure summary
+  echo "Failure details:"
+  echo "$FAILURE_SUMMARY"
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  # Invoke Bug Finder agent suggestion
+  echo "💡 Recommendations:"
+  echo ""
+  echo "1. Invoke Bug Finder agent to analyze:"
+  echo "   @bug-finder \"Analyze test failures and suggest fixes\""
+  echo ""
+  echo "2. Manual debugging:"
+  echo "   - Review failure traceback above"
+  echo "   - Check changed files: git diff"
+  echo "   - Add debug prints/breakpoints"
+  echo ""
+  echo "3. Skip this test temporarily:"
+  echo "   pytest -k 'not failing_test_name'"
+  echo ""
+
+  # Ask user what to do
+  read -p "Continue? (y)es to retry, (d)ebug for details, (q)uit: " -n 1 -r
+  echo ""
+
+  case $REPLY in
+    [Yy])
+      ITERATION=$((ITERATION + 1))
+      if [ $ITERATION -gt $MAX_ITERATIONS ]; then
+        echo "❌ Max iterations reached. Tests still failing."
+        echo ""
+        echo "Suggestions:"
+        echo "  - Review failures above"
+        echo "  - Invoke @bug-finder for systematic analysis"
+        echo "  - Run with --max-iterations to try more fixes"
+        exit 1
+      fi
+      ;;
+    [Dd])
+      echo ""
+      echo "Full test output:"
+      echo "$TEST_OUTPUT"
+      echo ""
+      read -p "Continue fixing? (y/n): " -n 1 -r
+      echo ""
+      if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+      fi
+      ITERATION=$((ITERATION + 1))
+      ;;
+    *)
+      echo "Exiting..."
+      exit 1
+      ;;
+  esac
+done
+
+echo "❌ Max iterations reached without fixing all tests."
+exit 1
+```
+
+## Integration with Bug Finder Agent
+
+When tests fail, this command prepares failure context for the Bug Finder agent:
+
+```bash
+# 1. Run test-and-fix
+/test-and-fix
+
+# 2. When it shows failures, invoke Bug Finder:
+@bug-finder "Tests are failing:
+- test_api_authentication failed with AssertionError
+- Expected 200, got 401
+
+Traceback shows auth token not being set in request headers.
+Suggest a fix."
+
+# 3. Bug Finder will:
+#    - Analyze the code and test
+#    - Identify root cause
+#    - Propose a fix
+#    - You apply the fix
+
+# 4. test-and-fix re-runs tests automatically
+```
+
+## Tips
+
+**Fast iteration:**
+```bash
+/test-and-fix tests/test_specific.py  # Test one file
+```
+
+**Skip slow integration tests:**
+```bash
+/test-and-fix --unit-only
+```
+
+**Complex bugs:**
+```bash
+# 1. Get detailed output
+/test-and-fix --max-iterations 1
+
+# 2. Manually invoke Bug Finder with full context
+@bug-finder "Systematic analysis needed..."
+```
+
+## Related Commands
+
+- `/safe-ship` - Run all quality checks (includes tests)
+- `@bug-finder` - Deep debugging agent
+- `/review` - Code review before fixing tests

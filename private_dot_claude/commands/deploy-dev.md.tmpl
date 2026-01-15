@@ -1,0 +1,356 @@
+---
+name: deploy-dev
+description: Deploy to METR dev4 environment with validation and smoke tests
+permissions:
+  - Bash(tofu *)
+  - Bash(kubectl *)
+  - Bash(docker build *)
+  - Bash(aws ecr *)
+---
+
+# Deploy Dev - METR dev4 Deployment
+
+Deploy code to the METR dev4 environment with automated validation, smoke tests, and rollback capability.
+
+## Philosophy
+Deploy confidently. Validate before applying, test after deploying, provide rollback if needed.
+
+## Usage
+
+```bash
+/deploy-dev                      # Full deployment workflow
+/deploy-dev --plan-only          # Only show what would change
+/deploy-dev --skip-tests         # Skip smoke tests (faster)
+/deploy-dev --component api      # Deploy specific component
+```
+
+## What It Does
+
+1. **Pre-flight checks** (credentials, cluster access)
+2. **Build and push** Docker image to ECR
+3. **Terraform plan** (preview infrastructure changes)
+4. **Apply changes** (with confirmation)
+5. **Smoke tests** (verify deployment health)
+6. **Rollback support** (if anything fails)
+
+## Implementation
+
+```bash
+#!/bin/bash
+set -e
+
+echo "🚀 Deploy Dev - METR dev4 Deployment"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+PLAN_ONLY=false
+SKIP_TESTS=false
+COMPONENT=""
+DEPLOYMENT_START=$(date +%s)
+
+# Parse arguments
+for arg in "$@"; do
+  case $arg in
+    --plan-only)
+      PLAN_ONLY=true
+      ;;
+    --skip-tests)
+      SKIP_TESTS=true
+      ;;
+    --component)
+      shift
+      COMPONENT=$1
+      ;;
+    --component=*)
+      COMPONENT="${arg#*=}"
+      ;;
+  esac
+done
+
+# Detect repository and component
+REPO=$(basename $(git rev-parse --show-toplevel 2>/dev/null) || echo "unknown")
+
+if [ -z "$COMPONENT" ]; then
+  # Auto-detect component from repo
+  case $REPO in
+    inspect-action)
+      COMPONENT="hawk-api"
+      ;;
+    mp4-deploy)
+      COMPONENT="mp4-server"
+      ;;
+    *)
+      echo "❌ Cannot auto-detect component. Use --component flag"
+      exit 1
+      ;;
+  esac
+fi
+
+echo "📋 Deployment Configuration:"
+echo "   Repository: $REPO"
+echo "   Component: $COMPONENT"
+echo "   Environment: dev4"
+echo "   Plan only: $PLAN_ONLY"
+echo ""
+
+# Step 1: Pre-flight checks
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✈️  Step 1/6: Pre-flight Checks"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Check AWS credentials
+if ! aws sts get-caller-identity &>/dev/null; then
+  echo "❌ AWS credentials not configured"
+  echo "   Run: /aws-switch staging"
+  exit 1
+fi
+
+echo "✅ AWS credentials valid"
+
+# Check Kubernetes access
+if ! kubectl cluster-info &>/dev/null; then
+  echo "❌ Kubernetes cluster not accessible"
+  echo "   Run: aws eks update-kubeconfig --name metr-dev4"
+  exit 1
+fi
+
+echo "✅ Kubernetes cluster accessible"
+
+# Check if on a clean branch
+if ! git diff-index --quiet HEAD --; then
+  echo "⚠️  Uncommitted changes detected. Commit or stash before deploying."
+  exit 1
+fi
+
+COMMIT_SHA=$(git rev-parse --short HEAD)
+echo "✅ Deploying commit: $COMMIT_SHA"
+echo ""
+
+# Step 2: Build and Push Docker Image
+if [ "$PLAN_ONLY" = false ]; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "🐳 Step 2/6: Build and Push Docker Image"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  # ECR login
+  echo "Logging into ECR..."
+  if ! /claude /ecr-login; then
+    echo "❌ ECR login failed"
+    exit 1
+  fi
+
+  # Build image
+  IMAGE_TAG="$COMMIT_SHA"
+  ECR_REPO="metr-$COMPONENT"
+  AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+  AWS_REGION="us-west-1"
+  FULL_IMAGE="$AWS_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG"
+
+  echo "Building Docker image..."
+  echo "   Tag: $IMAGE_TAG"
+  if ! docker build -t "$FULL_IMAGE" .; then
+    echo "❌ Docker build failed"
+    exit 1
+  fi
+
+  echo "Pushing to ECR..."
+  if ! docker push "$FULL_IMAGE"; then
+    echo "❌ Docker push failed"
+    exit 1
+  fi
+
+  echo "✅ Image pushed: $FULL_IMAGE"
+  echo ""
+fi
+
+# Step 3: Terraform Plan
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📝 Step 3/6: Terraform Plan"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+cd terraform
+
+# Select workspace
+if ! tofu workspace select dev4 2>/dev/null; then
+  echo "Creating dev4 workspace..."
+  tofu workspace new dev4
+fi
+
+# Run plan
+echo "Running terraform plan..."
+if ! tofu plan -out=tfplan; then
+  echo "❌ Terraform plan failed"
+  exit 1
+fi
+
+echo "✅ Terraform plan created"
+echo ""
+
+# If plan-only, exit here
+if [ "$PLAN_ONLY" = true ]; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "✅ Plan-only mode complete"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "Review the plan above."
+  echo "To apply: /deploy-dev"
+  exit 0
+fi
+
+# Step 4: Apply Changes
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🚢 Step 4/6: Apply Changes"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+read -p "Apply these changes to dev4? (yes/no): " -r
+if [[ ! $REPLY =~ ^yes$ ]]; then
+  echo "Deployment cancelled"
+  exit 0
+fi
+
+if ! tofu apply tfplan; then
+  echo "❌ Terraform apply failed"
+  echo ""
+  echo "Rollback options:"
+  echo "  1. Fix the issue and re-run: /deploy-dev"
+  echo "  2. Revert to previous commit: git revert HEAD && /deploy-dev"
+  exit 1
+fi
+
+echo "✅ Infrastructure changes applied"
+echo ""
+
+cd ..
+
+# Step 5: Wait for Rollout
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "⏳ Step 5/6: Waiting for Rollout"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Wait for deployment to roll out
+DEPLOYMENT_NAME="$COMPONENT-dev4"
+echo "Waiting for deployment $DEPLOYMENT_NAME..."
+
+if ! kubectl rollout status deployment/$DEPLOYMENT_NAME -n dev4 --timeout=5m; then
+  echo "❌ Deployment rollout failed"
+  echo ""
+  echo "Debugging:"
+  echo "  kubectl get pods -n dev4"
+  echo "  kubectl logs -n dev4 -l app=$COMPONENT --tail=50"
+  echo ""
+  echo "Rollback:"
+  echo "  kubectl rollout undo deployment/$DEPLOYMENT_NAME -n dev4"
+  exit 1
+fi
+
+echo "✅ Deployment rolled out successfully"
+echo ""
+
+# Step 6: Smoke Tests
+if [ "$SKIP_TESTS" = false ]; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "🧪 Step 6/6: Smoke Tests"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  # Get service endpoint
+  SERVICE_ENDPOINT=$(kubectl get svc $COMPONENT-service -n dev4 -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+  if [ -n "$SERVICE_ENDPOINT" ]; then
+    echo "Testing endpoint: $SERVICE_ENDPOINT/health"
+
+    # Health check
+    if curl -f -s -o /dev/null "$SERVICE_ENDPOINT/health"; then
+      echo "✅ Health check passed"
+    else
+      echo "❌ Health check failed"
+      echo "   Check logs: kubectl logs -n dev4 -l app=$COMPONENT"
+      exit 1
+    fi
+  else
+    echo "⚠️  Service endpoint not found. Manual verification needed."
+  fi
+  echo ""
+fi
+
+# Summary
+DEPLOYMENT_END=$(date +%s)
+DEPLOYMENT_TIME=$((DEPLOYMENT_END - DEPLOYMENT_START))
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Deployment Complete!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "   Component: $COMPONENT"
+echo "   Environment: dev4"
+echo "   Commit: $COMMIT_SHA"
+echo "   Duration: ${DEPLOYMENT_TIME}s"
+echo ""
+echo "Verify deployment:"
+echo "  kubectl get pods -n dev4 -l app=$COMPONENT"
+echo "  kubectl logs -n dev4 -l app=$COMPONENT --tail=50"
+echo ""
+echo "Rollback if needed:"
+echo "  kubectl rollout undo deployment/$DEPLOYMENT_NAME -n dev4"
+```
+
+## Safety Features
+
+1. **Pre-flight validation** - Checks credentials, cluster access, clean branch
+2. **Terraform plan** - Preview changes before applying
+3. **Manual confirmation** - Requires "yes" to proceed
+4. **Rollout monitoring** - Waits for deployment to complete
+5. **Smoke tests** - Verifies health after deployment
+6. **Clear rollback instructions** - Easy to undo if needed
+
+## Workflow
+
+**Standard deployment:**
+```bash
+git checkout main
+git pull
+/safe-ship                    # Pre-deployment checks
+/deploy-dev                   # Deploy to dev4
+```
+
+**Preview changes first:**
+```bash
+/deploy-dev --plan-only       # Review Terraform plan
+/deploy-dev                   # Apply if looks good
+```
+
+**Fast iteration (skip tests):**
+```bash
+/deploy-dev --skip-tests
+```
+
+**Component-specific:**
+```bash
+/deploy-dev --component hawk-api
+```
+
+## Rollback
+
+If deployment fails or behaves unexpectedly:
+
+```bash
+# Rollback Kubernetes deployment
+kubectl rollout undo deployment/hawk-api-dev4 -n dev4
+
+# Or revert code and redeploy
+git revert HEAD
+/deploy-dev
+```
+
+## Related Commands
+
+- `/safe-ship` - Pre-deployment validation
+- `/aws-preflight` - AWS credential checks
+- `/ecr-login` - Docker registry authentication
+- `/k8s-reset` - Reset cluster to clean state
+- `@dev4-deployment-manager` - Specialized deployment agent
