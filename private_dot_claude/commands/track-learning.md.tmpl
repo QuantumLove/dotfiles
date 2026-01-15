@@ -1,0 +1,187 @@
+---
+name: track-learning
+description: Review conversation for learnings and update documentation
+---
+
+# Track Learning Command
+
+Analyze conversation history to identify learning opportunities and suggest documentation updates.
+
+## Usage
+
+```bash
+/track-learning                    # Review current session
+/track-learning --review-pending   # Review deferred learnings
+/track-learning --stats            # Show metrics
+```
+
+## What It Does
+
+1. **Analyze conversation** - Reviews messages for:
+   - User corrections
+   - Repeated mistakes
+   - Environment discoveries
+   - Successful patterns
+   - Missing context
+
+2. **Classify learnings** - Determines:
+   - Scope: Global (~/.claude/) vs Project (.claude/)
+   - Type: Command, Agent, CLAUDE.md, LEARNING.md
+   - Priority: HIGH/MEDIUM/LOW
+
+3. **Generate suggestions** - Provides:
+   - Ready-to-use draft text
+   - Exact file paths
+   - Rationale for the update
+
+4. **Batch approval** - User reviews and applies:
+   - Approve all
+   - Approve selected
+   - Defer for later
+   - Reject with reason
+
+5. **Apply updates** - Automatically:
+   - Updates global files via chezmoi
+   - Updates project files directly
+   - Logs in LEARNING.md
+   - Commits to git
+
+## Example Output
+
+```
+📊 Session Learning Analysis
+
+Found 4 learning opportunities:
+
+[HIGH] Environment-specific discovery
+  Scope: Project (.claude/CLAUDE.md)
+  What: AWS staging account uses different VPC configuration
+  Why: Prevented 30 minutes of debugging similar issues
+
+  Draft:
+  ## AWS Configuration
+  - Staging: VPC vpc-abc123 (10.0.0.0/16)
+  - Production: VPC vpc-def456 (10.1.0.0/16)
+
+  [Apply] [Defer] [Skip]
+
+[HIGH] Repeated mistake
+  Scope: Global (aws-preflight command)
+  What: Forgot to check EKS cluster status before deployment
+  Why: Failed deployments twice due to cluster unavailable
+
+  Draft:
+  ## Pre-flight Checks
+  1. AWS credentials valid
+  2. ECR repository accessible
+  3. **EKS cluster status: ACTIVE** ← NEW
+  4. Kubernetes context correct
+
+  [Apply] [Defer] [Skip]
+
+... 2 more learnings ...
+
+Apply: [All] [Selected] [None]
+```
+
+## Trigger Criteria
+
+### High Priority (Always Suggest)
+- User corrections: "Actually, it should be X"
+- Repeated mistakes: Same error 2+ times
+- Security/safety: Critical constraints learned
+
+### Medium Priority (Suggest if Significant)
+- Environment patterns: "In staging, always X"
+- Problem-solving: Novel solution that worked
+- Missing context: "I should have known Y"
+
+### Low Priority (Suggest if Pattern Emerges)
+- Preferences: After 3+ occurrences
+- Optimizations: Faster way discovered
+
+### Skip (Noise Prevention)
+- One-time situations
+- Standard/obvious knowledge
+- Trivial preferences
+- Already documented
+
+## Implementation
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+MODE="${1:-analyze}"
+LEARNING_LOG="$HOME/.claude/LEARNING.md"
+PENDING_FILE="$HOME/.claude/.learning-pending.json"
+
+# Initialize files if needed
+[ ! -f "$LEARNING_LOG" ] && echo "# Learning History" > "$LEARNING_LOG"
+[ ! -f "$PENDING_FILE" ] && echo "[]" > "$PENDING_FILE"
+
+case "$MODE" in
+    --review-pending)
+        # Show deferred learnings
+        echo "📋 Deferred Learnings:"
+        jq -r '.[] | "\n[\(.priority)] \(.what)\n  \(.rationale)"' "$PENDING_FILE"
+        ;;
+
+    --stats)
+        # Show learning metrics
+        echo "📊 Learning Metrics:"
+        echo ""
+        echo "Total learnings: $(grep -c '^##' "$LEARNING_LOG" 2>/dev/null || echo 0)"
+        echo "This month: $(grep -c "^## $(date +%Y-%m)" "$LEARNING_LOG" 2>/dev/null || echo 0)"
+        echo "Pending review: $(jq 'length' "$PENDING_FILE")"
+        ;;
+
+    *)
+        # Analyze current session
+        echo "📊 Session Learning Analysis"
+        echo ""
+        echo "Analyzing conversation for learnings..."
+        echo ""
+
+        # This is where Claude's analysis would identify learnings
+        # For now, show the interactive interface
+        echo "Found 0 learning opportunities."
+        echo ""
+        echo "💡 To capture learnings manually, edit:"
+        echo "   - Global: ~/.claude/LEARNING.md"
+        echo "   - Project: .claude/CLAUDE.md"
+        ;;
+esac
+```
+
+## Integration with Agents
+
+Each agent includes learning detection snippet:
+
+```markdown
+## Learning Detection
+
+After completing tasks, if you encounter any of these situations, suggest running `/track-learning`:
+
+**High Priority:**
+- User corrects you
+- Same mistake repeated
+- Security context learned
+
+When detected, suggest: "💡 Learning opportunity detected. Run `/track-learning` to capture it."
+```
+
+## Best Practices
+
+1. **Review regularly** - Weekly `/track-learning --review-pending`
+2. **Act on patterns** - Update docs when 2+ similar learnings
+3. **Keep concise** - Document the insight, not the story
+4. **Share globally** - Push valuable learnings to chezmoi repo
+5. **Clean up** - Archive old learnings after 6 months
+
+## Notes
+
+- Learnings are stored in LEARNING.md with timestamps
+- Deferred learnings persist in .learning-pending.json
+- Global updates require chezmoi apply after changes
+- Project learnings stay in .claude/CLAUDE.md
