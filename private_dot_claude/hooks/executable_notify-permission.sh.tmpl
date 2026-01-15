@@ -1,0 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+
+payload="$(cat)"
+mode="$(jq -r '.permission_mode // "default"' <<<"$payload" 2>/dev/null || echo "default")"
+
+if [ "$mode" = "plan" ]; then
+    {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "Plan ready for approval"
+else
+    {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "Approval needed"
+fi

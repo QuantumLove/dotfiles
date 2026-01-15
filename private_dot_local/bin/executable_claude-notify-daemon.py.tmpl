@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""
+Claude Code Notification Daemon for DevContainers
+
+Runs on macOS host, listens on localhost:9876
+Receives HTTP POST requests from Claude Code running inside containers
+Triggers native macOS notifications with terminal-notifier
+
+Usage:
+  ./claude-notify-daemon.py
+
+API:
+  POST http://localhost:9876
+  Body: {"title": "Claude Code", "message": "Task completed"}
+"""
+
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json
+import subprocess
+import sys
+from datetime import datetime
+
+PORT = 9876
+
+class NotificationHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        # Read request body
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length).decode('utf-8')
+
+        try:
+            # Parse JSON
+            data = json.loads(body)
+            title = data.get('title', 'Claude Code')
+            message = data.get('message', 'Notification')
+            container = data.get('container', 'unknown')
+
+            # Trigger notification
+            success = self._send_notification(title, message)
+
+            # Log
+            timestamp = datetime.now().strftime('%H:%M:%S')
+            status = '✅' if success else '❌'
+            print(f"{status} [{timestamp}] [{container}] {title}: {message}")
+
+            # Send response
+            self.send_response(200 if success else 500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            response = json.dumps({'status': 'ok' if success else 'error'})
+            self.wfile.write(response.encode('utf-8'))
+
+        except json.JSONDecodeError as e:
+            print(f"❌ Invalid JSON: {e}")
+            self.send_response(400)
+            self.end_headers()
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            self.send_response(500)
+            self.end_headers()
+
+    def _send_notification(self, title, message):
+        """Send macOS notification using terminal-notifier or osascript"""
+        try:
+            # Try terminal-notifier first (best: shows Claude icon)
+            result = subprocess.run([
+                'terminal-notifier',
+                '-title', title,
+                '-message', message,
+                '-sound', 'default',
+                '-sender', 'com.anthropic.claudefordesktop'
+            ], capture_output=True, timeout=2)
+            return result.returncode == 0
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            try:
+                # Fallback to osascript
+                subprocess.run([
+                    'osascript', '-e',
+                    f'display notification "{message}" with title "{title}" sound name "Ping"'
+                ], timeout=2, check=True)
+                return True
+            except Exception:
+                return False
+
+    def log_message(self, format, *args):
+        # Suppress default HTTP logging (we do custom logging)
+        pass
+
+def run_daemon():
+    """Start the notification daemon"""
+    server = HTTPServer(('localhost', PORT), NotificationHandler)
+    print("🔔 Claude Notification Daemon")
+    print(f"   Listening on localhost:{PORT}")
+    print(f"   Containers: POST to http://host.docker.internal:{PORT}")
+    print(f"   Format: {{ "{{" }}'title': '...', 'message': '...', 'container': '...'{{ "}}" }}")
+    print(f"   Press Ctrl+C to stop\n")
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n👋 Shutting down daemon")
+        server.shutdown()
+        sys.exit(0)
+
+if __name__ == '__main__':
+    run_daemon()

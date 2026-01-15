@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+payload="$(cat)"
+notification_type="$(jq -r '.notification_type // "unknown"' <<<"$payload" 2>/dev/null || echo "unknown")"
+message="$(jq -r '.message // "Notification"' <<<"$payload" 2>/dev/null || echo "Notification")"
+
+case "$notification_type" in
+    permission_prompt)
+        {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code - Permission" "$message"
+        ;;
+    idle_prompt)
+        {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code - Waiting" "$message"
+        ;;
+    *)
+        {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "$message"
+        ;;
+esac

@@ -1,0 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+
+payload="$(cat)"
+tool_name="$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null || echo "")"
+
+if [ "$tool_name" = "ExitPlanMode" ]; then
+    {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "Plan ready for approval"
+else
+    {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "Task completed"
+fi

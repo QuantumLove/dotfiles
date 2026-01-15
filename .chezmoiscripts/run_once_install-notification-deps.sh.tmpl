@@ -1,0 +1,40 @@
+#!/bin/bash
+set -e
+
+{{- if eq .chezmoi.os "darwin" }}
+echo "🔔 Installing notification dependencies..."
+
+# Install terminal-notifier
+if ! command -v terminal-notifier &>/dev/null; then
+    echo "   Installing terminal-notifier..."
+    brew install terminal-notifier
+fi
+
+# Install jq for JSON parsing
+if ! command -v jq &>/dev/null; then
+    echo "   Installing jq..."
+    brew install jq
+fi
+
+# Create log directory
+mkdir -p {{ .chezmoi.homeDir }}/.local/var/log
+
+# Ensure scripts are executable
+if [ -d {{ .chezmoi.homeDir }}/.claude/hooks ]; then
+    find {{ .chezmoi.homeDir }}/.claude/hooks -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+fi
+
+if [ -f {{ .chezmoi.homeDir }}/.local/bin/claude-notify-daemon.py ]; then
+    chmod +x {{ .chezmoi.homeDir }}/.local/bin/claude-notify-daemon.py
+fi
+
+# Load LaunchAgent
+if [ -f {{ .chezmoi.homeDir }}/Library/LaunchAgents/com.claude.notify-daemon.plist ]; then
+    echo "   Loading notification daemon..."
+    launchctl unload {{ .chezmoi.homeDir }}/Library/LaunchAgents/com.claude.notify-daemon.plist 2>/dev/null || true
+    launchctl load -w {{ .chezmoi.homeDir }}/Library/LaunchAgents/com.claude.notify-daemon.plist
+    echo "   ✅ Daemon started (auto-starts on login)"
+fi
+
+echo "✅ Notification system configured"
+{{- end }}

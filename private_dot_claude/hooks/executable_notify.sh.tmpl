@@ -1,0 +1,45 @@
+#!/bin/bash
+# Unified notification script - works in containers and on host
+set -euo pipefail
+
+TITLE="${1:-Claude Code}"
+MESSAGE="${2:-Notification}"
+
+# Detect container name for better logging
+CONTAINER_NAME="host"
+if [ -f /.dockerenv ] || [ -n "${REMOTE_CONTAINERS:-}" ]; then
+    CONTAINER_NAME="${HOSTNAME:-container}"
+fi
+
+# Check if we're in a container
+if [ -f /.dockerenv ] || [ -n "${REMOTE_CONTAINERS:-}" ]; then
+    # Inside container - send to host daemon
+    curl -s -X POST http://host.docker.internal:9876 \
+        -H "Content-Type: application/json" \
+        -d "{{ "{{" }}\"title\":\"$TITLE\",\"message\":\"$MESSAGE\",\"container\":\"$CONTAINER_NAME\"{{ "}}" }}" \
+        --connect-timeout 2 \
+        --max-time 5 \
+        > /dev/null 2>&1 || {
+        # Fallback to ntfy.sh if daemon unreachable
+        NTFY_TOPIC="claude-dev-notify"
+        curl -s -H "Title: $TITLE" -H "Tags: robot" \
+            -d "[$CONTAINER_NAME] $MESSAGE" \
+            "ntfy.sh/$NTFY_TOPIC" \
+            --connect-timeout 2 \
+            --max-time 5 \
+            > /dev/null 2>&1 || true
+    }
+else
+    # On host - use terminal-notifier directly
+    if command -v terminal-notifier &>/dev/null; then
+        terminal-notifier \
+            -title "$TITLE" \
+            -message "$MESSAGE" \
+            -sound default \
+            -sender com.anthropic.claudefordesktop \
+            > /dev/null 2>&1 || true
+    elif command -v osascript &>/dev/null; then
+        osascript -e "display notification \"$MESSAGE\" with title \"$TITLE\" sound name \"Ping\"" \
+            > /dev/null 2>&1 || true
+    fi
+fi
