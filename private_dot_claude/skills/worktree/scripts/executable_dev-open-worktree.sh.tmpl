@@ -1,0 +1,146 @@
+#!/bin/bash
+# Open worktree in unique DevContainer with proper Claude configuration
+set -e
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+# Configurable target user for DevContainer mounts (default: metr)
+TARGET_USER="${DEVCONTAINER_USER:-metr}"
+
+# Get project and worktree info
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -z "$PROJECT_ROOT" ]; then
+    echo -e "${RED}❌ Not in a git repository${NC}"
+    exit 1
+fi
+
+PROJECT=$(basename "$PROJECT_ROOT")
+
+# Get branch with detached HEAD fallback
+BRANCH=$(git branch --show-current 2>/dev/null)
+if [ -z "$BRANCH" ]; then
+    BRANCH="detached-$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+fi
+BRANCH=$(echo "$BRANCH" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g')
+CONTAINER_NAME="${PROJECT}-${BRANCH}"
+
+echo -e "${GREEN}🔍 DevContainer Setup${NC}"
+echo "   Project: $PROJECT"
+echo "   Branch: $BRANCH"
+echo "   Container: $CONTAINER_NAME"
+echo "   Target user: $TARGET_USER"
+
+# Check for devcontainer config
+if [ ! -f ".devcontainer/devcontainer.json" ]; then
+    echo -e "${YELLOW}ℹ️  No DevContainer configuration found${NC}"
+    echo "   This project doesn't use DevContainers"
+    exit 0
+fi
+
+# Check if container already exists and is running
+if docker ps --format '{{ "{{" }}.Names{{ "}}" }}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo -e "${YELLOW}⚠️  Container '$CONTAINER_NAME' is already running${NC}"
+    echo "   Opening VSCode to attach to existing container..."
+    code .
+    exit 0
+fi
+
+# Remove stopped container with same name if exists
+if docker ps -a --format '{{ "{{" }}.Names{{ "}}" }}' | grep -q "^${CONTAINER_NAME}$"; then
+    echo -e "${YELLOW}🧹 Removing stopped container '${CONTAINER_NAME}'${NC}"
+    docker rm "$CONTAINER_NAME" >/dev/null 2>&1 || true
+fi
+
+# Setup cleanup trap for temp file
+TMP_FILE=".devcontainer/devcontainer.json.tmp"
+trap "rm -f '$TMP_FILE' '.devcontainer/devcontainer.json.tmp2'" EXIT
+
+# Create temporary copy for modifications
+cp .devcontainer/devcontainer.json "$TMP_FILE"
+
+# Update container name only (preserve volumes!)
+echo -e "${GREEN}📝 Updating container name...${NC}"
+{{- if eq .chezmoi.os "darwin" }}
+sed -i '' "s/--name=[^ \"]*/--name=${CONTAINER_NAME}/" "$TMP_FILE"
+sed -i '' "s/\"name\": \"[^\"]*\"/\"name\": \"${CONTAINER_NAME}\"/" "$TMP_FILE"
+{{- else }}
+sed -i "s/--name=[^ \"]*/--name=${CONTAINER_NAME}/" "$TMP_FILE"
+sed -i "s/\"name\": \"[^\"]*\"/\"name\": \"${CONTAINER_NAME}\"/" "$TMP_FILE"
+{{- end }}
+
+# Add Claude mounts if not present
+if ! grep -q "claude/agents" "$TMP_FILE"; then
+    echo -e "${GREEN}🔗 Adding Claude configuration mounts...${NC}"
+
+    # Use jq to add mounts with configurable target user
+    jq --arg user "$TARGET_USER" '.mounts = (.mounts // []) + [
+        {
+            "source": "${localEnv:HOME}/.claude/session-env",
+            "target": ("/home/" + $user + "/.claude/session-env"),
+            "type": "bind"
+        },
+        {
+            "source": "${localEnv:HOME}/.claude/todos",
+            "target": ("/home/" + $user + "/.claude/todos"),
+            "type": "bind"
+        },
+        {
+            "source": "${localEnv:HOME}/.claude/projects",
+            "target": ("/home/" + $user + "/.claude/projects"),
+            "type": "bind"
+        },
+        {
+            "source": "${localEnv:HOME}/.claude/agents",
+            "target": ("/home/" + $user + "/.claude/agents"),
+            "type": "bind",
+            "readonly": true
+        },
+        {
+            "source": "${localEnv:HOME}/.claude/commands",
+            "target": ("/home/" + $user + "/.claude/commands"),
+            "type": "bind",
+            "readonly": true
+        },
+        {
+            "source": "${localEnv:HOME}/.claude/skills",
+            "target": ("/home/" + $user + "/.claude/skills"),
+            "type": "bind",
+            "readonly": true
+        },
+        {
+            "source": "${localEnv:HOME}/.claude/settings.json",
+            "target": ("/home/" + $user + "/.claude/settings.json"),
+            "type": "bind",
+            "readonly": true
+        },
+        {
+            "source": "${localEnv:HOME}/.claude/hooks",
+            "target": ("/home/" + $user + "/.claude/hooks"),
+            "type": "bind",
+            "readonly": true
+        }
+    ]' "$TMP_FILE" > .devcontainer/devcontainer.json.tmp2
+    mv .devcontainer/devcontainer.json.tmp2 "$TMP_FILE"
+fi
+
+# Replace original with modified version
+mv "$TMP_FILE" .devcontainer/devcontainer.json
+trap - EXIT  # Clear trap on success
+
+# Open VSCode
+echo -e "${GREEN}🚀 Opening VSCode DevContainer...${NC}"
+code .
+
+echo ""
+echo -e "${GREEN}✅ DevContainer setup complete!${NC}"
+echo "   Container: ${CONTAINER_NAME}"
+echo "   Home volume: ${PROJECT}-home (shared across worktrees)"
+echo ""
+echo "To reset configuration:"
+echo -e "${YELLOW}  git checkout .devcontainer/devcontainer.json${NC}"
+echo ""
+echo "To use different user, set DEVCONTAINER_USER=<username>"

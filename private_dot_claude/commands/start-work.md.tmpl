@@ -247,11 +247,26 @@ echo "  3. Make your changes"
 echo "  4. /push-pr (to create PR)"
 echo ""
 
-# Optionally open in new terminal/editor
+# Optionally open in editor/DevContainer
 if command -v code &> /dev/null; then
-  read -p "Open in VSCode now? (yes/no): " open_editor
-  if [ "$open_editor" = "yes" ]; then
-    code "$WORKTREE_PATH"
+  if [ -f "$WORKTREE_PATH/.devcontainer/devcontainer.json" ]; then
+    # Project has DevContainer
+    read -p "Open in DevContainer? (yes/no/skip): " open_choice
+    if [ "$open_choice" = "yes" ]; then
+      echo "🐳 Opening in DevContainer with unique name..."
+      cd "$WORKTREE_PATH"
+      # Use the dev-open functionality directly
+      ~/.claude/skills/worktree/scripts/dev-open-worktree.sh
+    elif [ "$open_choice" = "no" ]; then
+      # Open without DevContainer
+      code "$WORKTREE_PATH"
+    fi
+  else
+    # No DevContainer, just offer regular VSCode
+    read -p "Open in VSCode now? (yes/no): " open_editor
+    if [ "$open_editor" = "yes" ]; then
+      code "$WORKTREE_PATH"
+    fi
   fi
 fi
 

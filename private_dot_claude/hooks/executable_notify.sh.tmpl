@@ -1,45 +1,89 @@
 #!/bin/bash
 # Unified notification script - works in containers and on host
+# Usage: notify.sh "Title" "Message" [working_directory]
 set -euo pipefail
+
+# Opt-in debug logging: set CLAUDE_HOOK_DEBUG=1 to enable
+if [ "${CLAUDE_HOOK_DEBUG:-}" = "1" ]; then
+    LOG="$HOME/.claude/hooks/hook-debug.log"
+    mkdir -p "$(dirname "$LOG")"
+    log() { echo "[$(date)] [notify.sh] $1" >> "$LOG"; }
+else
+    log() { :; }  # no-op
+fi
 
 TITLE="${1:-Claude Code}"
 MESSAGE="${2:-Notification}"
+WORK_DIR="${3:-}"
 
-# Detect container name for better logging
+log "Called with: title='$TITLE' message='$MESSAGE' work_dir='$WORK_DIR'"
+
+# Detect environment
 CONTAINER_NAME="host"
 if [ -f /.dockerenv ] || [ -n "${REMOTE_CONTAINERS:-}" ]; then
     CONTAINER_NAME="${HOSTNAME:-container}"
 fi
+log "Environment: $CONTAINER_NAME"
 
 # Check if we're in a container
 if [ -f /.dockerenv ] || [ -n "${REMOTE_CONTAINERS:-}" ]; then
-    # Inside container - send to host daemon
-    curl -s -X POST http://host.docker.internal:9876 \
+    log "In container - sending to host daemon at host.docker.internal:9876"
+
+    # Get container ID for VS Code URI construction
+    # Try hostname first (usually short container ID), then /proc/self/cgroup
+    CONTAINER_ID="${HOSTNAME:-}"
+    if [ -z "$CONTAINER_ID" ] && [ -f /proc/self/cgroup ]; then
+        CONTAINER_ID=$(grep -oP '(?<=docker/)[a-f0-9]+' /proc/self/cgroup 2>/dev/null | head -1 || echo "")
+    fi
+    log "Container ID: $CONTAINER_ID"
+
+    RESPONSE=$(curl -s -X POST http://host.docker.internal:9876 \
         -H "Content-Type: application/json" \
-        -d "{{ "{{" }}\"title\":\"$TITLE\",\"message\":\"$MESSAGE\",\"container\":\"$CONTAINER_NAME\"{{ "}}" }}" \
+        -d "{\"title\":\"$TITLE\",\"message\":\"$MESSAGE\",\"container\":\"$CONTAINER_NAME\",\"containerId\":\"$CONTAINER_ID\",\"workDir\":\"$WORK_DIR\"}" \
         --connect-timeout 2 \
-        --max-time 5 \
-        > /dev/null 2>&1 || {
-        # Fallback to ntfy.sh if daemon unreachable
+        --max-time 5 2>&1) && {
+        log "Daemon response: $RESPONSE"
+    } || {
+        log "Daemon failed ($?), trying ntfy.sh fallback"
         NTFY_TOPIC="claude-dev-notify"
         curl -s -H "Title: $TITLE" -H "Tags: robot" \
             -d "[$CONTAINER_NAME] $MESSAGE" \
             "ntfy.sh/$NTFY_TOPIC" \
             --connect-timeout 2 \
-            --max-time 5 \
-            > /dev/null 2>&1 || true
+            --max-time 5 2>&1 || log "ntfy.sh also failed"
     }
 else
-    # On host - use terminal-notifier directly
+    log "On host - checking for terminal-notifier"
     if command -v terminal-notifier &>/dev/null; then
-        terminal-notifier \
+        log "Running terminal-notifier..."
+
+        # Build click action - open in VS Code if work_dir provided, else activate Terminal
+        CLICK_ARGS=()
+        if [ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ]; then
+            # Open the project directory in VS Code when clicked
+            CLICK_ARGS+=(-execute "code \"$WORK_DIR\"")
+            log "Click action: open VS Code at $WORK_DIR"
+        else
+            # Just activate Terminal when clicked
+            CLICK_ARGS+=(-activate com.apple.Terminal)
+            log "Click action: activate Terminal"
+        fi
+
+        OUTPUT=$(terminal-notifier \
             -title "$TITLE" \
             -message "$MESSAGE" \
             -sound default \
-            -sender com.anthropic.claudefordesktop \
-            > /dev/null 2>&1 || true
+            "${CLICK_ARGS[@]}" 2>&1) && {
+            log "terminal-notifier succeeded"
+        } || {
+            log "terminal-notifier failed ($?): $OUTPUT"
+        }
     elif command -v osascript &>/dev/null; then
-        osascript -e "display notification \"$MESSAGE\" with title \"$TITLE\" sound name \"Ping\"" \
-            > /dev/null 2>&1 || true
+        log "Using osascript fallback"
+        osascript -e "display notification \"$MESSAGE\" with title \"$TITLE\" sound name \"Ping\"" 2>&1 || log "osascript failed"
+    else
+        log "ERROR: No notification method available!"
     fi
 fi
+
+log "Completed"

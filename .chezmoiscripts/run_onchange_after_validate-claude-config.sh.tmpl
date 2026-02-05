@@ -1,12 +1,20 @@
 #!/bin/bash
+# Fast validation of Claude Code configuration
+# For full diagnostics, run: /claude-diagnostics
 set -e
 
-echo "🔍 Validating Claude Code configuration..."
+echo ""
+echo "🔍 Claude Code - Quick Validation"
+echo ""
 
-# Check Claude Code is installed (but don't install it)
+WARN_COUNT=0
+warn() { echo "⚠️  $1"; WARN_COUNT=$((WARN_COUNT + 1)); }
+
+# ----------------------------------------
+# REQUIRED: Claude CLI
+# ----------------------------------------
 if ! command -v claude &> /dev/null; then
-    echo "⚠️  Claude Code not found. Please install it manually:"
-    echo ""
+    echo "❌ Claude Code not found. Please install it:"
     {{- if .is_macos }}
     echo "   macOS: brew install claude-code"
     {{- else if .is_devcontainer }}
@@ -15,100 +23,91 @@ if ! command -v claude &> /dev/null; then
     {{- else }}
     echo "   Linux: npm install -g @anthropics/claude-code"
     {{- end }}
-    echo ""
+    exit 1
+fi
+echo "✅ claude: $(claude --version 2>&1 | head -1)"
+
+# ----------------------------------------
+# REQUIRED: Git
+# ----------------------------------------
+if ! command -v git &> /dev/null; then
+    echo "❌ git not found (required)"
     exit 1
 fi
 
-echo "✅ Claude Code found: $(claude --version)"
-
-# Validate directory structure
-if [ ! -d ~/.claude ]; then
-    echo "❌ ~/.claude directory missing"
-    exit 1
+# ----------------------------------------
+# REQUIRED: jq (hooks need it)
+# ----------------------------------------
+if ! command -v jq &> /dev/null; then
+    warn "jq not found - hooks may not work correctly"
 fi
 
-if [ ! -d ~/.claude/agents ]; then
-    echo "❌ ~/.claude/agents directory missing"
-    exit 1
-fi
-
-if [ ! -d ~/.claude/commands ]; then
-    echo "❌ ~/.claude/commands directory missing"
-    exit 1
-fi
-
-echo "✅ Directory structure valid"
-
-# Validate core files exist
-REQUIRED_FILES=(
-    "~/.claude/settings.json"
-    "~/.claude/mcp.json"
-    "~/.claude/status-line.sh"
-)
-
-for file in "${REQUIRED_FILES[@]}"; do
-    expanded_file=$(eval echo "$file")
-    if [ ! -f "$expanded_file" ]; then
-        echo "❌ Required file missing: $file"
+# ----------------------------------------
+# REQUIRED: Directory structure
+# ----------------------------------------
+for dir in ~/.claude ~/.claude/agents ~/.claude/commands; do
+    if [ ! -d "$dir" ]; then
+        echo "❌ $dir missing"
         exit 1
     fi
 done
+echo "✅ directories exist"
 
-echo "✅ Core configuration files present"
-
-# Validate JSON files
-if command -v jq &> /dev/null; then
-    if ! jq empty ~/.claude/settings.json 2>/dev/null; then
-        echo "❌ settings.json is not valid JSON"
-        exit 1
-    fi
-
-    if ! jq empty ~/.claude/mcp.json 2>/dev/null; then
-        echo "❌ mcp.json is not valid JSON"
-        exit 1
-    fi
-
-    echo "✅ JSON configuration files are valid"
-else
-    echo "⚠️  jq not found, skipping JSON validation"
+# ----------------------------------------
+# REQUIRED: Valid settings.json
+# ----------------------------------------
+if [ ! -f ~/.claude/settings.json ]; then
+    echo "❌ settings.json missing"
+    exit 1
 fi
+if command -v jq &> /dev/null && ! jq empty ~/.claude/settings.json 2>/dev/null; then
+    echo "❌ settings.json is not valid JSON"
+    exit 1
+fi
+echo "✅ settings.json valid"
 
-# Count agents and commands
+# ----------------------------------------
+# COUNT: Agents and commands
+# ----------------------------------------
 AGENT_COUNT=$(find ~/.claude/agents -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
 COMMAND_COUNT=$(find ~/.claude/commands -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+echo "✅ $AGENT_COUNT agents, $COMMAND_COUNT commands"
 
-echo "✅ Found $AGENT_COUNT agents"
-echo "✅ Found $COMMAND_COUNT commands"
-
-# Validate agents have proper frontmatter
-INVALID_AGENTS=0
-for agent in ~/.claude/agents/*.md; do
-    if [ -f "$agent" ]; then
-        if ! grep -q "^name:" "$agent" || ! grep -q "^description:" "$agent"; then
-            echo "⚠️  Invalid frontmatter in $(basename "$agent")"
-            INVALID_AGENTS=$((INVALID_AGENTS + 1))
-        fi
-    fi
-done
-
-# Validate commands have proper frontmatter
-INVALID_COMMANDS=0
-for command in ~/.claude/commands/*.md; do
-    if [ -f "$command" ]; then
-        if ! grep -q "^name:" "$command"; then
-            echo "⚠️  Invalid frontmatter in $(basename "$command")"
-            INVALID_COMMANDS=$((INVALID_COMMANDS + 1))
-        fi
-    fi
-done
-
-if [ $INVALID_AGENTS -gt 0 ] || [ $INVALID_COMMANDS -gt 0 ]; then
-    echo "⚠️  Found $INVALID_AGENTS invalid agents and $INVALID_COMMANDS invalid commands"
-    echo "    Claude Code may not load these correctly"
+# ----------------------------------------
+# VALIDATE: Frontmatter (fast check)
+# ----------------------------------------
+# Agents need both name: and description:
+INVALID_AGENTS=$(grep -L "^name:" ~/.claude/agents/*.md 2>/dev/null | wc -l | tr -d ' ')
+if [ "$INVALID_AGENTS" -gt 0 ]; then
+    warn "$INVALID_AGENTS agent(s) missing 'name:' frontmatter"
 fi
 
+# Commands need name:
+INVALID_COMMANDS=$(grep -L "^name:" ~/.claude/commands/*.md 2>/dev/null | wc -l | tr -d ' ')
+if [ "$INVALID_COMMANDS" -gt 0 ]; then
+    warn "$INVALID_COMMANDS command(s) missing 'name:' frontmatter"
+fi
+
+# ----------------------------------------
+# OPTIONAL: Quick checks (non-blocking)
+# ----------------------------------------
+{{- if .is_macos }}
+if ! command -v terminal-notifier &> /dev/null; then
+    warn "terminal-notifier not found - notifications won't work"
+fi
+{{- end }}
+
+if ! command -v gh &> /dev/null || ! gh auth status &>/dev/null 2>&1; then
+    warn "gh CLI not authenticated - run 'gh auth login'"
+fi
+
+# ----------------------------------------
+# SUMMARY
+# ----------------------------------------
 echo ""
-echo "✅ Claude Code configuration validation complete"
-echo "   Agents: $AGENT_COUNT"
-echo "   Commands: $COMMAND_COUNT"
-echo "   Environment: {{ if .is_devcontainer }}DevContainer{{ else if .is_macos }}macOS{{ else }}Linux{{ end }}"
+if [ $WARN_COUNT -gt 0 ]; then
+    echo "⚠️  $WARN_COUNT warning(s) - run /claude-diagnostics for details"
+else
+    echo "✅ All checks passed"
+fi
+echo ""

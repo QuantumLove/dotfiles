@@ -1,18 +1,33 @@
 #!/bin/bash
 set -euo pipefail
 
+HOOK_NAME="notification"
+source "$HOME/.claude/hooks/hook-lib.sh"
+
 payload="$(cat)"
+hook_log "Payload: $payload"
+
+# Extract fields
 notification_type="$(jq -r '.notification_type // "unknown"' <<<"$payload" 2>/dev/null || echo "unknown")"
 message="$(jq -r '.message // "Notification"' <<<"$payload" 2>/dev/null || echo "Notification")"
+cwd="$(jq -r '.cwd // ""' <<<"$payload" 2>/dev/null || echo "")"
+
+# Get project and branch using shared function
+eval "$(get_git_context "$cwd")"
+title_context="$(build_context_brackets "$PROJECT_NAME" "$GIT_BRANCH")"
+
+hook_log "Type: $notification_type, Context: $title_context"
 
 case "$notification_type" in
     permission_prompt)
-        {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code - Permission" "$message"
+        $HOME/.claude/hooks/notify.sh "Permission${title_context}" "$message" "$cwd"
         ;;
     idle_prompt)
-        {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code - Waiting" "$message"
+        $HOME/.claude/hooks/notify.sh "Waiting${title_context}" "$message" "$cwd"
         ;;
     *)
-        {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "$message"
+        $HOME/.claude/hooks/notify.sh "Claude${title_context}" "$message" "$cwd"
         ;;
 esac
+
+hook_log "Notification hook completed"

@@ -1,11 +1,37 @@
 #!/bin/bash
 set -euo pipefail
 
+HOOK_NAME="stop"
+source "$HOME/.claude/hooks/hook-lib.sh"
+
+hook_log "Stop hook triggered"
+
 payload="$(cat)"
+hook_log "Payload: $payload"
+
+# Extract context from payload
+cwd="$(jq -r '.cwd // ""' <<<"$payload" 2>/dev/null || echo "")"
 tool_name="$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null || echo "")"
 
+# Get project and branch using shared function
+eval "$(get_git_context "$cwd")"
+context="$(build_context_parens "$PROJECT_NAME" "$GIT_BRANCH")"
+
+hook_log "Context: project=$PROJECT_NAME branch=$GIT_BRANCH"
+
+# Send notification with context (pass cwd for click action)
 if [ "$tool_name" = "ExitPlanMode" ]; then
-    {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "Plan ready for approval"
+    if [ -n "$context" ]; then
+        $HOME/.claude/hooks/notify.sh "Plan Ready" "$context" "$cwd"
+    else
+        $HOME/.claude/hooks/notify.sh "Claude Code" "Plan ready for approval" "$cwd"
+    fi
 else
-    {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "Task completed"
+    if [ -n "$context" ]; then
+        $HOME/.claude/hooks/notify.sh "Task Done" "$context" "$cwd"
+    else
+        $HOME/.claude/hooks/notify.sh "Claude Code" "Task completed" "$cwd"
+    fi
 fi
+
+hook_log "Stop hook completed"

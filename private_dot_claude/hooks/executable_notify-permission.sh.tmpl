@@ -1,11 +1,26 @@
 #!/bin/bash
 set -euo pipefail
 
+HOOK_NAME="permission"
+source "$HOME/.claude/hooks/hook-lib.sh"
+
 payload="$(cat)"
+hook_log "Payload: $payload"
+
+# Extract context
+cwd="$(jq -r '.cwd // ""' <<<"$payload" 2>/dev/null || echo "")"
 mode="$(jq -r '.permission_mode // "default"' <<<"$payload" 2>/dev/null || echo "default")"
 
+# Get project and branch using shared function
+eval "$(get_git_context "$cwd")"
+context="$(build_context_parens "$PROJECT_NAME" "$GIT_BRANCH")"
+
+hook_log "Context: project=$PROJECT_NAME branch=$GIT_BRANCH mode=$mode"
+
 if [ "$mode" = "plan" ]; then
-    {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "Plan ready for approval"
+    $HOME/.claude/hooks/notify.sh "Plan Review" "${context:-Review needed}" "$cwd"
 else
-    {{ .chezmoi.homeDir }}/.claude/hooks/notify.sh "Claude Code" "Approval needed"
+    $HOME/.claude/hooks/notify.sh "Approval" "${context:-Action needed}" "$cwd"
 fi
+
+hook_log "Permission hook completed"

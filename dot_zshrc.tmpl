@@ -32,9 +32,12 @@ if command -v op &> /dev/null; then
             export LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential" 2>/dev/null || echo "")
         fi
 
-        if [ -z "$GITHUB_TOKEN" ]; then
-            export GITHUB_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null || echo "")
-        fi
+        # DISABLED: gh CLI uses keyring auth from `gh auth login`
+        # GitHub MCP uses OAuth, not env token
+        # Uncomment below ONLY if specific tools require GITHUB_TOKEN
+        # if [ -z "$GITHUB_TOKEN" ]; then
+        #     export GITHUB_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null || echo "")
+        # fi
     else
         # Interactive mode notice
         echo "💡 1Password: No service account token found. You may be prompted to sign in."

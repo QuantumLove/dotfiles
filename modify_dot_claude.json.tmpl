@@ -1,0 +1,44 @@
+#!/bin/bash
+# Declaratively manage MCP servers in ~/.claude.json
+# This script merges our MCP server configs while preserving all other data.
+# Hash: {{ include "private_dot_claude/mcp-servers.yaml" | sha256sum }}
+set -euo pipefail
+
+# Read current file from stdin
+current="$(cat)"
+
+# If file doesn't exist or is empty, start with minimal structure
+if [ -z "$current" ] || [ "$current" = "{}" ]; then
+    current='{"mcpServers":{}}'
+fi
+
+# Define our MCP servers (source of truth)
+mcp_servers='{{ include "private_dot_claude/mcp-servers.yaml" | sha256sum }}'
+desired_servers='{
+  "linear": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "mcp-remote", "https://mcp.linear.app/sse"],
+    "env": {}
+  },
+  "fetch": {
+    "type": "stdio",
+    "command": "uvx",
+    "args": ["mcp-server-fetch"],
+    "env": {}
+  },
+  "pypi-query": {
+    "type": "stdio",
+    "command": "uvx",
+    "args": ["--from", "pypi-query-mcp-server", "pypi-query-mcp"],
+    "env": {
+      "PYPI_INDEX_URL": "https://pypi.org/pypi",
+      "PYPI_CACHE_TTL": "3600"
+    }
+  }
+}'
+
+# Merge our servers into existing mcpServers (preserves any user-added servers)
+echo "$current" | jq --argjson servers "$desired_servers" '
+  .mcpServers = ((.mcpServers // {}) * $servers)
+'

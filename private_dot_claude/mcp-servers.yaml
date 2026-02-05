@@ -1,0 +1,29 @@
+# MCP Server Configuration for Claude Code
+#
+# Source of truth: modify_dot_claude.json.tmpl (in chezmoi root)
+# This file is for documentation and hash tracking only.
+# Changes here trigger re-run of the modify script.
+#
+# Auth notes:
+# - Linear: OAuth via mcp-remote (authenticates in browser, no stored key)
+# - fetch: No auth required
+# - pypi-query: No auth required
+#
+# To verify MCP connectivity: run /mcp-check
+# To list configured servers: claude mcp list
+
+servers:
+  linear:
+    command: npx -y mcp-remote https://mcp.linear.app/sse
+    auth: OAuth (browser-based via mcp-remote)
+
+  fetch:
+    command: uvx mcp-server-fetch
+    auth: none
+
+  pypi-query:
+    command: uvx --from pypi-query-mcp-server pypi-query-mcp
+    auth: none
+    env:
+      PYPI_INDEX_URL: https://pypi.org/pypi
+      PYPI_CACHE_TTL: 3600

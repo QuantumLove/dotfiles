@@ -1,0 +1,59 @@
+#!/bin/bash
+# Shared functions for Claude Code hooks
+# Source this file: source "$HOME/.claude/hooks/hook-lib.sh"
+
+# Opt-in debug logging: set CLAUDE_HOOK_DEBUG=1 to enable
+if [ "${CLAUDE_HOOK_DEBUG:-}" = "1" ]; then
+    HOOK_LOG="$HOME/.claude/hooks/hook-debug.log"
+    mkdir -p "$(dirname "$HOOK_LOG")"
+    hook_log() { echo "[$(date)] [$HOOK_NAME] $1" >> "$HOOK_LOG"; }
+else
+    hook_log() { :; }  # no-op
+fi
+
+# Extract project name and git branch from a directory
+# Usage: eval "$(get_git_context "/path/to/dir")"
+# Sets: PROJECT_NAME, GIT_BRANCH
+get_git_context() {
+    local cwd="$1"
+    local project="" branch=""
+
+    if [ -n "$cwd" ]; then
+        project="$(basename "$cwd")"
+
+        # Get git branch with detached HEAD fallback
+        if git -C "$cwd" rev-parse --git-dir &>/dev/null; then
+            branch="$(git -C "$cwd" branch --show-current 2>/dev/null)"
+            if [ -z "$branch" ]; then
+                # Detached HEAD - use short commit SHA
+                branch="$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null || echo "")"
+            fi
+        fi
+    fi
+
+    echo "PROJECT_NAME='$project'; GIT_BRANCH='$branch'"
+}
+
+# Build context string in format "project (branch)" or just "project"
+build_context_parens() {
+    local project="$1" branch="$2"
+    if [ -n "$project" ]; then
+        if [ -n "$branch" ]; then
+            echo "$project ($branch)"
+        else
+            echo "$project"
+        fi
+    fi
+}
+
+# Build context string in format "[project:branch]" for titles
+build_context_brackets() {
+    local project="$1" branch="$2"
+    if [ -n "$project" ]; then
+        if [ -n "$branch" ]; then
+            echo " [$project:$branch]"
+        else
+            echo " [$project]"
+        fi
+    fi
+}

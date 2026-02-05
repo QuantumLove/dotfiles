@@ -112,7 +112,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{ .chezmoi.homeDir }}/.claude/hooks/notify-notification.sh",
+            "command": "$HOME/.claude/hooks/notify-notification.sh",
             "timeout": 5
           }
         ]
@@ -123,7 +123,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{ .chezmoi.homeDir }}/.claude/hooks/notify-stop.sh",
+            "command": "$HOME/.claude/hooks/notify-stop.sh",
             "timeout": 5
           }
         ]
@@ -134,7 +134,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{ .chezmoi.homeDir }}/.claude/hooks/notify-permission.sh",
+            "command": "$HOME/.claude/hooks/notify-permission.sh",
             "timeout": 5
           }
         ]
@@ -143,5 +143,10 @@
   },
   "model": "claude-opus-4-5-20251101",
   "temperature": 0.7,
-  "maxTokens": 8192
+  "maxTokens": 8192,
+  "plugins": {
+    "ralph-loop@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "compound-engineering@every-marketplace": true
+  }
 }

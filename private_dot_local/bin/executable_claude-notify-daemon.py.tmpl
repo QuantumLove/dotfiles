@@ -6,12 +6,20 @@ Runs on macOS host, listens on localhost:9876
 Receives HTTP POST requests from Claude Code running inside containers
 Triggers native macOS notifications with terminal-notifier
 
+Clicking a notification opens the corresponding VS Code DevContainer window.
+
 Usage:
   ./claude-notify-daemon.py
 
 API:
   POST http://localhost:9876
-  Body: {"title": "Claude Code", "message": "Task completed"}
+  Body: {
+    "title": "Claude Code",
+    "message": "Task completed",
+    "container": "container-name",
+    "containerId": "abc123...",  // full or short container ID
+    "workDir": "/workspaces/project"
+  }
 """
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -19,6 +27,7 @@ import json
 import subprocess
 import sys
 from datetime import datetime
+from urllib.parse import quote
 
 PORT = 9876
 
@@ -34,14 +43,17 @@ class NotificationHandler(BaseHTTPRequestHandler):
             title = data.get('title', 'Claude Code')
             message = data.get('message', 'Notification')
             container = data.get('container', 'unknown')
+            container_id = data.get('containerId', '')
+            work_dir = data.get('workDir', '')
 
-            # Trigger notification
-            success = self._send_notification(title, message)
+            # Trigger notification with click action
+            success = self._send_notification(title, message, container_id, work_dir)
 
             # Log
             timestamp = datetime.now().strftime('%H:%M:%S')
             status = '✅' if success else '❌'
-            print(f"{status} [{timestamp}] [{container}] {title}: {message}")
+            click_info = f" (click: {work_dir})" if work_dir else ""
+            print(f"{status} [{timestamp}] [{container}] {title}: {message}{click_info}")
 
             # Send response
             self.send_response(200 if success else 500)
@@ -59,21 +71,83 @@ class NotificationHandler(BaseHTTPRequestHandler):
             self.send_response(500)
             self.end_headers()
 
-    def _send_notification(self, title, message):
+    def _get_full_container_id(self, short_id):
+        """Resolve short container ID to full ID using docker inspect"""
+        if not short_id:
+            return None
+        try:
+            result = subprocess.run(
+                ['docker', 'inspect', '--format', '{{ "{{" }}.Id{{ "}}" }}', short_id],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception:
+            pass
+        return None
+
+    def _build_vscode_uri(self, container_id, work_dir):
+        """
+        Build VS Code Remote URI for attached container.
+
+        Format: vscode://vscode-remote/attached-container+<hex-encoded-config>/<path>
+        where config is JSON like {"containerName":"/container-name"}
+        """
+        if not container_id:
+            return None
+
+        # Get full container ID
+        full_id = container_id
+        if len(container_id) < 64:
+            resolved = self._get_full_container_id(container_id)
+            if resolved:
+                full_id = resolved
+
+        # Get container name for the URI
+        try:
+            result = subprocess.run(
+                ['docker', 'inspect', '--format', '{{ "{{" }}.Name{{ "}}" }}', full_id],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                container_name = result.stdout.strip()  # includes leading /
+                # Build the config JSON and hex-encode it
+                config = f'{{ "{{" }}"containerName":"{container_name}"{{ "}}" }}'
+                hex_config = config.encode().hex()
+                path = work_dir if work_dir else '/workspaces'
+                return f"vscode://vscode-remote/attached-container+{hex_config}{path}"
+        except Exception:
+            pass
+
+        return None
+
+    def _send_notification(self, title, message, container_id='', work_dir=''):
         """Send macOS notification using terminal-notifier or osascript"""
         try:
-            # Try terminal-notifier first (best: shows Claude icon)
-            result = subprocess.run([
+            # Build click action
+            click_args = []
+
+            # Try VS Code URI for containers
+            vscode_uri = self._build_vscode_uri(container_id, work_dir)
+            if vscode_uri:
+                click_args = ['-open', vscode_uri]
+            else:
+                # Fallback: just activate VS Code
+                click_args = ['-activate', 'com.microsoft.VSCode']
+
+            # Try terminal-notifier first
+            cmd = [
                 'terminal-notifier',
                 '-title', title,
                 '-message', message,
                 '-sound', 'default',
-                '-sender', 'com.anthropic.claudefordesktop'
-            ], capture_output=True, timeout=2)
+            ] + click_args
+
+            result = subprocess.run(cmd, capture_output=True, timeout=5)
             return result.returncode == 0
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             try:
-                # Fallback to osascript
+                # Fallback to osascript (no click action support)
                 subprocess.run([
                     'osascript', '-e',
                     f'display notification "{message}" with title "{title}" sound name "Ping"'
@@ -92,7 +166,8 @@ def run_daemon():
     print("🔔 Claude Notification Daemon")
     print(f"   Listening on localhost:{PORT}")
     print(f"   Containers: POST to http://host.docker.internal:{PORT}")
-    print(f"   Format: {{ "{{" }}'title': '...', 'message': '...', 'container': '...'{{ "}}" }}")
+    print("   Format: {'title': '...', 'message': '...', 'container': '...', 'containerId': '...', 'workDir': '...'}")
+    print(f"   Click action: Opens VS Code DevContainer window")
     print(f"   Press Ctrl+C to stop\n")
 
     try:
