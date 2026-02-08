@@ -1,0 +1,31 @@
+#!/bin/bash
+# Clone Claude Code plugin marketplaces if not present
+# This script runs once after chezmoi apply
+
+set -e
+
+PLUGINS_DIR="$HOME/.claude/plugins/marketplaces"
+mkdir -p "$PLUGINS_DIR"
+
+echo "🔌 Installing Claude Code plugins..."
+echo ""
+
+clone_if_missing() {
+  local name="$1"
+  local repo="$2"
+  if [ ! -d "$PLUGINS_DIR/$name" ]; then
+    echo "📦 Cloning $name..."
+    git clone --depth 1 "https://github.com/$repo.git" "$PLUGINS_DIR/$name" 2>/dev/null
+    echo "   ✅ Installed"
+  else
+    echo "✅ $name already installed"
+  fi
+}
+
+clone_if_missing "claude-plugins-official" "anthropics/claude-plugins-official"
+clone_if_missing "compound-engineering-plugin" "EveryInc/compound-engineering-plugin"
+clone_if_missing "superpowers-marketplace" "obra/superpowers-marketplace"
+
+echo ""
+echo "🎉 Claude Code plugins ready!"
+echo "   Restart Claude Code to use new plugins."
