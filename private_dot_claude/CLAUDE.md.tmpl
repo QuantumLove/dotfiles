@@ -12,3 +12,12 @@
 - Prefer simple, direct solutions over defensive/future-proof abstractions
 - Delete unused code rather than commenting it out or adding deprecation shims
 - When in doubt, ask rather than over-engineer
+
+## Chezmoi Management
+
+This Claude configuration is managed by chezmoi.
+- **Source:** ~/.local/share/chezmoi/private_dot_claude/
+- **Applied:** ~/.claude/
+- **Apply changes:** `chezmoi apply`
+- **See diff:** `chezmoi diff`
+- **Backup/restore:** Just use git on the chezmoi source directory
