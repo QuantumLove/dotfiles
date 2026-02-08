@@ -43,6 +43,20 @@ echo "🚀 Deploy Dev - METR dev4 Deployment"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
+# CRITICAL: Verify we're in MAIN mp4-deploy, not a worktree
+# Worktrees have a .git FILE, main repo has a .git DIRECTORY
+if [ -f ".git" ]; then
+  echo "❌ Cannot deploy from worktree!"
+  echo ""
+  echo "   You are in a git worktree. Deployments must be done from"
+  echo "   the MAIN mp4-deploy repository to avoid state conflicts."
+  echo ""
+  echo "   Switch to main repo:"
+  echo "   cd ~/code/mp4-deploy"
+  echo ""
+  exit 1
+fi
+
 PLAN_ONLY=false
 SKIP_TESTS=false
 COMPONENT=""

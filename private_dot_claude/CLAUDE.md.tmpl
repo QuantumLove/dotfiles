@@ -1,0 +1,14 @@
+# Personal Preferences
+
+## Coding Philosophy
+
+### Backwards Compatibility
+- **Default:** Don't worry about backwards compatibility unless explicitly stated
+- **When relevant:** Flag real concerns in plans and during code review
+- **Action:** Without explicit confirmation, code as if backwards compatibility is not a concern
+- **Exception:** If a change would break critical production systems or public APIs, flag it before proceeding
+
+### General Approach
+- Prefer simple, direct solutions over defensive/future-proof abstractions
+- Delete unused code rather than commenting it out or adding deprecation shims
+- When in doubt, ask rather than over-engineer

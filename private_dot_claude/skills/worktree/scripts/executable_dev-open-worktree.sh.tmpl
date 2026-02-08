@@ -11,6 +11,11 @@ NC='\033[0m'
 # Configurable target user for DevContainer mounts (default: metr)
 TARGET_USER="${DEVCONTAINER_USER:-metr}"
 
+# inspect-action mount path (for mp4-deploy deployments with local inspect-action)
+# Default: ~/code/inspect-action (main repo)
+# Override: INSPECT_ACTION_PATH=~/code/worktrees/inspect-action/METR-123
+INSPECT_ACTION_PATH="${INSPECT_ACTION_PATH:-$HOME/code/inspect-action}"
+
 # Get project and worktree info
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 if [ -z "$PROJECT_ROOT" ]; then
@@ -33,6 +38,9 @@ echo "   Project: $PROJECT"
 echo "   Branch: $BRANCH"
 echo "   Container: $CONTAINER_NAME"
 echo "   Target user: $TARGET_USER"
+if [ -d "$INSPECT_ACTION_PATH" ]; then
+    echo "   inspect-action: $INSPECT_ACTION_PATH → /workspace-inspect-action"
+fi
 
 # Check for devcontainer config
 if [ ! -f ".devcontainer/devcontainer.json" ]; then
@@ -77,7 +85,7 @@ if ! grep -q "claude/agents" "$TMP_FILE"; then
     echo -e "${GREEN}🔗 Adding Claude configuration mounts...${NC}"
 
     # Use jq to add mounts with configurable target user
-    jq --arg user "$TARGET_USER" '.mounts = (.mounts // []) + [
+    jq --arg user "$TARGET_USER" --arg inspect_path "$INSPECT_ACTION_PATH" '.mounts = (.mounts // []) + [
         {
             "source": "${localEnv:HOME}/.claude/session-env",
             "target": ("/home/" + $user + "/.claude/session-env"),
@@ -127,6 +135,11 @@ if ! grep -q "claude/agents" "$TMP_FILE"; then
             "target": ("/home/" + $user + "/.claude/hooks"),
             "type": "bind",
             "readonly": true
+        },
+        {
+            "source": $inspect_path,
+            "target": "/workspace-inspect-action",
+            "type": "bind"
         }
     ]' "$TMP_FILE" > .devcontainer/devcontainer.json.tmp2
     mv .devcontainer/devcontainer.json.tmp2 "$TMP_FILE"
@@ -148,4 +161,9 @@ echo ""
 echo "To reset configuration:"
 echo -e "${YELLOW}  git checkout .devcontainer/devcontainer.json${NC}"
 echo ""
-echo "To use different user, set DEVCONTAINER_USER=<username>"
+echo "Options:"
+echo "   DEVCONTAINER_USER=<username>  - Override target user (default: metr)"
+echo "   INSPECT_ACTION_PATH=<path>    - Mount different inspect-action path"
+echo ""
+echo "Example: Use inspect-action worktree:"
+echo -e "${YELLOW}  INSPECT_ACTION_PATH=~/code/worktrees/inspect-action/METR-123 ./dev-open-worktree.sh${NC}"
