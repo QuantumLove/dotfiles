@@ -27,5 +27,20 @@ clone_if_missing "compound-engineering-plugin" "EveryInc/compound-engineering-pl
 clone_if_missing "superpowers-marketplace" "obra/superpowers-marketplace"
 
 echo ""
+echo "📥 Installing plugins from marketplaces..."
+
+# Install plugins via CLI (populates cache)
+install_plugin() {
+  local plugin="$1"
+  if command -v claude &> /dev/null; then
+    echo "   Installing $plugin..."
+    claude plugin install "$plugin" 2>/dev/null || echo "   ⚠️  $plugin may already be installed"
+  fi
+}
+
+install_plugin "compound-engineering"
+install_plugin "superpowers@superpowers-marketplace"
+
+echo ""
 echo "🎉 Claude Code plugins ready!"
 echo "   Restart Claude Code to use new plugins."
