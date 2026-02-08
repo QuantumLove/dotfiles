@@ -1,37 +1,25 @@
 {{- if .is_macos }}
 name: METR Development
-description: 4-tab workspace for METR platform development
-
-tabs:
-  - name: "inspect-action"
-    directory: ~/code/inspect-action
-    commands:
-      - source ~/.sh_functions
-      - awstg  # Authenticate to staging
-      - echo "🦅 Hawk (inspect-action) environment ready"
-      - echo "Tip: Run 'hawk run' to start local eval"
-
-  - name: "mp4-deploy"
-    directory: ~/code/mp4-deploy
-    commands:
-      - source ~/.sh_functions
-      - awstg
-      - kubectl config use-context metr-dev
-      - echo "🚀 MP4 Deploy environment ready"
-      - echo "Namespace: metr-dev"
-
-  - name: "IAM & Auth"
-    directory: ~/code/metr-iam
-    commands:
-      - source ~/.sh_functions
-      - awsprod  # Production for IAM changes
-      - echo "🔐 IAM Management"
-      - echo "⚠️  Production access - handle with care!"
-
-  - name: "Claude Code"
-    directory: ~/.local/share/chezmoi
-    commands:
-      - claude
-      - echo "🤖 Claude Code ready for assistance"
-      - echo "Ask me anything about your METR workflow!"
+windows:
+  - tabs:
+    - title: "inspect-action"
+      layout:
+        cwd: {{ .chezmoi.homeDir }}/code/inspect-action
+        commands:
+          - exec: source ~/.sh_functions && awstg && echo "🦅 Hawk (inspect-action) environment ready"
+    - title: "mp4-deploy"
+      layout:
+        cwd: {{ .chezmoi.homeDir }}/code/mp4-deploy
+        commands:
+          - exec: source ~/.sh_functions && awstg && kubectl config use-context metr-dev && echo "🚀 MP4 Deploy ready"
+    - title: "IAM & Auth"
+      layout:
+        cwd: {{ .chezmoi.homeDir }}/code/metr-iam
+        commands:
+          - exec: source ~/.sh_functions && awsprod && echo "🔐 IAM Management - Production!"
+    - title: "Claude Code"
+      layout:
+        cwd: {{ .chezmoi.homeDir }}/.local/share/chezmoi
+        commands:
+          - exec: echo "🤖 Claude Code ready"
 {{- end }}

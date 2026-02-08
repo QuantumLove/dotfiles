@@ -81,3 +81,42 @@ minikube_reset() {
     
     echo "✅ Minikube reset complete"
 }
+
+{{- if eq .chezmoi.os "darwin" }}
+# Warp tab helpers (macOS only)
+# Uses working URL scheme: warp://action/new_tab?path=
+
+# Open a new Warp tab at the specified (or current) directory
+warp-tab() {
+    local target_path="${1:-$PWD}"
+    open "warp://action/new_tab?path=$target_path"
+}
+
+# Open a new Warp window at the specified (or current) directory
+warp-window() {
+    local target_path="${1:-$PWD}"
+    open "warp://action/new_window?path=$target_path"
+}
+
+# Open METR development workspace (4 tabs)
+metr-dev() {
+    echo "Opening METR development workspace..."
+    open "warp://action/new_tab?path=$HOME/code/inspect-action"
+    sleep 0.3
+    open "warp://action/new_tab?path=$HOME/code/mp4-deploy"
+    sleep 0.3
+    open "warp://action/new_tab?path=$HOME/code/metr-iam"
+    sleep 0.3
+    open "warp://action/new_tab?path=$HOME/.local/share/chezmoi"
+    echo "✓ Opened 4 tabs: inspect-action, mp4-deploy, metr-iam, chezmoi"
+}
+
+# Open METR deploy workspace (2 tabs)
+metr-deploy() {
+    echo "Opening METR deploy workspace..."
+    open "warp://action/new_tab?path=$HOME/code/inspect-action"
+    sleep 0.3
+    open "warp://action/new_tab?path=$HOME/code/mp4-deploy"
+    echo "✓ Opened 2 tabs: inspect-action, mp4-deploy"
+}
+{{- end }}
