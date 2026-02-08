@@ -94,6 +94,11 @@ if ! grep -q "claude/agents" "$TMP_FILE"; then
             "type": "bind"
         },
         {
+            "source": "${localEnv:HOME}/.claude/handoff",
+            "target": ("/home/" + $user + "/.claude/handoff"),
+            "type": "bind"
+        },
+        {
             "source": "${localEnv:HOME}/.claude/agents",
             "target": ("/home/" + $user + "/.claude/agents"),
             "type": "bind",

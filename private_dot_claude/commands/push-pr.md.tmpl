@@ -10,7 +10,7 @@ Push changes to a branch and create a pull request with standardized formatting.
 ## Usage
 
 ```bash
-# Create PR with auto-generated title and description
+# Create PR (draft by default for safety)
 /push-pr
 
 # Create PR with custom title
@@ -19,11 +19,14 @@ Push changes to a branch and create a pull request with standardized formatting.
 # Create PR with specific reviewers
 /push-pr --reviewer @alice --reviewer @bob
 
-# Create as draft PR
-/push-pr --draft
+# Create PR ready for review (skips draft)
+/push-pr --ready
 
 # Run all checks before creating PR
 /push-pr --check-all
+
+# Combine flags
+/push-pr --ready --reviewer @alice --check-all
 ```
 
 ## What It Does
@@ -44,7 +47,8 @@ Push changes to a branch and create a pull request with standardized formatting.
    - Include issue reference if branch has issue ID (e.g., METR-123)
    - Auto-generate description from commit messages
    - Request reviewers (if specified)
-   - Mark as draft (if --draft flag)
+   - **Draft by default** (use `--ready` to mark ready for review)
+   - Auto-skip draft for high-confidence changes: chores, dependency updates, typo fixes
 
 4. **Post-PR:**
    - Display PR URL
@@ -56,7 +60,10 @@ Push changes to a branch and create a pull request with standardized formatting.
 - **Branch protection:** Never push directly to main/master
 - **Checks before push:** Optionally run tests/linter first
 - **Confirmation required:** Review changes before pushing
-- **Draft by default:** Create as draft to avoid auto-merge
+- **Draft by default:** PRs are created as drafts unless:
+  - `--ready` flag is explicitly passed
+  - Branch is `quick/*` (quick experiments)
+  - Change is high-confidence (chores, updates, dependency bumps, config changes)
 - **Rollback instructions:** Show how to close PR if needed
 
 ## Example Output

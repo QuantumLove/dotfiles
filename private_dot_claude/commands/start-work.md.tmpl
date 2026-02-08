@@ -22,8 +22,15 @@ Streamlined command for starting work on a small change with proper isolation an
 # Interactive mode - prompts for options
 /start-work
 
-# Load existing Linear issue
+# Load existing Linear issue (creates new branch)
 /start-work METR-123
+
+# Resume work on existing branch (tracks remote branch)
+/start-work --branch METR-123/fix-auth-timeout
+
+# Resume work from existing PR
+/start-work --pr 456
+/start-work #456
 
 # Create new Linear issue
 /start-work --new "Fix authentication timeout bug"
@@ -41,13 +48,14 @@ Streamlined command for starting work on a small change with proper isolation an
 1. Verifies current repo is clean (no uncommitted changes)
 2. Fetches latest from origin
 3. **If existing issue:** Loads issue details via MCP (Linear or GitHub)
-4. **If --new flag:** Creates new Linear issue with provided title
-5. **If --quick flag:** Skips Linear entirely
-6. Creates worktree with consistent naming: `~/code/worktrees/{repo}-{issue-id}`
-7. Creates branch: `{issue-id}/{slug}` or `quick/{slug}`
-8. Opens worktree in new terminal/VSCode (optional)
-9. Loads issue context into Claude conversation
-10. Provides next steps (make changes → `/push-pr`)
+4. **If --branch flag:** Tracks existing remote branch (no new branch created)
+5. **If --pr flag or #N:** Gets branch from PR, tracks it
+6. **If --new flag:** Creates new Linear issue with provided title
+7. **If --quick flag:** Skips Linear entirely
+8. Creates worktree: `~/code/worktrees/{repo}/{issue-id}`
+9. Creates or tracks branch
+10. Starts DevContainer and writes handoff file
+11. Provides instructions to continue in DevContainer
 
 ## Implementation
 
@@ -62,6 +70,8 @@ TITLE=""
 TEAM=""
 ASSIGN=""
 QUICK=false
+EXISTING_BRANCH=""
+PR_NUMBER=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -82,6 +92,22 @@ while [[ $# -gt 0 ]]; do
     --assign)
       ASSIGN="$2"
       shift 2
+      ;;
+    --branch)
+      MODE="existing-branch"
+      EXISTING_BRANCH="$2"
+      shift 2
+      ;;
+    --pr)
+      MODE="pr"
+      PR_NUMBER="$2"
+      shift 2
+      ;;
+    \#*)
+      # Handle #123 format for PR
+      MODE="pr"
+      PR_NUMBER="${1#\#}"
+      shift
       ;;
     *)
       ISSUE_ID="$1"
@@ -105,12 +131,52 @@ if ! git diff-index --quiet HEAD -- 2>/dev/null; then
 fi
 
 REPO_NAME=$(basename $(git rev-parse --show-toplevel))
-WORKTREE_BASE="$HOME/code/worktrees"
+WORKTREE_BASE="$HOME/code/worktrees/$REPO_NAME"
 mkdir -p "$WORKTREE_BASE"
 
 # Fetch latest
 echo "📡 Fetching latest from origin..."
 git fetch origin
+
+# Handle PR mode - get branch from PR
+if [ "$MODE" = "pr" ]; then
+  echo "🔍 Looking up PR #$PR_NUMBER..."
+  PR_JSON=$(gh pr view "$PR_NUMBER" --json headRefName,title,number,state 2>/dev/null || echo "{}")
+  if [ "$PR_JSON" = "{}" ] || [ "$(echo "$PR_JSON" | jq -r '.headRefName')" = "null" ]; then
+    echo "❌ Could not find PR #$PR_NUMBER"
+    exit 1
+  fi
+  EXISTING_BRANCH=$(echo "$PR_JSON" | jq -r '.headRefName')
+  PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
+  echo "   PR: #$PR_NUMBER - $PR_TITLE"
+  echo "   Branch: $EXISTING_BRANCH"
+  MODE="existing-branch"
+fi
+
+# Handle existing branch mode
+if [ "$MODE" = "existing-branch" ]; then
+  # Check if branch exists on remote
+  if ! git show-ref --verify --quiet "refs/remotes/origin/$EXISTING_BRANCH"; then
+    echo "❌ Branch 'origin/$EXISTING_BRANCH' not found"
+    echo "   Available branches:"
+    git branch -r | grep -v HEAD | head -10
+    exit 1
+  fi
+
+  # Extract issue ID from branch name if possible (e.g., METR-123/fix-thing)
+  if [[ "$EXISTING_BRANCH" =~ ^([A-Z]+-[0-9]+) ]]; then
+    ISSUE_ID="${BASH_REMATCH[1]}"
+    WORKTREE_NAME="$ISSUE_ID"
+  else
+    # Use branch name as worktree name
+    WORKTREE_NAME=$(echo "$EXISTING_BRANCH" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g')
+  fi
+  WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
+  BRANCH_NAME="$EXISTING_BRANCH"
+  TRACK_EXISTING=true
+
+  echo "📋 Using existing branch: $EXISTING_BRANCH"
+fi
 
 # Handle different modes
 if [ "$MODE" = "interactive" ]; then
@@ -143,12 +209,14 @@ if [ "$MODE" = "interactive" ]; then
   esac
 fi
 
-# Process based on mode
-if [ "$QUICK" = true ]; then
+# Process based on mode (skip if existing-branch already set)
+if [ "${TRACK_EXISTING:-}" = "true" ]; then
+  : # Already configured above
+elif [ "$QUICK" = true ]; then
   # Quick mode - no Linear
   SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
   BRANCH_NAME="quick/$SLUG"
-  WORKTREE_NAME="${REPO_NAME}-quick-${SLUG}"
+  WORKTREE_NAME="quick-${SLUG}"
   WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
 
   echo "⚡ Quick mode - skipping Linear"
@@ -173,7 +241,7 @@ elif [ "$MODE" = "existing" ]; then
 
   SLUG=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g' | cut -c1-50)
   BRANCH_NAME="$ISSUE_ID/$SLUG"
-  WORKTREE_NAME="${REPO_NAME}-${ISSUE_ID}"
+  WORKTREE_NAME="$ISSUE_ID"
   WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
 
 elif [ "$MODE" = "create" ]; then
@@ -207,7 +275,7 @@ elif [ "$MODE" = "create" ]; then
 
   SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g' | cut -c1-50)
   BRANCH_NAME="$ISSUE_ID/$SLUG"
-  WORKTREE_NAME="${REPO_NAME}-${ISSUE_ID}"
+  WORKTREE_NAME="$ISSUE_ID"
   WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
 fi
 
@@ -225,56 +293,115 @@ fi
 
 # Create worktree
 echo "🌳 Creating worktree: $WORKTREE_NAME"
-git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" origin/main
+if [ "${TRACK_EXISTING:-}" = "true" ]; then
+  # Track existing remote branch
+  git worktree add "$WORKTREE_PATH" "origin/$BRANCH_NAME"
+  echo "   (tracking existing branch)"
+else
+  # Create new branch from origin/main
+  git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" origin/main
+fi
 
 echo ""
-echo "✅ Workspace ready!"
+echo "✅ Worktree created!"
 echo ""
 echo "📂 Worktree: $WORKTREE_PATH"
 echo "🌿 Branch: $BRANCH_NAME"
 if [ "$QUICK" = false ]; then
   echo "🎫 Issue: $ISSUE_ID"
 fi
-echo ""
-echo "Next steps:"
-echo "  1. cd $WORKTREE_PATH"
-if [ -d "$WORKTREE_PATH/.devcontainer" ]; then
-  echo "  2. code . (or use /dev-open to open in DevContainer)"
-else
-  echo "  2. code . (or open in your editor)"
-fi
-echo "  3. Make your changes"
-echo "  4. /push-pr (to create PR)"
-echo ""
 
-# Optionally open in editor/DevContainer
-if command -v code &> /dev/null; then
-  if [ -f "$WORKTREE_PATH/.devcontainer/devcontainer.json" ]; then
-    # Project has DevContainer
-    read -p "Open in DevContainer? (yes/no/skip): " open_choice
-    if [ "$open_choice" = "yes" ]; then
-      echo "🐳 Opening in DevContainer with unique name..."
-      cd "$WORKTREE_PATH"
-      # Use the dev-open functionality directly
-      ~/.claude/skills/worktree/scripts/dev-open-worktree.sh
-    elif [ "$open_choice" = "no" ]; then
-      # Open without DevContainer
-      code "$WORKTREE_PATH"
-    fi
+# --- Session Handoff ---
+# Write context to handoff file for DevContainer continuation
+HANDOFF_DIR="$HOME/.claude/handoff"
+mkdir -p "$HANDOFF_DIR"
+HANDOFF_FILE="$HANDOFF_DIR/${WORKTREE_NAME}.md"
+
+echo "📝 Writing session handoff..."
+
+cat > "$HANDOFF_FILE" << HANDOFF_EOF
+# Session Handoff: ${ISSUE_ID:-$WORKTREE_NAME}
+
+## Issue Context
+HANDOFF_EOF
+
+# Add issue context if available
+if [ "$QUICK" = false ] && [ -n "$ISSUE_ID" ]; then
+  # Fetch and format issue details
+  ISSUE_JSON=$(claude mcp call linear get_issue --issue-id "$ISSUE_ID" 2>/dev/null || echo "{}")
+  if [ "$ISSUE_JSON" != "{}" ]; then
+    echo "$ISSUE_JSON" | jq -r '"**Title:** \(.title)\n**Status:** \(.state.name)\n**Priority:** \(.priority // "None")\n\n### Description\n\(.description // "No description")\n\n### Acceptance Criteria\n\(.acceptanceCriteria // "None specified")"' >> "$HANDOFF_FILE"
   else
-    # No DevContainer, just offer regular VSCode
-    read -p "Open in VSCode now? (yes/no): " open_editor
+    echo "Issue: $ISSUE_ID (details unavailable)" >> "$HANDOFF_FILE"
+  fi
+else
+  echo "Quick mode - no issue tracking" >> "$HANDOFF_FILE"
+fi
+
+cat >> "$HANDOFF_FILE" << HANDOFF_EOF
+
+## Worktree Info
+- **Path:** $WORKTREE_PATH
+- **Branch:** $BRANCH_NAME
+- **Created:** $(date '+%Y-%m-%d %H:%M:%S')
+
+## Next Steps
+1. Review the issue context above
+2. Explore the codebase to understand the change needed
+3. Implement the fix/feature
+4. Run tests and verify
+5. Use \`/push-pr\` to create a pull request
+
+## How to Continue
+Run \`claude\` in this DevContainer terminal to continue work.
+Use \`cat ~/.claude/handoff/${WORKTREE_NAME}.md\` to review this context.
+HANDOFF_EOF
+
+echo "   Saved to: $HANDOFF_FILE"
+
+# --- Start DevContainer (if available) ---
+if [ -f "$WORKTREE_PATH/.devcontainer/devcontainer.json" ]; then
+  echo ""
+  echo "🐳 Starting DevContainer..."
+  cd "$WORKTREE_PATH"
+  ~/.claude/skills/worktree/scripts/dev-open-worktree.sh
+
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "✅ DevContainer started! Continue work inside."
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "To continue work inside the DevContainer:"
+  echo ""
+  echo "  Option 1 - Warp/Terminal (recommended):"
+  echo "    docker exec -it ${PROJECT}-${BRANCH} claude"
+  echo ""
+  echo "  Option 2 - VSCode:"
+  echo "    Use the integrated terminal in VSCode (already opened)"
+  echo ""
+  echo "Session context saved to:"
+  echo "  ~/.claude/handoff/${WORKTREE_NAME}.md"
+  echo ""
+  echo "This host session will now end. Continue in DevContainer."
+else
+  # No DevContainer available
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "✅ Workspace ready!"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "No DevContainer found. Next steps:"
+  echo "  1. cd $WORKTREE_PATH"
+  echo "  2. Start a new Claude session there: claude"
+  echo "  3. Make your changes"
+  echo "  4. /push-pr (to create PR)"
+  echo ""
+  if command -v code &> /dev/null; then
+    read -p "Open in VSCode? (yes/no): " open_editor
     if [ "$open_editor" = "yes" ]; then
       code "$WORKTREE_PATH"
     fi
   fi
-fi
-
-# Load issue context into Claude conversation
-if [ "$QUICK" = false ] && [ -n "$ISSUE_ID" ]; then
-  echo "📥 Loading issue context into conversation..."
-  claude mcp call linear get_issue --issue-id "$ISSUE_ID" | \
-    jq -r '"# Issue: \(.identifier) - \(.title)\n\n**Status:** \(.state.name)\n**Priority:** \(.priority)\n\n## Description\n\(.description // "No description")\n\n## Acceptance Criteria\n\(.acceptanceCriteria // "None specified")"'
 fi
 ```
 
@@ -289,72 +416,89 @@ $ /start-work METR-456
 📋 Loading issue METR-456...
    Title: Fix timeout in evaluation runner
    State: In Progress
-🌳 Creating worktree: inspect-action-METR-456
+🌳 Creating worktree: METR-456
 
-✅ Workspace ready!
+✅ Worktree created!
 
-📂 Worktree: ~/code/worktrees/inspect-action-METR-456
+📂 Worktree: ~/code/worktrees/inspect-action/METR-456
 🌿 Branch: METR-456/fix-timeout-in-evaluation-runner
 🎫 Issue: METR-456
 
-Next steps:
-  1. cd ~/code/worktrees/inspect-action-METR-456
-  2. code . (or use /dev-open to open in DevContainer)
-  3. Make your changes
-  4. /push-pr (to create PR)
+📝 Writing session handoff...
+   Saved to: ~/.claude/handoff/METR-456.md
 
-📥 Loading issue context into conversation...
+🐳 Starting DevContainer...
 
-# Issue: METR-456 - Fix timeout in evaluation runner
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ DevContainer started! Continue work inside.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Status:** In Progress
-**Priority:** High
+To continue work inside the DevContainer:
 
-## Description
-Evaluation runner times out after 30s when task initialization takes longer...
+  Option 1 - Warp/Terminal (recommended):
+    docker exec -it inspect-action-METR-456 claude
+
+  Option 2 - VSCode:
+    Use the integrated terminal in VSCode (already opened)
+
+This host session will now end. Continue in DevContainer.
 ```
 
-### Example 2: New Issue with Team Assignment
+### Example 2: Existing Branch (Resume Work)
 
 ```bash
-$ /start-work --new "Implement rate limiting middleware" --team Platform --assign @me
+$ /start-work --branch METR-456/fix-timeout
 
 📡 Fetching latest from origin...
-📝 Creating Linear issue: Implement rate limiting middleware
-   Created: METR-789
+📋 Using existing branch: METR-456/fix-timeout
+🌳 Creating worktree: METR-456
+   (tracking existing branch)
 
-🌳 Creating worktree: mp4-deploy-METR-789
+✅ Worktree created!
 
-✅ Workspace ready!
+📂 Worktree: ~/code/worktrees/inspect-action/METR-456
+🌿 Branch: METR-456/fix-timeout
+🎫 Issue: METR-456
 
-📂 Worktree: ~/code/worktrees/mp4-deploy-METR-789
-🌿 Branch: METR-789/implement-rate-limiting-middleware
-🎫 Issue: METR-789
+📝 Writing session handoff...
+🐳 Starting DevContainer...
 
-Next steps:
-  1. cd ~/code/worktrees/mp4-deploy-METR-789
-  2. code . (or use /dev-open to open in DevContainer)
-  3. Make your changes
-  4. /push-pr (to create PR)
+This host session will now end. Continue in DevContainer.
 ```
 
-### Example 3: Quick Mode (No Issue Tracking)
+### Example 3: From Pull Request
+
+```bash
+$ /start-work --pr 456
+
+📡 Fetching latest from origin...
+🔍 Looking up PR #456...
+   PR: #456 - Fix timeout in evaluation runner
+   Branch: METR-456/fix-timeout
+📋 Using existing branch: METR-456/fix-timeout
+🌳 Creating worktree: METR-456
+   (tracking existing branch)
+
+✅ Worktree created!
+...
+```
+
+### Example 4: Quick Mode (No Issue Tracking)
 
 ```bash
 $ /start-work --quick "test-new-cache-layer"
 
 📡 Fetching latest from origin...
 ⚡ Quick mode - skipping Linear
-🌳 Creating worktree: inspect-action-quick-test-new-cache-layer
+🌳 Creating worktree: quick-test-new-cache-layer
 
-✅ Workspace ready!
+✅ Worktree created!
 
-📂 Worktree: ~/code/worktrees/inspect-action-quick-test-new-cache-layer
+📂 Worktree: ~/code/worktrees/inspect-action/quick-test-new-cache-layer
 🌿 Branch: quick/test-new-cache-layer
 
-Next steps:
-  1. cd ~/code/worktrees/inspect-action-quick-test-new-cache-layer
-  2. code . (or use /dev-open to open in DevContainer)
-  3. Make your changes
-  4. /push-pr (to create PR)
+📝 Writing session handoff...
+🐳 Starting DevContainer...
+
+This host session will now end. Continue in DevContainer.
 ```
