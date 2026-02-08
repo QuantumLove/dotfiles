@@ -5,7 +5,7 @@
 # Changes here trigger re-run of the modify script.
 #
 # Auth notes:
-# - Linear: OAuth via mcp-remote (authenticates in browser, no stored key)
+# - Linear: API Key from 1Password (loaded at chezmoi apply time)
 # - fetch: No auth required
 # - pypi-query: No auth required
 #
@@ -15,7 +15,7 @@
 servers:
   linear:
     command: npx -y mcp-remote https://mcp.linear.app/sse
-    auth: OAuth (browser-based via mcp-remote)
+    auth: API Key from 1Password (op://Development/Linear MCP API Key/credential)
 
   fetch:
     command: uvx mcp-server-fetch

@@ -32,6 +32,11 @@ if command -v op &> /dev/null; then
             export LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential" 2>/dev/null || echo "")
         fi
 
+        # Set AUTHORIZATION header for mcp-remote (Linear MCP)
+        if [ -n "$LINEAR_API_KEY" ]; then
+            export AUTHORIZATION="Bearer $LINEAR_API_KEY"
+        fi
+
         # DISABLED: gh CLI uses keyring auth from `gh auth login`
         # GitHub MCP uses OAuth, not env token
         # Uncomment below ONLY if specific tools require GITHUB_TOKEN
