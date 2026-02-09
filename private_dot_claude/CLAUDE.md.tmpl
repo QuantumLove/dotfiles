@@ -21,3 +21,16 @@ This Claude configuration is managed by chezmoi.
 - **Apply changes:** `chezmoi apply`
 - **See diff:** `chezmoi diff`
 - **Backup/restore:** Just use git on the chezmoi source directory
+
+### When to Edit Chezmoi (not the current repo)
+
+If fixing personal tooling that spans projects, edit chezmoi source instead:
+
+| Issue type | Edit chezmoi source |
+|------------|---------------------|
+| Shell functions (`~/.sh_functions`) | `~/.local/share/chezmoi/dot_sh_functions.tmpl` |
+| Warp configs | `~/.local/share/chezmoi/dot_warp/` |
+| Claude global settings | `~/.local/share/chezmoi/private_dot_claude/` |
+| Zsh/Bash config | `~/.local/share/chezmoi/dot_zshrc.tmpl` |
+
+**Workflow:** Edit source → `chezmoi apply` → test → commit to chezmoi repo
