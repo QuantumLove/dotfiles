@@ -18,6 +18,49 @@
 - Don't add docstrings, comments, or type annotations to unchanged code
 - Readable code is better than commented code
 
+## Terraform/Infrastructure Safety
+
+**CRITICAL:** These rules prevent production incidents. Always check before applying TF changes.
+
+### Resource Moves (STOP before destroying + creating)
+When TF plan shows "destroy" + "create" for similar resources:
+- **This is likely a resource move** that needs handling before apply
+- Moving resources in TF files WITHOUT proper handling = recreation = **downtime**
+- Pattern to detect: same resource type being destroyed and created with similar names
+
+**Two safe approaches (prefer moved blocks):**
+1. **Moved blocks (preferred)** - Add to TF code, no manual state commands:
+   ```hcl
+   moved {
+     from = aws_ecs_service.api
+     to   = aws_ecs_service.api_service
+   }
+   ```
+2. **State mv** - Manual command before apply:
+   ```bash
+   tofu state mv "old_addr" "new_addr"
+   ```
+
+### Permission/IAM Changes (Check running workloads)
+When changing IAM roles, policies, or permissions:
+- **Ask:** "Which running workloads use this role/policy?"
+- **Check:** `aws iam list-entities-for-policy` or `get-role` to see attachments
+- **Risk:** Existing workloads may lose permissions immediately while new workloads work fine
+- **Safe pattern:** Add new permissions first, migrate workloads, then remove old permissions
+
+### Stateful Resources (Extra caution)
+Before destroying databases, S3 buckets, EFS, or persistent volumes:
+- Verify backups exist and are recent
+- Confirm data migration is complete
+- Check for `prevent_destroy` lifecycle rules
+- These are often **unrecoverable** if destroyed
+
+### Review Checklist for TF PRs
+1. [ ] Any destroy+create pairs? → Check if `state mv` needed
+2. [ ] IAM/permission changes? → List affected running workloads
+3. [ ] Stateful resource changes? → Verify backup/migration plan
+4. [ ] Production workspace? → Extra scrutiny required
+
 ## Chezmoi Management
 
 This Claude configuration is managed by chezmoi.
