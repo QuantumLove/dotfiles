@@ -17,6 +17,11 @@ if [ -z "${LINEAR_API_KEY:-}" ] && command -v op &> /dev/null; then
     LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential" 2>/dev/null || echo "")
 fi
 
+# Load SENTRY_ACCESS_TOKEN from 1Password if not already set
+if [ -z "${SENTRY_ACCESS_TOKEN:-}" ] && command -v op &> /dev/null; then
+    SENTRY_ACCESS_TOKEN=$(op read "op://Development/Sentry MCP API Key/credential" 2>/dev/null || echo "")
+fi
+
 # Define our MCP servers (source of truth)
 mcp_servers='{{ include "private_dot_claude/mcp-servers.yaml" | sha256sum }}'
 desired_servers='{
@@ -41,6 +46,14 @@ desired_servers='{
     "env": {
       "PYPI_INDEX_URL": "https://pypi.org/pypi",
       "PYPI_CACHE_TTL": "3600"
+    }
+  },
+  "sentry": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["@sentry/mcp-server@latest"],
+    "env": {
+      "SENTRY_ACCESS_TOKEN": "'"${SENTRY_ACCESS_TOKEN:-}"'"
     }
   }
 }'
