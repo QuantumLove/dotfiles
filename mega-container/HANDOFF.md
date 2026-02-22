@@ -1,65 +1,59 @@
 # Mega-Container Implementation Handoff
 
 **Date:** 2026-02-22
-**Status:** Phase 1 ~90% complete, blocked on SSH agent setup
+**Status:** Phase 1 ~95% complete, remaining tests for tomorrow
 
 ## Overall Project
 
-Implementing a "mega-container" for Claude Code development with:
+Containerized development environment for Claude Code with:
 - **Tailscale** sidecar for METR network access (interactive login, persists across restarts)
 - **1Password** for secrets injection via Service Account Token
 - **chezmoi** for dotfiles/config management
-- **mise** for pre-installed dev tools (node, python, kubectl, helm, gh, etc.)
-- **SSH Agent** forwarding from 1Password for git operations
+- **mise** for pre-installed dev tools (node, python, kubectl, helm, gh, k9s, aws-cli, etc.)
+- **SSH Agent** forwarding via Docker Desktop magic path
+- **SSH Server** for remote access (publickey auth only, no passwords)
 
 **Plan file:** `~/code/docs/plans/2026-02-21-feat-claude-setup-mega-container-plan.md`
 
 ## What's Working
 
-1. **Docker image built successfully** - `mega-container:latest`
-   - Debian Bookworm base
-   - 1Password CLI installed (architecture-aware for arm64)
-   - chezmoi installed
-   - mise installed via official installer (not Docker copy - GLIBC issue)
-   - All mise tools pre-installed: node 22, python 3.12, kubectl 1.31, k9s 0.50, helm, gh, jq, yq, uv 0.10
+1. **Docker image built successfully** - All tools pre-installed
+   - Debian Bookworm base with UID 501 (matches macOS)
+   - 1Password CLI, chezmoi, mise
+   - mise tools: node 22, python 3.12, opentofu, kubectl, helm, gh, yq, uv, k9s, aws-cli
+   - OpenCode and Claude Code via npm
 
-2. **Tailscale connected** - `mega-dev` at 100.99.16.95
-   - Interactive login completed (user authenticated via browser)
+2. **Tailscale connected** - `mega-dev` hostname
+   - Interactive login completed (browser auth)
    - State persists in `tailscale-state` volume
 
-3. **1Password working inside container** - Token passed from macOS Keychain
-   - `op whoami` works inside container
+3. **SSH access working** - `ssh mega-dev`
+   - Password authentication disabled
+   - Publickey auth from forwarded SSH agent
+   - Host key checking disabled in `~/.ssh/config`
 
-4. **Container startup script** - `start.sh` works
-   - Fetches OP token from keychain
-   - Starts docker compose
-   - Shows Tailscale status
+4. **SSH Agent forwarding working**
+   - Uses Docker Desktop magic path: `/run/host-services/ssh-auth.sock`
+   - `ssh-add -l` works inside container
+   - `ssh -T git@github.com` works
 
-## What's Blocked
+5. **Claude Code and OpenCode working over SSH**
+   - Tested: `ssh mega-dev claude` launches successfully
+   - Tested: `ssh mega-dev opencode` launches successfully
 
-### SSH Agent from 1Password
+6. **tmux persistence working**
+   - `tmux new -s dev` creates session
+   - `Ctrl+B D` detaches
+   - `tmux attach -t dev` reattaches after reconnect
 
-The mega container needs SSH for chezmoi to clone dotfiles from GitHub. Current state:
+## Remaining Tests (Tomorrow)
 
-- **Problem:** 1Password SSH Agent socket not working
-- **Socket path in docker-compose.yml:**
-  ```yaml
-  - ${HOME}/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock:/ssh-agent:ro
-  ```
-- **Issue found:** `agent.sock` appears to be a directory, not a socket file
-- **Missing:** The `~/.1password/` symlink directory doesn't exist
+- [ ] Phone SSH test - Connect from iOS
+- [ ] oh-my-opencode config (plan item 1.6.2)
+- [ ] MCP servers test (plan item 1.6.5)
+- [ ] /where-am-i skill test (plan items 1.7.2-1.7.3)
 
-**Fix needed:**
-1. In 1Password app → Settings → Developer
-2. Click **"Set Up SSH Agent"** button (not just toggle)
-3. Follow the wizard - it creates `~/.1password/agent.sock` symlink
-4. Import existing SSH key (`~/.ssh/id_ed25519`) into 1Password as SSH Key item
-5. Update docker-compose.yml to use the symlink path:
-   ```yaml
-   - ~/.1password/agent.sock:/ssh-agent:ro
-   ```
-
-## Files Created
+## Files
 
 All in `~/.local/share/chezmoi/mega-container/`:
 
@@ -68,27 +62,24 @@ All in `~/.local/share/chezmoi/mega-container/`:
 | `Dockerfile` | Multi-tool container image |
 | `docker-compose.yml` | Tailscale sidecar + mega container |
 | `start.sh` | Host wrapper (keychain → env var → compose up) |
-| `entrypoint.sh` | Container bootstrap (1Password check, chezmoi apply) |
-| `.config/mise/config.toml` | Pre-installed tool versions |
+| `entrypoint.sh` | Container bootstrap (1Password, SSH, chezmoi, mise) |
+| `.config/mise/config.toml` | Pre-installed tool versions (uses asdf backends) |
+| `.dockerignore` | Excludes docs and git from build context |
 
-Also created:
+Related files:
+- `~/.local/share/chezmoi/dot_bash_profile.tmpl` - mise activation for SSH login shells
 - `~/.local/share/chezmoi/private_dot_claude/skills/mega:where-am-i/SKILL.md`
-- `~/.local/share/chezmoi/TODO.md` (future improvements)
+- `~/.ssh/config` - mega-dev host entry (skip host key checking)
 
 ## Key Fixes Made During Build
 
-1. **Added `gnupg`** to apt-get for 1Password CLI GPG key import
-2. **Architecture-aware 1Password install** - `dpkg --print-architecture` instead of hardcoded `amd64`
-3. **mise via installer** - Can't copy binary from Docker image (GLIBC 2.38/2.39 needed, Bookworm has 2.36)
-4. **Fixed mise tool versions** - k9s `0.50` not `0.32`, uv `0.10` not `0.5`
-
-## Next Steps
-
-1. **Fix 1Password SSH Agent** (see "What's Blocked" above)
-2. **Update docker-compose.yml** with correct socket path
-3. **Rebuild and test** - chezmoi should clone dotfiles
-4. **Verify SSH works** - `ssh -T git@github.com` inside container
-5. **Mark Phase 1 complete** - Update plan checkboxes
+1. **SSH socket**: Used Docker Desktop magic path `/run/host-services/ssh-auth.sock` instead of 1Password socket
+2. **UID 501**: Container user matches macOS for socket permissions
+3. **asdf backends**: Switched from aqua to asdf backends to avoid GitHub API rate limits
+4. **Direct install for helm/gh**: asdf plugins broken, installed via curl
+5. **SSH in login shell**: Added mise to `.bash_profile` (SSH reads this, not `.bashrc`)
+6. **chezmoi ordering**: entrypoint runs mise activation AFTER chezmoi apply
+7. **Removed no-new-privileges**: Blocked sudo for sshd
 
 ## Commands Reference
 
@@ -96,21 +87,22 @@ Also created:
 # Start containers
 cd ~/.local/share/chezmoi/mega-container && ./start.sh
 
-# Check status
-docker compose ps
-docker compose exec tailscale tailscale status
+# SSH into container
+ssh mega-dev
 
-# Test 1Password inside container
-docker compose exec mega op whoami
+# Inside container - start tmux session
+tmux new -s dev
 
-# Test SSH agent inside container (after fix)
-docker compose exec mega ssh-add -l
+# Detach from tmux
+Ctrl+B D
+
+# Reattach after reconnect
+ssh mega-dev
+tmux attach -t dev
 
 # Rebuild after changes
+cd ~/.local/share/chezmoi/mega-container
 docker compose up -d --build mega
-
-# View logs
-docker compose logs mega
 ```
 
 ## Session Context
