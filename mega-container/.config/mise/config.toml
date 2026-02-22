@@ -1,0 +1,16 @@
+[tools]
+node = "22"
+python = "3.12"
+"asdf:virtualroot/asdf-opentofu" = "latest"
+"asdf:asdf-community/asdf-kubectl" = "latest"
+"asdf:sudermanjr/asdf-yq" = "latest"
+"asdf:asdf-community/asdf-uv" = "latest"
+"asdf:looztra/asdf-k9s" = "latest"
+"asdf:MetricMike/asdf-awscli" = "latest"
+
+[settings]
+experimental = true
+yes = true
+
+[env]
+EDITOR = "vim"

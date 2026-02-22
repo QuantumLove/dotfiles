@@ -1,0 +1,47 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    hostname: mega-dev
+    environment:
+      # No TS_AUTHKEY - using interactive login instead
+      # Container authenticates AS YOU via browser login
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=true
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "tailscale", "status", "--json"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  mega:
+    build: .
+    network_mode: service:tailscale
+    depends_on:
+      tailscale:
+        condition: service_healthy
+    environment:
+      - OP_SERVICE_ACCOUNT_TOKEN
+      - SSH_AUTH_SOCK=/ssh-agent
+    volumes:
+      # Code directory - ONLY persistent volume
+      - code:/home/metr/code
+      # Docker socket for building images (connects to Docker Desktop VM)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # SSH Agent forwarding via Docker Desktop magic path (works with 1Password or macOS agent)
+      - /run/host-services/ssh-auth.sock:/ssh-agent:ro
+    healthcheck:
+      test: ["CMD", "op", "account", "get"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  tailscale-state:
+  code:
+  # NOTE: No 'home' volume - config files stay in container filesystem
+  # Secrets injected at runtime via chezmoi apply, not persisted

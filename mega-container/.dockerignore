@@ -1,0 +1,14 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+HANDOFF.md
+
+# IDE
+.vscode
+.idea
+
+# macOS
+.DS_Store

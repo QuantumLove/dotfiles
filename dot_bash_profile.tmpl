@@ -1,4 +1,13 @@
 # .bash_profile for login shells
-# Load shared custom functions directly
 
+# Source .bashrc for interactive login shells
+[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+
+# Load shared custom functions
 [ -f "$HOME/.sh_functions" ] && . "$HOME/.sh_functions"
+
+# mise - tool version manager (for containers/SSH)
+if [ -d "$HOME/.local/share/mise" ]; then
+  export PATH="$HOME/.local/share/mise/shims:$PATH"
+  eval "$(mise activate bash 2>/dev/null)"
+fi
