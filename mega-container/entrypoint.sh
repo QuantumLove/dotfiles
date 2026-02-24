@@ -29,11 +29,23 @@ if [ -z "$ANTHROPIC_API_KEY" ]; then
 fi
 # Export for current process and persist for SSH login shells
 export ANTHROPIC_API_KEY
-echo "export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'" > ~/.anthropic_env
-chmod 600 ~/.anthropic_env
+echo "export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'" >> ~/.secrets_env
 echo "✓ Anthropic API key ready"
 
-# 4. Verify SSH agent, setup known_hosts, and configure SSH server
+# 4. FAIL FAST: Fetch GitHub token from 1Password
+echo "Fetching GitHub token from 1Password..."
+GH_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null)
+if [ -z "$GH_TOKEN" ]; then
+  echo "ERROR: Failed to fetch GitHub Personal Access Token from 1Password"
+  echo "Ensure 'GitHub Personal Access Token' exists in the Development vault with a 'credential' field"
+  exit 1
+fi
+export GH_TOKEN
+echo "export GH_TOKEN='$GH_TOKEN'" >> ~/.secrets_env
+chmod 600 ~/.secrets_env
+echo "✓ GitHub token ready"
+
+# 5. Verify SSH agent, setup known_hosts, and configure SSH server
 echo "Checking SSH agent..."
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 
@@ -72,12 +84,12 @@ else
   exit 1
 fi
 
-# 5. Start SSH server
+# 6. Start SSH server
 echo "Starting SSH server..."
 sudo /usr/sbin/sshd
 echo "✓ SSH server running"
 
-# 6. Apply chezmoi (secrets injected via onepasswordRead templates)
+# 7. Apply chezmoi (secrets injected via onepasswordRead templates)
 echo "Applying chezmoi configuration..."
 if [ ! -d "$HOME/.local/share/chezmoi" ]; then
   chezmoi init --ssh QuantumLove
@@ -92,12 +104,19 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 # Ensure secrets env file is sourced by login shells (after chezmoi may have overwritten .bash_profile)
-if [ -f "$HOME/.anthropic_env" ] && ! grep -q "anthropic_env" "$HOME/.bash_profile" 2>/dev/null; then
-  echo '[ -f "$HOME/.anthropic_env" ] && . "$HOME/.anthropic_env"' >> "$HOME/.bash_profile"
+if [ -f "$HOME/.secrets_env" ] && ! grep -q "secrets_env" "$HOME/.bash_profile" 2>/dev/null; then
+  echo '[ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"' >> "$HOME/.bash_profile"
+fi
+
+# Inject API key into Claude Code config to skip login prompt
+if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
+  tmp=$(mktemp)
+  jq --arg key "$ANTHROPIC_API_KEY" '. + {primaryApiKey: $key, hasCompletedOnboarding: true}' "$HOME/.claude.json" > "$tmp" && mv "$tmp" "$HOME/.claude.json"
+  echo "✓ Claude Code configured with API key"
 fi
 echo "✓ chezmoi applied"
 
-# 7. Verify mise tools (already pre-installed in image)
+# 8. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
 echo "Verifying mise tools..."
 if ! mise doctor; then

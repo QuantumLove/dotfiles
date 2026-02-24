@@ -59,7 +59,8 @@ ENV MISE_DATA_DIR="/home/metr/.local/share/mise" \
 
 COPY --chown=metr:metr .config/mise/config.toml .config/mise/
 RUN mise trust -a && mise install && \
-    npm install -g opencode-ai @anthropic-ai/claude-code
+    npm install -g opencode-ai @anthropic-ai/claude-code oh-my-opencode && \
+    oh-my-opencode install --no-tui --claude=yes --gemini=no --copilot=no
 
 COPY --chown=metr:metr entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh

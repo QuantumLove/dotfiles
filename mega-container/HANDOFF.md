@@ -54,11 +54,13 @@ Containerized development environment for Claude Code with:
    - `Ctrl+B D` detaches
    - `tmux attach -t dev` reattaches after reconnect
 
-## Remaining Tests (Tomorrow)
+## Remaining Tests
 
-- [ ] Phone SSH test - Connect from iOS
-- [ ] oh-my-opencode config (plan item 1.6.2)
-- [ ] MCP servers test (plan item 1.6.5)
+- [x] Phone SSH test - Connect from iOS ✅
+- [x] oh-my-opencode installed (plan item 1.6.2) ✅
+- [x] MCP servers credentials in config (plan item 1.6.5) ✅ (Linear, Sentry tokens via chezmoi)
+- [x] gh CLI auto-authentication via GH_TOKEN ✅
+- [x] Claude Code API key injection (skips login prompt) ✅
 - [ ] /where-am-i skill test (plan items 1.7.2-1.7.3)
 
 ## Files

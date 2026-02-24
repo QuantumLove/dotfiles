@@ -28,9 +28,9 @@ desired_servers='{
   "linear": {
     "type": "stdio",
     "command": "npx",
-    "args": ["-y", "mcp-remote", "https://mcp.linear.app/sse"],
+    "args": ["-y", "@larryhudson/linear-mcp-server"],
     "env": {
-      "AUTHORIZATION": "Bearer '"${LINEAR_API_KEY:-}"'"
+      "LINEAR_API_KEY": "'"${LINEAR_API_KEY:-}"'"
     }
   },
   "fetch": {

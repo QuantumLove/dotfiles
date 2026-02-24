@@ -13,4 +13,4 @@ if [ -d "$HOME/.local/share/mise" ]; then
 fi
 
 # Load secrets injected by container entrypoint (mega-container)
-[ -f "$HOME/.anthropic_env" ] && . "$HOME/.anthropic_env"
+[ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"
