@@ -21,17 +21,40 @@ echo "✓ 1Password connected"
 
 # 3. Verify SSH agent, setup known_hosts, and configure SSH server
 echo "Checking SSH agent..."
-if ! ssh-add -l &>/dev/null; then
-  echo "WARNING: SSH agent not available"
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+
+# Retry loop for SSH agent (may take a moment to be available)
+SSH_AGENT_RETRIES=5
+SSH_AGENT_READY=false
+for i in $(seq 1 $SSH_AGENT_RETRIES); do
+  if ssh-add -l &>/dev/null; then
+    SSH_AGENT_READY=true
+    break
+  fi
+  echo "  Waiting for SSH agent... (attempt $i/$SSH_AGENT_RETRIES)"
+  sleep 2
+done
+
+if [ "$SSH_AGENT_READY" = "false" ]; then
+  echo "WARNING: SSH agent not available after $SSH_AGENT_RETRIES attempts"
   echo "Some features may not work (private repo cloning, SSH login)"
   echo "Ensure 1Password SSH Agent is running on host"
 else
   echo "✓ SSH agent connected"
-  mkdir -p ~/.ssh && chmod 700 ~/.ssh
   ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-  # Add agent keys to authorized_keys for SSH login
-  ssh-add -L > ~/.ssh/authorized_keys 2>/dev/null && chmod 600 ~/.ssh/authorized_keys
-  echo "✓ SSH authorized_keys configured"
+
+  # Add agent keys to authorized_keys for SSH login (with validation)
+  ssh-add -L > ~/.ssh/authorized_keys 2>/dev/null
+  chmod 600 ~/.ssh/authorized_keys
+
+  # Verify authorized_keys was populated
+  KEY_COUNT=$(wc -l < ~/.ssh/authorized_keys 2>/dev/null | tr -d ' ')
+  if [ "$KEY_COUNT" -gt 0 ]; then
+    echo "✓ SSH authorized_keys configured ($KEY_COUNT keys)"
+  else
+    echo "WARNING: authorized_keys is empty - SSH login may not work"
+    echo "  Try running: ssh-add -L > ~/.ssh/authorized_keys"
+  fi
 fi
 
 # 4. Start SSH server
