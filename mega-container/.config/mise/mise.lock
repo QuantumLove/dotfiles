@@ -1,0 +1,41 @@
+[[tools."asdf:MetricMike/asdf-awscli"]]
+version = "2.33.28"
+backend = "asdf:MetricMike/asdf-awscli"
+
+[[tools."asdf:asdf-community/asdf-kubectl"]]
+version = "1.35.1"
+backend = "asdf:asdf-community/asdf-kubectl"
+
+[[tools."asdf:asdf-community/asdf-uv"]]
+version = "0.10.5"
+backend = "asdf:asdf-community/asdf-uv"
+
+[[tools."asdf:looztra/asdf-k9s"]]
+version = "0.50.18"
+backend = "asdf:looztra/asdf-k9s"
+
+[[tools."asdf:sudermanjr/asdf-yq"]]
+version = "4.52.4"
+backend = "asdf:sudermanjr/asdf-yq"
+
+[[tools."asdf:virtualroot/asdf-opentofu"]]
+version = "1.11.5"
+backend = "asdf:virtualroot/asdf-opentofu"
+
+[[tools.node]]
+version = "22.22.0"
+backend = "core:node"
+"platforms.linux-arm64" = { checksum = "sha256:25ba95dfb96871fa2ef977f11f95ea90818c8fa15c0f2110771db08d4ba423be", url = "https://nodejs.org/dist/v22.22.0/node-v22.22.0-linux-arm64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:c33c39ed9c80deddde77c960d00119918b9e352426fd604ba41638d6526a4744", url = "https://nodejs.org/dist/v22.22.0/node-v22.22.0-linux-x64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:5ed4db0fcf1eaf84d91ad12462631d73bf4576c1377e192d222e48026a902640", url = "https://nodejs.org/dist/v22.22.0/node-v22.22.0-darwin-arm64.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:5ea50c9d6dea3dfa3abb66b2656f7a4e1c8cef23432b558d45fb538c7b5dedce", url = "https://nodejs.org/dist/v22.22.0/node-v22.22.0-darwin-x64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:c97fa376d2becdc8863fcd3ca2dd9a83a9f3468ee7ccf7a6d076ec66a645c77a", url = "https://nodejs.org/dist/v22.22.0/node-v22.22.0-win-x64.zip"}
+
+[[tools.python]]
+version = "3.12.12"
+backend = "core:python"
+"platforms.linux-arm64" = { checksum = "sha256:85fdc64fe672de7337198a63d89918037bf93bdb03480404d90f8f601abef1dd", url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260211/cpython-3.12.12+20260211-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:1dbaa624a09e15afe7efbdac08d42993135a68db8d34f986ef6977a6d77bdc3c", url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260211/cpython-3.12.12+20260211-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:22625deaf5757e7c266cf1a096c9151a06b598b1e14632a2ec9993d58ec5fe84", url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260211/cpython-3.12.12+20260211-aarch64-apple-darwin-install_only_stripped.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:a84ac7a36d465bc6eb68db84540fdb5da04333900e2c3cb34b5d454f2022048c", url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260211/cpython-3.12.12+20260211-x86_64-apple-darwin-install_only_stripped.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:93bf8e8c05ede0077b197a29c99ebdaf253497f27190097494265150b4e70ba8", url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260211/cpython-3.12.12+20260211-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"}

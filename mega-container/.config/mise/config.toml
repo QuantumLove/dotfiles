@@ -11,6 +11,7 @@ python = "3.12"
 [settings]
 experimental = true
 yes = true
+lockfile = true
 
 [env]
 EDITOR = "vim"
