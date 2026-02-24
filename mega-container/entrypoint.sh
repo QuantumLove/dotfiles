@@ -19,7 +19,21 @@ if ! op account get &>/dev/null; then
 fi
 echo "✓ 1Password connected"
 
-# 3. Verify SSH agent, setup known_hosts, and configure SSH server
+# 3. FAIL FAST: Fetch Anthropic API key from 1Password
+echo "Fetching Anthropic API key from 1Password..."
+ANTHROPIC_API_KEY=$(op read "op://Development/Anthropic API Key/credential" 2>/dev/null)
+if [ -z "$ANTHROPIC_API_KEY" ]; then
+  echo "ERROR: Failed to fetch Anthropic API Key from 1Password"
+  echo "Ensure 'Anthropic API Key' exists in the Development vault with a 'credential' field"
+  exit 1
+fi
+# Export for current process and persist for SSH login shells
+export ANTHROPIC_API_KEY
+echo "export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'" > ~/.anthropic_env
+chmod 600 ~/.anthropic_env
+echo "✓ Anthropic API key ready"
+
+# 4. Verify SSH agent, setup known_hosts, and configure SSH server
 echo "Checking SSH agent..."
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 
@@ -36,54 +50,60 @@ for i in $(seq 1 $SSH_AGENT_RETRIES); do
 done
 
 if [ "$SSH_AGENT_READY" = "false" ]; then
-  echo "WARNING: SSH agent not available after $SSH_AGENT_RETRIES attempts"
-  echo "Some features may not work (private repo cloning, SSH login)"
+  echo "ERROR: SSH agent not available after $SSH_AGENT_RETRIES attempts"
   echo "Ensure 1Password SSH Agent is running on host"
+  echo "Check: Docker Desktop magic path /run/host-services/ssh-auth.sock"
+  exit 1
+fi
+echo "✓ SSH agent connected"
+ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+# Add agent keys to authorized_keys for SSH login (with validation)
+ssh-add -L > ~/.ssh/authorized_keys 2>/dev/null
+chmod 600 ~/.ssh/authorized_keys
+
+# Verify authorized_keys was populated
+KEY_COUNT=$(wc -l < ~/.ssh/authorized_keys 2>/dev/null | tr -d ' ')
+if [ "$KEY_COUNT" -gt 0 ]; then
+  echo "✓ SSH authorized_keys configured ($KEY_COUNT keys)"
 else
-  echo "✓ SSH agent connected"
-  ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-
-  # Add agent keys to authorized_keys for SSH login (with validation)
-  ssh-add -L > ~/.ssh/authorized_keys 2>/dev/null
-  chmod 600 ~/.ssh/authorized_keys
-
-  # Verify authorized_keys was populated
-  KEY_COUNT=$(wc -l < ~/.ssh/authorized_keys 2>/dev/null | tr -d ' ')
-  if [ "$KEY_COUNT" -gt 0 ]; then
-    echo "✓ SSH authorized_keys configured ($KEY_COUNT keys)"
-  else
-    echo "WARNING: authorized_keys is empty - SSH login may not work"
-    echo "  Try running: ssh-add -L > ~/.ssh/authorized_keys"
-  fi
+  echo "ERROR: authorized_keys is empty - SSH login will not work"
+  echo "SSH agent connected but returned no keys"
+  exit 1
 fi
 
-# 4. Start SSH server
+# 5. Start SSH server
 echo "Starting SSH server..."
 sudo /usr/sbin/sshd
 echo "✓ SSH server running"
 
-# 5. Apply chezmoi (secrets injected via onepasswordRead templates)
+# 6. Apply chezmoi (secrets injected via onepasswordRead templates)
 echo "Applying chezmoi configuration..."
 if [ ! -d "$HOME/.local/share/chezmoi" ]; then
-  # Try SSH first, fall back to HTTPS with gh auth
-  if ssh-add -l &>/dev/null; then
-    chezmoi init --ssh QuantumLove || echo "WARNING: chezmoi init failed"
-  else
-    echo "WARNING: SSH agent not available, skipping chezmoi init"
-    echo "Run manually: chezmoi init --ssh QuantumLove"
+  chezmoi init --ssh QuantumLove
+  if [ $? -ne 0 ]; then
+    echo "ERROR: chezmoi init failed"
+    exit 1
   fi
 fi
-if [ -d "$HOME/.local/share/chezmoi" ]; then
-  chezmoi apply || echo "WARNING: chezmoi apply failed"
-  echo "✓ chezmoi applied"
-else
-  echo "⚠️  chezmoi not initialized (run manually when SSH agent available)"
+chezmoi apply
+if [ $? -ne 0 ]; then
+  echo "ERROR: chezmoi apply failed"
+  exit 1
 fi
+# Ensure secrets env file is sourced by login shells (after chezmoi may have overwritten .bash_profile)
+if [ -f "$HOME/.anthropic_env" ] && ! grep -q "anthropic_env" "$HOME/.bash_profile" 2>/dev/null; then
+  echo '[ -f "$HOME/.anthropic_env" ] && . "$HOME/.anthropic_env"' >> "$HOME/.bash_profile"
+fi
+echo "✓ chezmoi applied"
 
-# 6. Verify mise tools (already pre-installed in image)
+# 7. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
 echo "Verifying mise tools..."
-mise doctor || true
+if ! mise doctor; then
+  echo "ERROR: mise doctor failed - tools may not work correctly"
+  exit 1
+fi
 echo "✓ mise tools ready"
 
 echo "=== Bootstrap Complete ==="

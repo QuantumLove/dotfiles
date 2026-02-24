@@ -11,3 +11,6 @@ if [ -d "$HOME/.local/share/mise" ]; then
   export PATH="$HOME/.local/share/mise/shims:$PATH"
   eval "$(mise activate bash 2>/dev/null)"
 fi
+
+# Load secrets injected by container entrypoint (mega-container)
+[ -f "$HOME/.anthropic_env" ] && . "$HOME/.anthropic_env"

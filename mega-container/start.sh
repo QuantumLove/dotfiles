@@ -4,8 +4,9 @@ set -e
 
 echo "=== Mega Container Startup ==="
 
-# 1. Fetch 1Password Service Account Token (from macOS Keychain)
-echo "Fetching 1Password token from keychain..."
+# 1. Fetch secrets from macOS Keychain
+echo "Fetching secrets from keychain..."
+
 export OP_SERVICE_ACCOUNT_TOKEN=$(security find-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w 2>/dev/null)
 if [ -z "$OP_SERVICE_ACCOUNT_TOKEN" ]; then
   echo "ERROR: OP_SERVICE_ACCOUNT_TOKEN not in keychain"
@@ -13,6 +14,7 @@ if [ -z "$OP_SERVICE_ACCOUNT_TOKEN" ]; then
   exit 1
 fi
 echo "✓ 1Password token ready"
+
 
 # 2. Start containers
 echo "Starting containers..."

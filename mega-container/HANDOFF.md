@@ -1,7 +1,15 @@
 # Mega-Container Implementation Handoff
 
-**Date:** 2026-02-22
-**Status:** Phase 1 ~95% complete, remaining tests for tomorrow
+**Date:** 2026-02-24
+**Status:** Phase 1 in progress
+
+## Key Principles
+
+1. **FAIL HARD, NOT SOFT** - If something is broken, exit with error. Never silently continue with degraded functionality. Missing secrets = immediate exit. Broken dependencies = immediate exit.
+
+2. **Fail Fast** - Validate all requirements at startup before doing any work.
+
+3. **Explicit over Implicit** - Log what's happening. Show key counts, connection status, etc.
 
 ## Overall Project
 
