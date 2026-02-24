@@ -4,12 +4,74 @@ This document describes common development workflows using the Claude Code setup
 
 ## Table of Contents
 
-1. [Git Worktree Development Workflow](#git-worktree-development-workflow)
-2. [Session Persistence Workflow](#session-persistence-workflow)
-3. [Continuous Improvement Workflow](#continuous-improvement-workflow)
-4. [Daily Development Workflow](#daily-development-workflow)
-5. [Security Review Workflow](#security-review-workflow)
-6. [Deployment Workflow](#deployment-workflow)
+1. [Mega-Container Remote Workflow](#mega-container-remote-workflow)
+2. [Git Worktree Development Workflow](#git-worktree-development-workflow)
+3. [Session Persistence Workflow](#session-persistence-workflow)
+4. [Continuous Improvement Workflow](#continuous-improvement-workflow)
+5. [Daily Development Workflow](#daily-development-workflow)
+6. [Security Review Workflow](#security-review-workflow)
+7. [Deployment Workflow](#deployment-workflow)
+
+---
+
+## Mega-Container Remote Workflow
+
+Access your development environment from any device via SSH.
+
+### Starting the Container
+
+```bash
+# From macOS host
+cd ~/.local/share/chezmoi/mega-container && ./start.sh
+
+# First time only: authenticate Tailscale
+docker compose exec tailscale tailscale up --accept-routes --ssh --hostname=mega-dev
+# Follow the browser login with your METR gmail
+```
+
+### Working Remotely
+
+```bash
+# From any device (phone, tablet, laptop) with Tailscale
+ssh mega-dev
+
+# Start a persistent session
+tmux new -s work
+
+# Use AI tools
+claude              # Claude Code
+opencode            # OpenCode alternative
+
+# Check your context
+/where-am-i
+```
+
+### Session Persistence
+
+```bash
+# Detach from tmux (keep session running)
+Ctrl+B D
+
+# Reconnect later from any device
+ssh mega-dev
+tmux attach -t work
+# Your session continues exactly where you left off
+```
+
+### Checking MCP Status
+
+```bash
+# Inside claude or opencode
+/mcp                # Built-in command shows connection status
+```
+
+### Rebuilding After Changes
+
+```bash
+# After updating chezmoi config
+cd ~/.local/share/chezmoi/mega-container
+docker compose up -d --force-recreate mega
+```
 
 ---
 
@@ -251,7 +313,7 @@ A typical day with Claude Code:
 /claude-validate
 
 # 3. Check MCP integrations
-/mcp-check
+/mcp
 
 # 4. Open development environment
 warp-cli launch metr-dev
@@ -441,7 +503,7 @@ kubectl logs -n metr-dev deployment/hawk
 
 ### MCP Not Working
 ```bash
-/mcp-check
+/mcp
 /claude-diagnostics --test-mcp
 ```
 

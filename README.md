@@ -15,11 +15,33 @@ chezmoi init --apply QuantumLove/dotfiles
 # Verify setup
 claude --version
 ls ~/.claude/agents/        # Should show 11 agents
-ls ~/.claude/commands/      # Should show 17 commands
+ls ~/.claude/commands/      # Should show commands
 
 # Start using Claude Code
 claude
 ```
+
+## Mega-Container (Remote Dev)
+
+SSH into a persistent dev container from any device (phone, tablet, laptop):
+
+```bash
+# Start (from macOS host)
+cd ~/.local/share/chezmoi/mega-container && ./start.sh
+
+# Connect from anywhere via Tailscale
+ssh mega-dev
+
+# Use AI tools
+claude    # or: opencode
+tmux new -s work   # persistent sessions
+```
+
+**Features:** Tailscale SSH, 1Password secrets injection, pre-installed tools (node, python, kubectl, aws-cli, etc.), MCP servers (Linear, Sentry), tmux persistence.
+
+**Requires:** 1Password Service Account token in macOS Keychain, Docker Desktop, Tailscale.
+
+See `mega-container/HANDOFF.md` for details.
 
 ## What's Included
 
@@ -63,7 +85,6 @@ claude
 
 **Utilities**
 - `/load-env` - Load .env files with secret detection
-- `/mcp-check` - Verify MCP authentication status
 - `/mcp-setup-1password` - Interactive credential setup
 
 ## Usage Examples
@@ -107,4 +128,4 @@ See the full installation guide and documentation in the complete README above. 
 
 ---
 
-*Built with ❤️ using Claude Code and chezmoi* | *Last updated: 2025-01-15*
+*Built with ❤️ using Claude Code and chezmoi* | *Last updated: 2026-02-24*
