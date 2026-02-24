@@ -5,17 +5,20 @@
 # Changes here trigger re-run of the modify script.
 #
 # Auth notes:
-# - Linear: API Key from 1Password (loaded at chezmoi apply time)
+# - Secrets loaded from 1Password at chezmoi apply time
 # - fetch: No auth required
 # - pypi-query: No auth required
 #
-# To verify MCP connectivity: run /mcp-check
+# To verify MCP connectivity: /mcp (built-in Claude command)
 # To list configured servers: claude mcp list
 
 servers:
   linear:
-    command: npx -y mcp-remote https://mcp.linear.app/sse
+    command: npx -y @larryhudson/linear-mcp-server
     auth: API Key from 1Password (op://Development/Linear MCP API Key/credential)
+    notes: >
+      Create token at https://linear.app/settings/api
+      Required scopes: read, write (issues, comments, projects)
 
   fetch:
     command: uvx mcp-server-fetch
@@ -31,6 +34,41 @@ servers:
   sentry:
     command: npx @sentry/mcp-server@latest
     auth: API Key from 1Password (op://Development/Sentry MCP API Key/credential)
+    env:
+      SENTRY_ORG: metr-sh
     notes: >
       Create token at https://sentry.io/settings/auth-tokens/
       Required scopes: org:read, project:read, project:write, team:read, team:write, event:write
+
+  github:
+    command: npx -y @modelcontextprotocol/server-github
+    auth: PAT from 1Password (op://Development/GitHub Personal Access Token/credential)
+    notes: >
+      Create token at https://github.com/settings/tokens
+      Required scopes: repo, read:org, read:user
+
+  toggl:
+    command: npx -y @verygoodplugins/mcp-toggl@latest
+    auth: API Key from 1Password (op://Development/Toggl API Key/credential)
+    notes: >
+      Get API token at https://track.toggl.com/profile (scroll to "API Token")
+
+  notion:
+    command: npx -y @notionhq/notion-mcp-server
+    auth: Integration Token from 1Password (op://Development/Notion API Key/credential)
+    notes: >
+      Create integration at https://www.notion.so/my-integrations
+      Required capabilities: Read content, Insert content, Update content
+
+  slack:
+    command: npx -y slack-mcp-server
+    auth: User Token (xoxp-) from 1Password (op://Development/Slack User Token/credential)
+    env:
+      SLACK_MCP_ADD_MESSAGE_TOOL: "true"
+    notes: >
+      Create app at https://api.slack.com/apps
+      Use User Token Scopes (NOT Bot):
+        channels:history, channels:read, chat:write, groups:history, groups:read,
+        im:history, im:read, mpim:history, mpim:read, reactions:read, reactions:write,
+        search:read, users:read, users:read.email, usergroups:read
+      Install to workspace and copy User OAuth Token (xoxp-...)
