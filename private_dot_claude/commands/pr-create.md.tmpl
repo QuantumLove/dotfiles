@@ -1,0 +1,199 @@
+---
+name: pr-create
+description: Create PR with auto-detected Linear issue tag in title
+permissions:
+  - Bash(git *)
+  - Bash(gh pr create *)
+  - Bash(gh pr view *)
+  - mcp__linear__get_issue
+---
+
+# PR Create - Linear-Tagged Pull Requests
+
+Create GitHub pull requests with automatic Linear issue detection and tagging.
+
+## Usage
+
+```bash
+# Auto-detect from branch name (eng-123-*, METR-123-*, etc.)
+/pr-create
+
+# Explicitly specify Linear issue
+/pr-create --linear ENG-123
+
+# Skip Linear tagging
+/pr-create --no-linear
+
+# With custom title (Linear tag still prepended)
+/pr-create --title "Add user authentication"
+
+# Draft PR
+/pr-create --draft
+```
+
+## What It Does
+
+1. **Detect Linear issue** from branch name patterns:
+   - `eng-123-description` → ENG-123
+   - `METR-123-description` → METR-123
+   - `feature/eng-123-description` → ENG-123
+   - `fix/METR-456-bug` → METR-456
+
+2. **Fetch issue details** via Linear MCP (title, description)
+
+3. **Create PR** with:
+   - Title: `[ENG-123] Original issue title` or custom title
+   - Body: Links to Linear issue, includes summary
+   - Labels: Auto-detected from issue labels (if available)
+
+4. **Output**: PR URL for easy access
+
+## Implementation
+
+### Step 1: Detect Linear Issue ID
+
+```bash
+BRANCH=$(git branch --show-current)
+echo "Branch: $BRANCH"
+
+# Extract issue ID from branch name
+# Patterns: eng-123, METR-123, ENG-123 (case insensitive)
+ISSUE_ID=$(echo "$BRANCH" | grep -oiE '(eng|metr)-[0-9]+' | head -1 | tr '[:lower:]' '[:upper:]')
+
+if [ -n "$ISSUE_ID" ]; then
+  echo "Detected Linear issue: $ISSUE_ID"
+else
+  echo "No Linear issue detected in branch name"
+fi
+```
+
+### Step 2: Fetch Linear Issue Details (if ID found)
+
+If `ISSUE_ID` is set, use Linear MCP to fetch issue details:
+
+```
+Use the Linear MCP to get issue $ISSUE_ID - fetch title and description
+```
+
+Store the results:
+- `LINEAR_TITLE` - Issue title from Linear
+- `LINEAR_URL` - Link to issue (https://linear.app/metr/issue/$ISSUE_ID)
+
+### Step 3: Generate PR Title
+
+```bash
+# Priority for title:
+# 1. --title flag if provided
+# 2. Linear issue title if found
+# 3. Auto-generate from commits
+
+if [ -n "$CUSTOM_TITLE" ]; then
+  PR_TITLE="$CUSTOM_TITLE"
+elif [ -n "$LINEAR_TITLE" ]; then
+  PR_TITLE="$LINEAR_TITLE"
+else
+  # Use first commit message as title
+  PR_TITLE=$(git log origin/main..HEAD --format=%s | tail -1)
+fi
+
+# Prepend Linear tag if we have an issue ID
+if [ -n "$ISSUE_ID" ]; then
+  PR_TITLE="[$ISSUE_ID] $PR_TITLE"
+fi
+
+echo "PR Title: $PR_TITLE"
+```
+
+### Step 4: Generate PR Body
+
+```markdown
+## Summary
+
+[Brief description of changes]
+
+## Linear Issue
+
+🔗 [$ISSUE_ID]($LINEAR_URL)
+
+## Changes
+
+[Auto-generated from commits]
+
+## Testing
+
+- [ ] Tests pass locally
+- [ ] Manually verified
+
+---
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+```
+
+### Step 5: Create PR
+
+```bash
+# Check if we need to push first
+if ! git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
+  echo "Pushing branch to origin..."
+  git push -u origin "$BRANCH"
+fi
+
+# Create PR
+gh pr create \
+  --title "$PR_TITLE" \
+  --body "$PR_BODY" \
+  ${DRAFT:+--draft}
+
+# Show result
+gh pr view --web
+```
+
+## Branch Naming Convention
+
+For automatic Linear detection, use these branch patterns:
+
+| Pattern | Example | Detected ID |
+|---------|---------|-------------|
+| `eng-XXX-description` | `eng-123-add-auth` | ENG-123 |
+| `METR-XXX-description` | `METR-456-fix-bug` | METR-456 |
+| `feature/eng-XXX-...` | `feature/eng-789-oauth` | ENG-789 |
+| `fix/METR-XXX-...` | `fix/METR-101-timeout` | METR-101 |
+
+## Example Output
+
+```
+/pr-create
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Branch: eng-123-add-user-auth
+Detected Linear issue: ENG-123
+
+Fetching issue details from Linear...
+  Title: Add user authentication system
+  URL: https://linear.app/metr/issue/ENG-123
+
+PR Title: [ENG-123] Add user authentication system
+
+Pushing branch to origin...
+Creating pull request...
+
+✅ PR created: https://github.com/METR/inspect-action/pull/456
+
+Opening in browser...
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--linear ID` | Explicitly set Linear issue ID |
+| `--no-linear` | Skip Linear tagging entirely |
+| `--title "..."` | Custom PR title (Linear tag still added) |
+| `--draft` | Create as draft PR |
+| `--web` | Open PR in browser after creation |
+
+## Related Commands
+
+- `/start-work` - Start work with Linear issue tracking
+- `/safe-ship` - Pre-PR validation checks
+- `/review` - Code review before PR

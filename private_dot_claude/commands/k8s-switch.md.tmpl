@@ -1,0 +1,286 @@
+---
+name: k8s-switch
+description: Switch Kubernetes context with cluster config from private repo
+permissions:
+  - Bash(kubectl config *)
+  - Bash(kubectl cluster-info *)
+  - Bash(kubectl get *)
+  - Bash(aws eks update-kubeconfig *)
+  - Bash(k9s *)
+  - Read(**/clusters.yaml)
+---
+
+# K8s Switch - Kubernetes Context Management
+
+Switch between Kubernetes contexts (minikube, EKS clusters) with automatic kubeconfig updates and optional k9s launch.
+
+## Usage
+
+```bash
+# List available contexts
+/k8s-switch list
+
+# Show current context
+/k8s-switch
+
+# Switch to specific context
+/k8s-switch minikube
+/k8s-switch dev4
+/k8s-switch prod
+
+# Switch and launch k9s
+/k8s-switch dev4 --k9s
+
+# Refresh EKS kubeconfig
+/k8s-switch dev4 --refresh
+```
+
+## What It Does
+
+1. **Read cluster config** from `~/.private-config/k8s/clusters.yaml`
+2. **Switch context** based on cluster type:
+   - Local (minikube): `kubectl config use-context`
+   - EKS: `aws eks update-kubeconfig`
+3. **Verify connection**: Check cluster is accessible
+4. **Show status**: Nodes, namespaces, current namespace
+5. **Optional k9s**: Launch k9s TUI after switching
+
+## Cluster Configuration
+
+Create `~/.private-config/k8s/clusters.yaml`:
+
+```yaml
+# Kubernetes cluster configuration
+# Used by /k8s-switch command
+
+clusters:
+  minikube:
+    type: local
+    context: minikube
+    description: Local development cluster
+
+  dev4:
+    type: eks
+    name: metr-dev4-cluster    # EKS cluster name
+    region: us-west-2
+    description: METR dev4 environment
+    aws_profile: metr-staging  # Optional: AWS profile to use
+
+  staging:
+    type: eks
+    name: metr-staging-cluster
+    region: us-west-2
+    description: METR staging environment
+    aws_profile: metr-staging
+
+  prod:
+    type: eks
+    name: metr-prod-cluster
+    region: us-west-2
+    description: METR production environment
+    aws_profile: metr-prod
+    # Extra warning for production
+    confirm: true
+
+# Default namespace per cluster (optional)
+defaults:
+  dev4: metr-dev
+  staging: metr-staging
+  prod: metr-prod
+```
+
+## Implementation
+
+### List Mode
+
+```bash
+#!/bin/bash
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "☸️  Available Kubernetes Contexts"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Get current context
+CURRENT=$(kubectl config current-context 2>/dev/null || echo "none")
+
+# Read from clusters.yaml
+CONFIG_FILE="$HOME/.private-config/k8s/clusters.yaml"
+if [ -f "$CONFIG_FILE" ]; then
+  echo "From clusters.yaml:"
+  # Parse YAML and display
+  # [Use yq or manual parsing]
+else
+  echo "⚠️  No clusters.yaml found at $CONFIG_FILE"
+  echo "   Falling back to kubectl contexts:"
+  kubectl config get-contexts
+fi
+
+echo ""
+echo "Current: $CURRENT"
+```
+
+### Switch Mode
+
+```bash
+#!/bin/bash
+CLUSTER="$1"
+LAUNCH_K9S=false
+REFRESH=false
+
+# Parse flags
+for arg in "$@"; do
+  case $arg in
+    --k9s) LAUNCH_K9S=true ;;
+    --refresh) REFRESH=true ;;
+  esac
+done
+
+# Read cluster config
+CONFIG_FILE="$HOME/.private-config/k8s/clusters.yaml"
+# ... parse YAML for cluster details
+
+case $CLUSTER_TYPE in
+  local)
+    echo "Switching to local context: $CONTEXT_NAME"
+    kubectl config use-context "$CONTEXT_NAME"
+    ;;
+  eks)
+    echo "Updating kubeconfig for EKS: $CLUSTER_NAME"
+
+    # Use AWS profile if specified
+    if [ -n "$AWS_PROFILE" ]; then
+      export AWS_PROFILE="$AWS_PROFILE"
+    fi
+
+    aws eks update-kubeconfig \
+      --name "$CLUSTER_NAME" \
+      --region "$REGION" \
+      --alias "$CLUSTER"
+    ;;
+esac
+
+# Verify connection
+echo ""
+echo "Verifying connection..."
+if kubectl cluster-info &>/dev/null; then
+  echo "✅ Connected to cluster"
+else
+  echo "❌ Failed to connect to cluster"
+  exit 1
+fi
+
+# Show status
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📊 Cluster Status"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Nodes: $(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+echo "Namespaces: $(kubectl get ns --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+echo "Current NS: $(kubectl config view --minify -o jsonpath='{..namespace}' 2>/dev/null || echo 'default')"
+
+# Launch k9s if requested
+if [ "$LAUNCH_K9S" = true ]; then
+  echo ""
+  echo "Launching k9s..."
+  k9s
+fi
+```
+
+## Example Output
+
+### List
+```
+/k8s-switch list
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+☸️  Available Kubernetes Contexts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+| Name     | Type  | Description               |
+|----------|-------|---------------------------|
+| minikube | local | Local development cluster |
+| dev4     | eks   | METR dev4 environment     |
+| staging  | eks   | METR staging environment  |
+| prod     | eks   | METR production ⚠️        |
+
+Current: dev4
+```
+
+### Switch
+```
+/k8s-switch dev4
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+☸️  Switching to: dev4
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Type: EKS
+Cluster: metr-dev4-cluster
+Region: us-west-2
+
+Updating kubeconfig...
+✅ Context updated
+
+Verifying connection...
+✅ Connected to cluster
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 Cluster Status
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Nodes: 3
+Namespaces: 12
+Current NS: metr-dev
+
+Ready to use! Try:
+  kubectl get pods
+  k9s
+```
+
+### Switch with k9s
+```
+/k8s-switch dev4 --k9s
+[... same as above ...]
+
+Launching k9s...
+[k9s TUI opens]
+```
+
+### Production Warning
+```
+/k8s-switch prod
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  WARNING: Production Cluster
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You are switching to PRODUCTION.
+Cluster: metr-prod-cluster
+
+Type 'prod' to confirm:
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--k9s` | Launch k9s after switching |
+| `--refresh` | Force refresh kubeconfig (EKS) |
+| `--namespace NS` | Set default namespace |
+
+## Setup
+
+1. Create private-config repo (if not exists):
+   ```bash
+   mkdir -p ~/.private-config/k8s
+   ```
+
+2. Create clusters.yaml with your cluster config
+
+3. For EKS clusters, ensure AWS credentials are configured:
+   ```bash
+   /aws-switch staging  # Switch to correct AWS profile first
+   ```
+
+## Related Commands
+
+- `/aws-switch` - Switch AWS profiles
+- `/aws-preflight` - Check AWS credentials
+- `/deploy-dev` - Deploy to dev4
+- `k9s` - Kubernetes TUI

@@ -1,0 +1,253 @@
+---
+name: linear-triage
+description: Triage Linear issues - inbox, backlog, update, create
+permissions:
+  - mcp__linear__list_issues
+  - mcp__linear__get_issue
+  - mcp__linear__update_issue
+  - mcp__linear__create_issue
+  - mcp__linear__list_issue_labels
+  - mcp__linear__list_projects
+---
+
+# Linear Triage - Issue Management
+
+Triage Linear issues with inbox review, backlog management, and quick issue creation.
+
+## Usage
+
+```bash
+# Review inbox (unassigned/untriaged) - default
+/linear-triage
+
+# Specific modes
+/linear-triage inbox              # Untriaged issues
+/linear-triage backlog            # All open issues
+/linear-triage mine               # My assigned issues
+/linear-triage update ENG-123     # Update specific issue
+/linear-triage create "Title"     # Quick create
+
+# Filters
+/linear-triage --team Platform    # Specific team
+/linear-triage --project "Hawk"   # Specific project
+/linear-triage --priority urgent  # Priority filter
+/linear-triage --label bug        # Label filter
+```
+
+## Modes
+
+### 1. Inbox (Default)
+
+Review untriaged issues that need attention.
+
+**What it does:**
+1. List issues that are: unassigned OR no priority OR in "Triage" state
+2. Show summary with counts
+3. For each issue, offer quick actions
+
+**Implementation:**
+
+```
+Use the Linear MCP to list issues where:
+- assignee is null OR
+- priority is "No priority" OR
+- state is "Triage"
+
+Sort by: created date (newest first)
+Limit: 10
+```
+
+**Output format:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📥 Linear Triage - Inbox
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 Inbox Summary:
+  Unassigned: 5
+  No priority: 3
+  In Triage: 2
+  Total: 8 issues
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Issue 1 of 8: ENG-456
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Add rate limiting to API endpoints
+
+📅 Created: 2026-02-24 by @sarah
+🏷️ Labels: enhancement, api
+📁 Project: Hawk API
+⚡ Priority: None | 👤 Assignee: None
+
+Description:
+  We need to add rate limiting to prevent abuse...
+  [truncated]
+
+Quick Actions:
+[A]ssign to me | [P]riority (1-4) | [L]abel | [M]ove to Backlog | [S]kip
+>
+```
+
+### 2. Backlog Mode
+
+Review all open issues across states.
+
+**What it does:**
+1. List all open issues (not Done/Cancelled)
+2. Group by state (In Progress, Todo, Backlog)
+3. Show priority distribution
+
+**Implementation:**
+
+```
+Use the Linear MCP to list issues where state is not "Done" or "Cancelled".
+Group by state, sort by priority within each group.
+```
+
+**Output format:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 Linear Triage - Backlog Overview
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 In Progress (3)
+  🔴 ENG-123 - Fix auth timeout (@rafael)
+  🟠 ENG-456 - Add rate limiting (@me)
+  🟡 ENG-789 - Update docs (@sarah)
+
+📝 Todo (5)
+  🔴 ENG-234 - Security patch
+  🟠 ENG-345 - Performance optimization
+  ...
+
+📦 Backlog (12)
+  🟡 ENG-567 - Nice to have feature
+  ...
+
+Priority Distribution:
+  🔴 Urgent: 2 | 🟠 High: 4 | 🟡 Medium: 8 | ⚪ Low: 6
+```
+
+### 3. Mine Mode
+
+Review issues assigned to me.
+
+**What it does:**
+1. List my assigned issues
+2. Group by state
+3. Highlight overdue or stale items
+
+**Implementation:**
+
+```
+Use the Linear MCP to list issues where assignee is me.
+Highlight issues with no updates in 7+ days.
+```
+
+### 4. Update Mode
+
+Quick update a specific issue.
+
+**Usage:** `/linear-triage update ENG-123`
+
+**What it does:**
+1. Fetch issue details
+2. Show current state
+3. Offer update options: status, priority, assignee, labels
+
+**Output format:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✏️ Update Issue: ENG-123
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Fix authentication timeout bug
+
+Current State:
+  📊 Status: In Progress
+  ⚡ Priority: High
+  👤 Assignee: @rafael
+  🏷️ Labels: bug, auth
+
+What would you like to update?
+[S]tatus | [P]riority | [A]ssignee | [L]abels | [C]omment | [D]one
+>
+```
+
+### 5. Create Mode
+
+Quick create a new issue.
+
+**Usage:** `/linear-triage create "Fix login bug"`
+
+**What it does:**
+1. Create issue with provided title
+2. Prompt for optional: project, priority, labels, assignee
+3. Show created issue link
+
+**Implementation:**
+
+```
+Create issue via Linear MCP:
+- Title: provided
+- Team: auto-detect from current repo or prompt
+- State: Triage (for later prioritization)
+
+Optional prompts for:
+- Priority (1-4 or skip)
+- Labels (from list or skip)
+- Assignee (me, teammate, or skip)
+```
+
+**Output format:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+➕ Create Linear Issue
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Title: Fix login bug
+
+Team: Platform (auto-detected from repo)
+Priority: [1] Urgent [2] High [3] Medium [4] Low [S]kip
+> 2
+
+Labels: bug, auth, security (comma-separated or [S]kip)
+> bug, auth
+
+Assignee: [@]me, [T]eammate, [S]kip
+> @me
+
+Creating issue...
+
+✅ Created: ENG-890
+   https://linear.app/metr/issue/ENG-890
+```
+
+## Filters
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `--team` | Filter by team | `--team Platform` |
+| `--project` | Filter by project | `--project Hawk` |
+| `--priority` | Filter by priority | `--priority urgent` |
+| `--label` | Filter by label | `--label bug` |
+| `--assignee` | Filter by assignee | `--assignee @me` |
+| `--limit N` | Max issues | `--limit 20` |
+
+## Quick Keyboard Shortcuts (in interactive mode)
+
+| Key | Action |
+|-----|--------|
+| `a` | Assign to me |
+| `1-4` | Set priority |
+| `d` | Mark as Done |
+| `s` | Skip to next |
+| `q` | Quit |
+
+## Related Commands
+
+- `/sentry-triage` - Triage Sentry issues
+- `/start-work` - Start work on an issue
+- `/pr-create` - Create PR with Linear tag
+- `/async-standup` - Include Linear in standup

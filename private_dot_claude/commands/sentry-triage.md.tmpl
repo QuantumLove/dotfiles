@@ -1,0 +1,214 @@
+---
+name: sentry-triage
+description: Triage Sentry issues - investigate, bulk actions, create Linear issues
+permissions:
+  - mcp__sentry__list_issues
+  - mcp__sentry__get_issue_details
+  - mcp__sentry__update_issue
+  - mcp__linear__create_issue
+  - mcp__linear__list_issues
+---
+
+# Sentry Triage - Issue Management
+
+Triage Sentry issues with investigation, bulk actions, and Linear integration. Uses hardcoded org (metr-sh).
+
+## Usage
+
+```bash
+# Investigate recent unresolved issues (default)
+/sentry-triage
+
+# Specific modes
+/sentry-triage investigate          # Deep dive into issues
+/sentry-triage bulk                 # Bulk resolve/ignore
+/sentry-triage create-linear        # Create Linear issue from Sentry
+
+# Filters
+/sentry-triage --project hawk-api   # Specific project
+/sentry-triage --level error        # Only errors (not warnings)
+/sentry-triage --unhandled          # Only unhandled exceptions
+/sentry-triage --limit 10           # Number of issues
+```
+
+## Modes
+
+### 1. Investigate (Default)
+
+Deep dive into issues to understand root causes.
+
+**What it does:**
+1. List recent unresolved issues from Sentry MCP
+2. Show severity breakdown (fatal/error/warning)
+3. For each issue, show:
+   - Error message and stack trace summary
+   - First/last seen dates
+   - Event count and user impact
+   - Tags and environment
+4. Offer actions: [I]gnore, [R]esolve, [L]ink to Linear, [S]kip
+
+**Implementation:**
+
+```
+Use the Sentry MCP to list unresolved issues for metr-sh org.
+Filter: level=error, limit=10, sort by frequency.
+
+For each issue, display:
+- Issue ID and title
+- First seen / Last seen
+- Event count
+- Affected users count
+- Top tags (environment, browser, etc.)
+```
+
+**Output format:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 Sentry Triage - Investigate Mode
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Project: hawk-api | Org: metr-sh
+
+📊 Summary:
+  🔴 Fatal: 0
+  🟠 Error: 5
+  🟡 Warning: 12
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Issue 1 of 5: HAWK-A3X
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TypeError: Cannot read property 'id' of undefined
+
+📅 First: 2026-02-20 | Last: 2026-02-25
+📈 Events: 47 | Users: 12
+🏷️ Tags: production, Chrome 120
+
+Stack trace:
+  at UserService.getUser (user-service.ts:45)
+  at AuthController.login (auth-controller.ts:23)
+
+[I]gnore | [R]esolve | [L]ink to Linear | [S]kip | [Q]uit
+>
+```
+
+### 2. Bulk Mode
+
+Quickly process multiple issues at once.
+
+**What it does:**
+1. List issues matching filter
+2. Show summary table
+3. Offer bulk actions: Resolve all, Ignore all, or selective
+
+**Implementation:**
+
+```
+Use the Sentry MCP to list issues matching the filter.
+Display as table with: ID, Title (truncated), Events, Last Seen.
+Ask user for bulk action.
+```
+
+**Output format:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Sentry Triage - Bulk Mode
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+| # | ID      | Title                    | Events | Last Seen  |
+|---|---------|--------------------------|--------|------------|
+| 1 | HAWK-A3X| TypeError: Cannot read...| 47     | 2h ago     |
+| 2 | HAWK-B2Y| ReferenceError: foo...   | 23     | 5h ago     |
+| 3 | HAWK-C1Z| NetworkError: Failed...  | 156    | 30m ago    |
+
+Actions:
+[A] Resolve all | [I] Ignore all | [S] Select specific | [Q] Quit
+>
+```
+
+### 3. Create Linear Mode
+
+Create a Linear issue from a Sentry issue.
+
+**What it does:**
+1. Get Sentry issue details
+2. Format as Linear issue with:
+   - Title: Error message
+   - Description: Stack trace, frequency, impact
+   - Labels: bug, sentry
+   - Link back to Sentry
+3. Create via Linear MCP
+4. Link the Linear issue in Sentry (if supported)
+
+**Implementation:**
+
+```
+1. Get Sentry issue details via MCP
+2. Format Linear issue:
+
+   Title: [Sentry] TypeError: Cannot read property 'id' of undefined
+
+   Description:
+   ## Sentry Issue
+
+   **Link:** https://metr-sh.sentry.io/issues/HAWK-A3X
+   **Events:** 47 | **Users:** 12
+   **First seen:** 2026-02-20 | **Last seen:** 2026-02-25
+
+   ## Stack Trace
+   ```
+   at UserService.getUser (user-service.ts:45)
+   at AuthController.login (auth-controller.ts:23)
+   ```
+
+   ## Environment
+   - Production
+   - Chrome 120, Safari 17
+
+3. Create issue via Linear MCP
+4. Output Linear issue URL
+```
+
+**Output format:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔗 Create Linear Issue from Sentry
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Sentry Issue: HAWK-A3X
+  TypeError: Cannot read property 'id' of undefined
+
+Creating Linear issue...
+  Title: [Sentry] TypeError: Cannot read property 'id'...
+  Labels: bug, sentry
+
+✅ Created: ENG-789
+   https://linear.app/metr/issue/ENG-789
+
+Link added to Sentry issue.
+```
+
+## Filters
+
+| Filter | Description | Example |
+|--------|-------------|---------|
+| `--project` | Specific project | `--project hawk-api` |
+| `--level` | Error level | `--level error` |
+| `--unhandled` | Only unhandled | `--unhandled` |
+| `--limit N` | Max issues | `--limit 20` |
+| `--since DATE` | Issues since date | `--since 2026-02-20` |
+
+## Duplicate Detection
+
+Before creating Linear issues, check for existing:
+
+```
+Search Linear for issues with "sentry" label containing the error message.
+If found, show: "Similar issue exists: ENG-456 - link instead?"
+```
+
+## Related Commands
+
+- `/linear-triage` - Triage Linear inbox
+- `/where-am-i` - Current context
+- `@sentry` - Direct Sentry MCP queries

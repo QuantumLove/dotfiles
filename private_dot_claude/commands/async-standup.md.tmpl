@@ -1,0 +1,192 @@
+---
+name: async-standup
+description: Generate async standup summary from git, Linear, and Toggl
+permissions:
+  - Bash(git log *)
+  - Bash(date *)
+  - mcp__linear__list_issues
+  - mcp__toggl__*
+---
+
+# Async Standup - Daily Summary Generator
+
+Generate a standup summary by aggregating data from git commits, Linear issues, and Toggl time entries. Output is formatted for copy-paste to Slack.
+
+## Usage
+
+```bash
+# Generate standup for today
+/async-standup
+
+# Generate for specific date
+/async-standup --date 2026-02-24
+
+# Include yesterday's summary too
+/async-standup --yesterday
+
+# Skip Toggl (if not using time tracking)
+/async-standup --no-toggl
+```
+
+## What It Does
+
+1. **Git Activity**: Recent commits across repos in ~/code
+2. **Linear Issues**: Issues you worked on (status changes, comments)
+3. **Toggl Time**: Time entries from the day
+4. **Format**: Slack-ready markdown output
+
+## Implementation
+
+### Step 1: Gather Git Activity
+
+```bash
+# Find commits from today (or specified date)
+DATE="${1:-$(date +%Y-%m-%d)}"
+YESTERDAY=$(date -v-1d +%Y-%m-%d 2>/dev/null || date -d "yesterday" +%Y-%m-%d)
+
+echo "📊 Gathering activity for $DATE..."
+
+# Get commits from all repos in ~/code
+GIT_ACTIVITY=""
+for repo in ~/code/*/; do
+  if [ -d "$repo/.git" ]; then
+    REPO_NAME=$(basename "$repo")
+    COMMITS=$(cd "$repo" && git log --author="$(git config user.email)" --since="$DATE 00:00" --until="$DATE 23:59" --format="• %s" 2>/dev/null)
+    if [ -n "$COMMITS" ]; then
+      GIT_ACTIVITY="$GIT_ACTIVITY\n*$REPO_NAME:*\n$COMMITS"
+    fi
+  fi
+done
+```
+
+### Step 2: Gather Linear Activity
+
+Query Linear MCP for:
+- Issues assigned to me that were updated today
+- Issues I commented on today
+- Issues I moved (status changed) today
+
+```
+Use the Linear MCP to list my issues that were updated since $DATE.
+Include: issue ID, title, current status, and what changed.
+```
+
+Format as:
+```
+*Linear:*
+• [ENG-123] Fixed auth timeout - moved to Done
+• [ENG-456] API rate limiting - in progress
+• Commented on ENG-789
+```
+
+### Step 3: Gather Toggl Time (if enabled)
+
+Query Toggl MCP for time entries:
+
+```
+Use the Toggl MCP to get my time entries for $DATE.
+Include: project, description, duration.
+```
+
+Format as:
+```
+*Time Tracked:*
+• inspect-action: 3h 15m
+• mp4-deploy: 2h 30m
+• meetings: 1h
+Total: 6h 45m
+```
+
+### Step 4: Format Output
+
+Generate Slack-formatted summary:
+
+```markdown
+📋 *Standup - $DATE*
+
+*Yesterday:*
+$GIT_ACTIVITY
+
+$LINEAR_ACTIVITY
+
+*Today:*
+• [Plan item 1 from Linear "In Progress" issues]
+• [Plan item 2]
+
+*Blockers:*
+• None / [List any blockers]
+
+$TOGGL_SUMMARY
+```
+
+### Step 5: Output for Copy-Paste
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 STANDUP SUMMARY - Ready to paste to Slack
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[Generated summary here]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copy the text above and paste to #standup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+## Example Output
+
+```
+/async-standup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 STANDUP SUMMARY - Ready to paste to Slack
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 *Standup - 2026-02-25*
+
+*Yesterday:*
+*inspect-action:*
+• feat(mcp): Add GitHub, Toggl MCPs
+• fix: Resolve Sentry org prompt issue
+
+*mp4-deploy:*
+• chore: Update terraform providers
+
+*Linear:*
+• [ENG-123] MCP Integration - ✅ Done
+• [ENG-456] Mega container Phase 2 - 🔄 In Progress
+
+*Today:*
+• Continue Phase 3 workflow skills
+• Review PR #234
+
+*Blockers:*
+• None
+
+*Time:* 6h 45m tracked
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Copy the text above and paste to #standup
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--date YYYY-MM-DD` | Generate for specific date |
+| `--yesterday` | Include yesterday in "Yesterday" section |
+| `--no-toggl` | Skip Toggl time tracking |
+| `--no-linear` | Skip Linear issues |
+| `--repos path` | Custom repos path (default: ~/code) |
+
+## Notes
+
+- **Slack MCP Deferred**: Currently outputs for manual copy-paste. When Slack MCP is enabled, can add `--post` flag to send directly.
+- **Timezone**: Uses system timezone for date calculations.
+- **Privacy**: Only shows your commits/issues (uses git config user.email).
+
+## Related Commands
+
+- `/where-am-i` - Current context
+- `/linear-triage` - Manage Linear issues
+- `@toggl` - Direct Toggl MCP queries
