@@ -37,11 +37,9 @@ claude    # or: opencode
 tmux new -s work   # persistent sessions
 ```
 
-**Features:** Tailscale SSH, 1Password secrets injection, pre-installed tools (node, python, kubectl, aws-cli, etc.), MCP servers (Linear, Sentry), tmux persistence.
+**Features:** Tailscale SSH, 1Password secrets injection, pre-installed tools (node, python, kubectl, aws-cli, etc.), MCP servers (Linear, Sentry, GitHub, Toggl), tmux persistence.
 
 **Requires:** 1Password Service Account token in macOS Keychain, Docker Desktop, Tailscale.
-
-See `mega-container/HANDOFF.md` for details.
 
 ## What's Included
 
@@ -128,4 +126,4 @@ See the full installation guide and documentation in the complete README above. 
 
 ---
 
-*Built with ❤️ using Claude Code and chezmoi* | *Last updated: 2026-02-24*
+*Built with ❤️ using Claude Code and chezmoi* | *Last updated: 2026-02-25*
