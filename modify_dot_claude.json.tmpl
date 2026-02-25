@@ -30,10 +30,10 @@ if command -v op &> /dev/null; then
     if [ -z "${TOGGL_API_KEY:-}" ]; then
         TOGGL_API_KEY=$(op read "op://Development/Toggl API Key/credential" 2>/dev/null || echo "")
     fi
-    # Notion
-    if [ -z "${NOTION_API_KEY:-}" ]; then
-        NOTION_API_KEY=$(op read "op://Development/Notion API Key/credential" 2>/dev/null || echo "")
-    fi
+    # Notion - DISABLED (no permission to create integration)
+    # if [ -z "${NOTION_API_KEY:-}" ]; then
+    #     NOTION_API_KEY=$(op read "op://Development/Notion API Key/credential" 2>/dev/null || echo "")
+    # fi
     # Slack (User Token - acts as you)
     if [ -z "${SLACK_MCP_XOXP_TOKEN:-}" ]; then
         SLACK_MCP_XOXP_TOKEN=$(op read "op://Development/Slack User Token/credential" 2>/dev/null || echo "")
@@ -89,14 +89,6 @@ desired_servers='{
     "args": ["-y", "@verygoodplugins/mcp-toggl@latest"],
     "env": {
       "TOGGL_API_KEY": "'"${TOGGL_API_KEY:-}"'"
-    }
-  },
-  "notion": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "@notionhq/notion-mcp-server"],
-    "env": {
-      "NOTION_API_KEY": "'"${NOTION_API_KEY:-}"'"
     }
   },
   "slack": {

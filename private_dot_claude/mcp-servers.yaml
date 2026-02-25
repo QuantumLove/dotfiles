@@ -53,12 +53,12 @@ servers:
     notes: >
       Get API token at https://track.toggl.com/profile (scroll to "API Token")
 
-  notion:
-    command: npx -y @notionhq/notion-mcp-server
-    auth: Integration Token from 1Password (op://Development/Notion API Key/credential)
-    notes: >
-      Create integration at https://www.notion.so/my-integrations
-      Required capabilities: Read content, Insert content, Update content
+  # notion: DISABLED - no permission to create Notion integration
+  #   command: npx -y @notionhq/notion-mcp-server
+  #   auth: Integration Token from 1Password (op://Development/Notion API Key/credential)
+  #   notes: >
+  #     Create integration at https://www.notion.so/my-integrations
+  #     Required capabilities: Read content, Insert content, Update content
 
   slack:
     command: npx -y slack-mcp-server
