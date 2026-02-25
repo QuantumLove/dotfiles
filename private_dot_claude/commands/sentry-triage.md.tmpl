@@ -2,16 +2,24 @@
 name: sentry-triage
 description: Triage Sentry issues - investigate, bulk actions, create Linear issues
 permissions:
-  - mcp__sentry__list_issues
+  - mcp__sentry__find_projects
   - mcp__sentry__get_issue_details
   - mcp__sentry__update_issue
   - mcp__linear__create_issue
   - mcp__linear__list_issues
+  - Bash(curl -s *)
 ---
 
 # Sentry Triage - Issue Management
 
 Triage Sentry issues with investigation, bulk actions, and Linear integration. Uses hardcoded org (metr-sh).
+
+## Known Issue: MCP Search Broken
+
+The Sentry MCP's `search_issues` / `search_events` endpoints use AI-powered natural language translation that's currently broken server-side. **Use the REST API fallback instead.**
+
+Working MCP tools: `find_organizations`, `find_projects`, `find_releases`, `get_issue_details`, `update_issue`
+Broken MCP tools: `list_issues`, `search_issues`, `search_events`
 
 ## Usage
 
@@ -38,7 +46,7 @@ Triage Sentry issues with investigation, bulk actions, and Linear integration. U
 Deep dive into issues to understand root causes.
 
 **What it does:**
-1. List recent unresolved issues from Sentry MCP
+1. List recent unresolved issues via REST API (MCP search is broken)
 2. Show severity breakdown (fatal/error/warning)
 3. For each issue, show:
    - Error message and stack trace summary
@@ -47,19 +55,39 @@ Deep dive into issues to understand root causes.
    - Tags and environment
 4. Offer actions: [I]gnore, [R]esolve, [L]ink to Linear, [S]kip
 
-**Implementation:**
+**Implementation (REST API Fallback):**
 
+First, get the Sentry token from the environment:
+```bash
+# Token is in ~/.claude.json, extract it
+SENTRY_TOKEN=$(cat ~/.claude.json | jq -r '.mcpServers.sentry.env.SENTRY_ACCESS_TOKEN')
 ```
-Use the Sentry MCP to list unresolved issues for metr-sh org.
-Filter: level=error, limit=10, sort by frequency.
 
-For each issue, display:
-- Issue ID and title
-- First seen / Last seen
-- Event count
-- Affected users count
-- Top tags (environment, browser, etc.)
+Then fetch issues via REST API:
+```bash
+# Unresolved issues, sorted by date (most recent first)
+curl -s -H "Authorization: Bearer $SENTRY_TOKEN" \
+  "https://us.sentry.io/api/0/organizations/metr-sh/issues/?query=is:unresolved&limit=10&sort=date"
+
+# Filter by project
+curl -s -H "Authorization: Bearer $SENTRY_TOKEN" \
+  "https://us.sentry.io/api/0/organizations/metr-sh/issues/?query=is:unresolved+project:hawk-api&limit=10&sort=freq"
+
+# Filter by level
+curl -s -H "Authorization: Bearer $SENTRY_TOKEN" \
+  "https://us.sentry.io/api/0/organizations/metr-sh/issues/?query=is:unresolved+level:error&limit=10&sort=date"
+
+# Unhandled only
+curl -s -H "Authorization: Bearer $SENTRY_TOKEN" \
+  "https://us.sentry.io/api/0/organizations/metr-sh/issues/?query=is:unresolved+error.unhandled:true&limit=10&sort=date"
 ```
+
+Parse the JSON response and display:
+- Issue ID and title (from `shortId` and `title`)
+- First seen / Last seen (from `firstSeen` and `lastSeen`)
+- Event count (from `count`)
+- Affected users count (from `userCount`)
+- Level (from `level`)
 
 **Output format:**
 ```
