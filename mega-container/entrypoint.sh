@@ -91,7 +91,18 @@ echo "export GH_TOKEN='$GH_TOKEN'" >> ~/.secrets_env
 chmod 600 ~/.secrets_env
 echo "✓ GitHub token ready"
 
-# 8. Verify SSH agent and setup known_hosts
+# 8. Login to Docker Hub (avoids pull rate limits)
+echo "Logging into Docker Hub..."
+DOCKER_USER=$(op read "op://Development/Docker Hub/username" 2>/dev/null)
+DOCKER_PAT=$(op read "op://Development/Docker Hub/PAT Read" 2>/dev/null)
+if [ -n "$DOCKER_USER" ] && [ -n "$DOCKER_PAT" ]; then
+  echo "$DOCKER_PAT" | docker login -u "$DOCKER_USER" --password-stdin 2>/dev/null
+  echo "✓ Docker Hub authenticated"
+else
+  echo "⚠️  Docker Hub credentials not found in 1Password (optional)"
+fi
+
+# 9. Verify SSH agent and setup known_hosts
 echo "Checking SSH agent..."
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 
@@ -130,12 +141,12 @@ else
   exit 1
 fi
 
-# 9. Start OpenSSH server (fallback, Tailscale SSH is primary)
+# 10. Start OpenSSH server (fallback, Tailscale SSH is primary)
 echo "Starting OpenSSH server (fallback)..."
 sudo /usr/sbin/sshd
 echo "✓ OpenSSH server running"
 
-# 10. Apply chezmoi (secrets injected via onepasswordRead templates)
+# 11. Apply chezmoi (secrets injected via onepasswordRead templates)
 echo "Applying chezmoi configuration..."
 if [ ! -d "$HOME/.local/share/chezmoi" ]; then
   chezmoi init --ssh QuantumLove
@@ -162,7 +173,7 @@ if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
 fi
 echo "✓ chezmoi applied"
 
-# 11. Install Claude Code plugins (if not already installed via chezmoi run_onchange)
+# 12. Install Claude Code plugins (if not already installed via chezmoi run_onchange)
 echo "Installing Claude Code plugins..."
 PLUGIN_LIST="$HOME/.local/share/chezmoi/private_dot_claude/plugin-list.txt"
 if [ -f "$PLUGIN_LIST" ] && command -v claude &> /dev/null; then
@@ -176,7 +187,7 @@ else
   echo "  (skipping - plugin list or claude not available)"
 fi
 
-# 12. Verify mise tools (already pre-installed in image)
+# 13. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
 echo "Verifying mise tools..."
 if ! mise doctor; then
