@@ -1,8 +1,17 @@
 # Chezmoi externals - auto-clone git repos
+# These repos are cloned to ~/<path> when running `chezmoi apply`
 
 # METR Claude Code plugin marketplace
 [".claude/plugins/marketplaces/metr-claude-code"]
   type = "git-repo"
   url = "git@github.com:METR/claude-code.git"
+  refreshPeriod = "168h"  # Re-pull weekly
+  clone.args = ["--depth", "1"]
+
+# Private configuration (non-secret env vars, cluster configs, terraform outputs)
+# Cloned to ~/.private-config/
+[".private-config"]
+  type = "git-repo"
+  url = "git@github.com:QuantumLove/private-config.git"
   refreshPeriod = "168h"  # Re-pull weekly
   clone.args = ["--depth", "1"]
