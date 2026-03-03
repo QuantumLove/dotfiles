@@ -32,7 +32,7 @@ if docker compose exec -T mega tailscale status &>/dev/null; then
 else
   echo ""
   echo "⚠️  Tailscale not yet authenticated. Run one-time setup:"
-  echo "   docker compose exec mega tailscale up --ssh --hostname=mega-dev --accept-routes"
+  echo "   docker compose exec mega tailscale up --ssh --hostname=raf-dev --accept-routes"
   echo ""
   echo "   Then follow the login URL and authenticate."
   echo "   After that, Tailscale will persist across restarts (state saved in volume)."

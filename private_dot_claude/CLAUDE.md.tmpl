@@ -107,14 +107,14 @@ cd ~/.local/share/chezmoi/mega-container
 
 **First time only:** After `start.sh`, authenticate Tailscale:
 ```bash
-docker compose exec tailscale tailscale up --accept-routes --hostname=mega-dev
+docker compose exec tailscale tailscale up --accept-routes --hostname=raf-dev
 # Follow the URL to authenticate with your account
 ```
 
 ### Starting Work
 ```bash
 # SSH into mega-container from any device (using Tailscale SSH)
-ssh mega-dev-1  # or whatever hostname Tailscale assigned
+ssh raf-dev-1  # or whatever hostname Tailscale assigned
 
 # Attach to tmux session (or create one)
 tmux attach || tmux new -s dev
@@ -134,13 +134,13 @@ tmux attach || tmux new -s dev
 
 **SSH connection refused / Permission denied:**
 1. Check container is healthy: `docker compose ps`
-2. Enable Tailscale SSH: `docker compose exec mega sudo tailscale up --accept-routes --ssh --hostname=mega-dev`
+2. Enable Tailscale SSH: `docker compose exec mega sudo tailscale up --accept-routes --ssh --hostname=raf-dev`
 3. Check Tailscale status: `docker compose exec mega tailscale status`
 
-**Tailscale hostname changed (e.g., mega-dev-1, mega-dev-2):**
+**Tailscale hostname changed (e.g., raf-dev-1, raf-dev-2):**
 - This happens when `docker compose down -v` deletes the tailscale-state volume
 - The new hostname is permanent unless you can access Tailscale admin console
-- Just use the new hostname: `ssh mega-dev-1`
+- Just use the new hostname: `ssh raf-dev-1`
 
 **IMPORTANT: Don't use `docker compose down -v`**
 - The `-v` flag deletes volumes including Tailscale state
@@ -245,7 +245,7 @@ git add -A && git commit -m "Update cluster configs"
 git push
 
 # Pull in container (or wait for weekly refresh)
-ssh mega-dev-1 "cd ~/.private-config && git pull"
+ssh raf-dev-1 "cd ~/.private-config && git pull"
 ```
 
 ### When to Save Outputs Here

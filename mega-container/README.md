@@ -36,15 +36,15 @@ cd ~/.local/share/chezmoi/mega-container
 ./start.sh
 
 # First time only: authenticate Tailscale
-docker compose exec mega sudo tailscale up --ssh --hostname=dev-rafael --accept-routes
+docker compose exec mega sudo tailscale up --ssh --hostname=raf-dev --accept-routes
 # Follow the URL to authenticate with your account
 ```
 
 ## Daily Usage
 
 ```bash
-# SSH in (hostname may have suffix like dev-rafael-1)
-ssh dev-rafael
+# SSH in (hostname may have suffix like raf-dev-1)
+ssh raf-dev
 
 # Start or attach to tmux session
 tmux attach || tmux new -s dev
@@ -92,12 +92,12 @@ docker compose logs mega
 docker compose ps
 
 # Re-enable Tailscale SSH
-docker compose exec mega sudo tailscale up --ssh --hostname=dev-rafael --accept-routes
+docker compose exec mega sudo tailscale up --ssh --hostname=raf-dev --accept-routes
 ```
 
-### Tailscale hostname changed (dev-rafael-1, dev-rafael-2, etc.)
+### Tailscale hostname changed (raf-dev-1, raf-dev-2, etc.)
 This happens when volumes are deleted. The new hostname is permanent.
-Just use the new hostname: `ssh dev-rafael-1`
+Just use the new hostname: `ssh raf-dev-1`
 
 **IMPORTANT: Never use `docker compose down -v`**
 The `-v` flag deletes volumes including Tailscale state.

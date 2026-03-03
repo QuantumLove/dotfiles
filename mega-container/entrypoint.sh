@@ -26,7 +26,7 @@ if tailscale status &>/dev/null; then
     tailscale status | head -5
   else
     echo "⚠️  Tailscale not authenticated. Run one-time setup:"
-    echo "   docker exec -it mega-container-mega-1 tailscale up --ssh --hostname=mega-dev --accept-routes"
+    echo "   docker exec -it mega-container-mega-1 tailscale up --ssh --hostname=raf-dev --accept-routes"
     echo ""
     echo "   Then follow the login URL and authenticate."
     echo "   After that, Tailscale will persist across restarts."

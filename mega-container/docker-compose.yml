@@ -1,7 +1,7 @@
 services:
   mega:
     build: .
-    hostname: mega-dev
+    hostname: raf-dev
     cap_add:
       - NET_ADMIN      # Required for Tailscale networking
       - SYS_MODULE     # May be needed for some network operations
@@ -32,6 +32,6 @@ volumes:
   tailscale-state:
     # IMPORTANT: This volume persists Tailscale identity
     # Do NOT use 'docker compose down -v' or you'll need to re-authenticate
-    # and may get a new hostname (mega-dev-1, mega-dev-2, etc.)
+    # and may get a new hostname (raf-dev-1, raf-dev-2, etc.)
   code:
     # Persistent workspace for all code repositories
