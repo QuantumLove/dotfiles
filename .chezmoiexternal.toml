@@ -3,6 +3,6 @@
 # METR Claude Code plugin marketplace
 [".claude/plugins/marketplaces/metr-claude-code"]
   type = "git-repo"
-  url = "https://github.com/METR/claude-code.git"
+  url = "git@github.com:METR/claude-code.git"
   refreshPeriod = "168h"  # Re-pull weekly
   clone.args = ["--depth", "1"]
