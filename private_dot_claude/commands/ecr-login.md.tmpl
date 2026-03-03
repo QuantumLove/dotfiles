@@ -15,8 +15,8 @@ Authenticate Docker to AWS Elastic Container Registry for pushing and pulling im
 ## Usage
 
 ```
-/ecr-login                          # Auto-detect account and use us-west-1
-/ecr-login --region us-west-1       # Specify region
+/ecr-login                          # Auto-detect account and use us-west-2
+/ecr-login --region us-west-2       # Specify region
 /ecr-login --account ${AWS_STAGING_ACCOUNT_ID}   # Specify account (otherwise auto-detected)
 /ecr-login --profile staging        # Use specific AWS profile
 ```
@@ -28,7 +28,7 @@ Authenticate Docker to AWS Elastic Container Registry for pushing and pulling im
 set -euo pipefail
 
 # Parse arguments
-REGION="${1:-us-west-1}"
+REGION="${1:-us-west-2}"
 ACCOUNT="${2:-}"
 PROFILE="${AWS_PROFILE:-default}"
 
@@ -148,8 +148,8 @@ ls -la /var/run/docker.sock
 🔐 Authenticating to AWS ECR...
    Detecting AWS account ID...
    Account: ${AWS_ACCOUNT_ID}
-   Region: us-west-1
-   Registry: ${AWS_ACCOUNT_ID}.dkr.ecr.us-west-1.amazonaws.com
+   Region: us-west-2
+   Registry: ${AWS_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
    Authenticating Docker...
 
 Login Succeeded
@@ -159,9 +159,9 @@ Login Succeeded
    Available repositories: 12
 
 💡 Environment variables set:
-   ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.us-west-1.amazonaws.com
+   ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.us-west-2.amazonaws.com
    ECR_ACCOUNT=${AWS_ACCOUNT_ID}
-   ECR_REGION=us-west-1
+   ECR_REGION=us-west-2
 
 📦 Ready to push/pull images:
    docker tag myimage:latest $ECR_REGISTRY/myimage:latest

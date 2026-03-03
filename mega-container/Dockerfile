@@ -49,6 +49,20 @@ RUN ARCH=$(uname -m) && \
     mv /tmp/gh_2.67.0_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
     rm -rf /tmp/gh_*
 
+# Pulumi CLI
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; else ARCH="x64"; fi && \
+    curl -fsSL https://get.pulumi.com/releases/sdk/pulumi-v3.161.0-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
+    mv /tmp/pulumi/* /usr/local/bin/ && \
+    rm -rf /tmp/pulumi
+
+# AWS CLI
+RUN ARCH=$(uname -m) && \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${ARCH}.zip" -o /tmp/awscliv2.zip && \
+    unzip -q /tmp/awscliv2.zip -d /tmp && \
+    sudo /tmp/aws/install && \
+    rm -rf /tmp/aws /tmp/awscliv2.zip
+
 # UID 501 matches macOS host user for SSH socket permissions
 # Username matches Tailscale identity local-part for Tailscale SSH
 RUN useradd -m -s /bin/bash -u 501 rafaelcarvalho && \

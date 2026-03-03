@@ -73,10 +73,10 @@ echo "✓ Anthropic API key ready"
 
 # 6. FAIL FAST: Fetch GitHub token from 1Password
 echo "Fetching GitHub token from 1Password..."
-GH_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null)
+GH_TOKEN=$(op read "op://Development/GitHub Classic PAT/credential" 2>/dev/null)
 if [ -z "$GH_TOKEN" ]; then
-  echo "ERROR: Failed to fetch GitHub Personal Access Token from 1Password"
-  echo "Ensure 'GitHub Personal Access Token' exists in the Development vault with a 'credential' field"
+  echo "ERROR: Failed to fetch GitHub Classic PAT from 1Password"
+  echo "Ensure 'GitHub Classic PAT' exists in the Development vault with a 'credential' field"
   exit 1
 fi
 export GH_TOKEN
