@@ -262,6 +262,13 @@ tofu output -json > ~/.private-config/terraform-outputs/dev4.json
 cd ~/.private-config && git add -A && git commit -m "Update dev4 outputs" && git push
 ```
 
+**Example workflow after pulumi up (platform repo):**
+```bash
+cd ~/code/platform/infra
+AWS_PROFILE=staging pulumi stack output --json > ~/.private-config/pulumi-outputs/$(pulumi stack --show-name).json
+cd ~/.private-config && git add -A && git commit -m "Update $(pulumi stack --show-name) outputs" && git push
+```
+
 ## Where to Put Learnings
 
 When you discover something useful during work, document it appropriately:
