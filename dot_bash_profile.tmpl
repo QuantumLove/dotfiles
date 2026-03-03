@@ -14,3 +14,8 @@ fi
 
 # Load secrets injected by container entrypoint (mega-container)
 [ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"
+
+# SSH Agent for git operations in mega-container
+# Local Docker: host agent mounted at /ssh-agent
+# Cloud VM: would need 1Password SSH agent or similar
+[ -S "/ssh-agent" ] && export SSH_AUTH_SOCK=/ssh-agent
