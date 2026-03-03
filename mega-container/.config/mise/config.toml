@@ -1,5 +1,5 @@
 [tools]
-node = "22"
+node = "22.21.1"
 python = "3.12"
 "asdf:virtualroot/asdf-opentofu" = "latest"
 "asdf:asdf-community/asdf-kubectl" = "latest"

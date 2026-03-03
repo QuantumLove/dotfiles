@@ -42,11 +42,25 @@ if [ -d "$HOME/code" ] && [ "$(stat -c '%U' "$HOME/code" 2>/dev/null)" = "root" 
   echo "✓ ~/code permissions fixed"
 fi
 
+# 2b. Create ~/code/worktrees directory for /start-work skill
+mkdir -p "$HOME/code/worktrees" || { echo "ERROR: Failed to create ~/code/worktrees"; exit 1; }
+echo "✓ ~/code/worktrees directory ready"
+
 # 3. Fix Docker socket permissions (Docker Desktop mounts as root:root)
 if [ -S /var/run/docker.sock ]; then
   echo "Fixing Docker socket permissions..."
   sudo chmod 666 /var/run/docker.sock
   echo "✓ Docker socket accessible"
+fi
+
+# 3b. Setup QEMU binfmt for cross-platform Docker builds (aarch64 -> amd64)
+if [ -S /var/run/docker.sock ]; then
+  echo "Setting up QEMU binfmt for cross-platform builds..."
+  if ! docker run --privileged --rm tonistiigi/binfmt --install all >/dev/null 2>&1; then
+    echo "ERROR: Failed to setup QEMU binfmt for cross-platform builds"
+    exit 1
+  fi
+  echo "✓ QEMU binfmt ready"
 fi
 
 # 4. FAIL FAST: Verify 1Password token exists
@@ -91,16 +105,24 @@ echo "export GH_TOKEN='$GH_TOKEN'" >> ~/.secrets_env
 chmod 600 ~/.secrets_env
 echo "✓ GitHub token ready"
 
-# 8. Login to Docker Hub (avoids pull rate limits)
-echo "Logging into Docker Hub..."
+# 8. Login to Docker Hub and dhi.io (METR registry, same creds)
+echo "Logging into Docker registries..."
 DOCKER_USER=$(op read "op://Development/Docker Hub/username" 2>/dev/null)
 DOCKER_PAT=$(op read "op://Development/Docker Hub/PAT Read" 2>/dev/null)
-if [ -n "$DOCKER_USER" ] && [ -n "$DOCKER_PAT" ]; then
-  echo "$DOCKER_PAT" | docker login -u "$DOCKER_USER" --password-stdin 2>/dev/null
-  echo "✓ Docker Hub authenticated"
-else
-  echo "⚠️  Docker Hub credentials not found in 1Password (optional)"
+if [ -z "$DOCKER_USER" ] || [ -z "$DOCKER_PAT" ]; then
+  echo "ERROR: Docker Hub credentials not found in 1Password"
+  echo "Ensure 'Docker Hub' exists in Development vault with 'username' and 'PAT Read' fields"
+  exit 1
 fi
+if ! echo "$DOCKER_PAT" | docker login -u "$DOCKER_USER" --password-stdin 2>/dev/null; then
+  echo "ERROR: Failed to login to Docker Hub"
+  exit 1
+fi
+if ! echo "$DOCKER_PAT" | docker login dhi.io -u "$DOCKER_USER" --password-stdin 2>/dev/null; then
+  echo "ERROR: Failed to login to dhi.io"
+  exit 1
+fi
+echo "✓ Docker Hub + dhi.io authenticated"
 
 # 9. Verify SSH agent and setup known_hosts
 echo "Checking SSH agent..."
