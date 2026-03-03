@@ -35,14 +35,21 @@ else
   echo "⚠️  Tailscale daemon not responding. Check logs with: docker logs mega-container-mega-1"
 fi
 
-# 2. FAIL FAST: Verify 1Password token exists
+# 2. Fix ~/code directory permissions (volume may be created as root)
+if [ -d "$HOME/code" ] && [ "$(stat -c '%U' "$HOME/code" 2>/dev/null)" = "root" ]; then
+  echo "Fixing ~/code directory permissions..."
+  sudo chown -R "$USER:$USER" "$HOME/code"
+  echo "✓ ~/code permissions fixed"
+fi
+
+# 3. FAIL FAST: Verify 1Password token exists
 if [ -z "$OP_SERVICE_ACCOUNT_TOKEN" ]; then
   echo "ERROR: OP_SERVICE_ACCOUNT_TOKEN not set"
   echo "Pass via: docker compose run -e OP_SERVICE_ACCOUNT_TOKEN mega"
   exit 1
 fi
 
-# 3. FAIL FAST: Verify 1Password connectivity
+# 4. FAIL FAST: Verify 1Password connectivity
 echo "Checking 1Password connection..."
 if ! op account get &>/dev/null; then
   echo "ERROR: 1Password authentication failed"
@@ -51,7 +58,7 @@ if ! op account get &>/dev/null; then
 fi
 echo "✓ 1Password connected"
 
-# 4. FAIL FAST: Fetch Anthropic API key from 1Password
+# 5. FAIL FAST: Fetch Anthropic API key from 1Password
 echo "Fetching Anthropic API key from 1Password..."
 ANTHROPIC_API_KEY=$(op read "op://Development/Anthropic API Key/credential" 2>/dev/null)
 if [ -z "$ANTHROPIC_API_KEY" ]; then
@@ -64,7 +71,7 @@ export ANTHROPIC_API_KEY
 echo "export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'" >> ~/.secrets_env
 echo "✓ Anthropic API key ready"
 
-# 5. FAIL FAST: Fetch GitHub token from 1Password
+# 6. FAIL FAST: Fetch GitHub token from 1Password
 echo "Fetching GitHub token from 1Password..."
 GH_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null)
 if [ -z "$GH_TOKEN" ]; then
@@ -77,7 +84,7 @@ echo "export GH_TOKEN='$GH_TOKEN'" >> ~/.secrets_env
 chmod 600 ~/.secrets_env
 echo "✓ GitHub token ready"
 
-# 6. Verify SSH agent and setup known_hosts
+# 7. Verify SSH agent and setup known_hosts
 echo "Checking SSH agent..."
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 
@@ -116,12 +123,12 @@ else
   exit 1
 fi
 
-# 7. Start OpenSSH server (fallback, Tailscale SSH is primary)
+# 8. Start OpenSSH server (fallback, Tailscale SSH is primary)
 echo "Starting OpenSSH server (fallback)..."
 sudo /usr/sbin/sshd
 echo "✓ OpenSSH server running"
 
-# 8. Apply chezmoi (secrets injected via onepasswordRead templates)
+# 9. Apply chezmoi (secrets injected via onepasswordRead templates)
 echo "Applying chezmoi configuration..."
 if [ ! -d "$HOME/.local/share/chezmoi" ]; then
   chezmoi init --ssh QuantumLove
@@ -148,7 +155,7 @@ if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
 fi
 echo "✓ chezmoi applied"
 
-# 9. Install Claude Code plugins (if not already installed via chezmoi run_onchange)
+# 10. Install Claude Code plugins (if not already installed via chezmoi run_onchange)
 echo "Installing Claude Code plugins..."
 PLUGIN_LIST="$HOME/.local/share/chezmoi/private_dot_claude/plugin-list.txt"
 if [ -f "$PLUGIN_LIST" ] && command -v claude &> /dev/null; then
@@ -162,7 +169,7 @@ else
   echo "  (skipping - plugin list or claude not available)"
 fi
 
-# 10. Verify mise tools (already pre-installed in image)
+# 11. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
 echo "Verifying mise tools..."
 if ! mise doctor; then
