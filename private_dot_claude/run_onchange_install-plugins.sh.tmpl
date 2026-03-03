@@ -1,0 +1,23 @@
+#!/bin/bash
+# Install required Claude Code plugins
+# Hash: {{ include "private_dot_claude/plugin-list.txt" | sha256sum }}
+set -euo pipefail
+
+# Only run if claude command is available
+if ! command -v claude &> /dev/null; then
+    echo "Claude Code not installed, skipping plugin installation"
+    exit 0
+fi
+
+echo "Installing Claude Code plugins..."
+
+# Read plugin list and install each one
+while IFS= read -r plugin || [ -n "$plugin" ]; do
+    # Skip empty lines and comments
+    [[ -z "$plugin" || "$plugin" =~ ^# ]] && continue
+
+    echo "  Installing: $plugin"
+    claude plugin install "$plugin" 2>/dev/null || echo "  (already installed or marketplace unavailable)"
+done < "{{ .chezmoi.sourceDir }}/private_dot_claude/plugin-list.txt"
+
+echo "Plugin installation complete"

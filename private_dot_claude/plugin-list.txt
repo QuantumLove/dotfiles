@@ -1,0 +1,11 @@
+# Claude Code plugins to install
+# Format: plugin-name@marketplace-name
+# Add new plugins here and run `chezmoi apply` to install
+
+# Core plugins
+compound-engineering@compound-engineering-plugin
+superpowers@superpowers-marketplace
+
+# METR plugins (requires metr-claude-code marketplace from .chezmoiexternal.toml)
+inspect-ai@metr-claude-code
+github@metr-claude-code

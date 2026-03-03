@@ -148,7 +148,21 @@ if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
 fi
 echo "✓ chezmoi applied"
 
-# 9. Verify mise tools (already pre-installed in image)
+# 9. Install Claude Code plugins (if not already installed via chezmoi run_onchange)
+echo "Installing Claude Code plugins..."
+PLUGIN_LIST="$HOME/.local/share/chezmoi/private_dot_claude/plugin-list.txt"
+if [ -f "$PLUGIN_LIST" ] && command -v claude &> /dev/null; then
+  while IFS= read -r plugin || [ -n "$plugin" ]; do
+    [[ -z "$plugin" || "$plugin" =~ ^# ]] && continue
+    echo "  Installing: $plugin"
+    claude plugin install "$plugin" 2>/dev/null || true
+  done < "$PLUGIN_LIST"
+  echo "✓ Claude Code plugins installed"
+else
+  echo "  (skipping - plugin list or claude not available)"
+fi
+
+# 10. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
 echo "Verifying mise tools..."
 if ! mise doctor; then
