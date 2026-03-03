@@ -16,23 +16,26 @@ fi
 echo "✓ 1Password token ready"
 
 
-# 2. Start containers
-echo "Starting containers..."
+# 2. Start container
+echo "Starting container..."
 docker compose up -d
 
-# 3. Check Tailscale status (healthcheck ensures it's ready)
+# 3. Check Tailscale status
 echo "Checking Tailscale..."
 
-if docker compose exec -T tailscale tailscale status &>/dev/null; then
+# Wait for container to be ready
+sleep 3
+
+if docker compose exec -T mega tailscale status &>/dev/null; then
   echo "✓ Tailscale already connected"
-  docker compose exec -T tailscale tailscale status
+  docker compose exec -T mega tailscale status | head -5
 else
   echo ""
   echo "⚠️  Tailscale not yet authenticated. Run one-time setup:"
-  echo "   docker compose exec tailscale tailscale up --accept-routes --ssh --hostname=mega-dev"
+  echo "   docker compose exec mega tailscale up --ssh --hostname=mega-dev --accept-routes"
   echo ""
-  echo "   Then follow the login URL and authenticate with your METR gmail."
-  echo "   After that, Tailscale will persist across restarts."
+  echo "   Then follow the login URL and authenticate."
+  echo "   After that, Tailscale will persist across restarts (state saved in volume)."
 fi
 
 echo "=== Startup Complete ==="

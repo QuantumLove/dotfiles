@@ -82,3 +82,117 @@ If fixing personal tooling that spans projects, edit chezmoi source instead:
 | Zsh/Bash config | `~/.local/share/chezmoi/dot_zshrc.tmpl` |
 
 **Workflow:** Edit source → `chezmoi apply` → test → commit to chezmoi repo
+
+## Mega-Container Development Environment
+
+The mega-container is a persistent development environment accessible via SSH from any device.
+
+### Prerequisites (Host Machine)
+
+**1Password Service Account Token must be in macOS Keychain:**
+```bash
+# Check if token exists
+security find-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w | head -c 20
+
+# If not, add it (get token from 1Password Dashboard → Service Accounts)
+security add-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w 'YOUR_TOKEN'
+```
+
+### Starting the Container
+
+```bash
+cd ~/.local/share/chezmoi/mega-container
+./start.sh
+```
+
+**First time only:** After `start.sh`, authenticate Tailscale:
+```bash
+docker compose exec tailscale tailscale up --accept-routes --hostname=mega-dev
+# Follow the URL to authenticate with your account
+```
+
+### Starting Work
+```bash
+# SSH into mega-container from any device (using Tailscale SSH)
+ssh mega-dev-1  # or whatever hostname Tailscale assigned
+
+# Attach to tmux session (or create one)
+tmux attach || tmux new -s dev
+
+# Start work on an issue
+/start-work METR-123          # From Linear issue
+/start-work --quick "experiment"  # Quick hack without tracking
+```
+
+### Troubleshooting
+
+**Container won't start / 1Password auth fails:**
+1. Verify token on host: `export OP_SERVICE_ACCOUNT_TOKEN=$(security find-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w) && op account get`
+2. Check token hasn't expired (90-day limit) - rotate in 1Password Dashboard if needed
+3. Restart container: `cd ~/.local/share/chezmoi/mega-container && ./start.sh`
+4. Check logs: `docker compose logs mega`
+
+**SSH connection refused / Permission denied:**
+1. Check container is healthy: `docker compose ps`
+2. Enable Tailscale SSH: `docker compose exec mega sudo tailscale up --accept-routes --ssh --hostname=mega-dev`
+3. Check Tailscale status: `docker compose exec mega tailscale status`
+
+**Tailscale hostname changed (e.g., mega-dev-1, mega-dev-2):**
+- This happens when `docker compose down -v` deletes the tailscale-state volume
+- The new hostname is permanent unless you can access Tailscale admin console
+- Just use the new hostname: `ssh mega-dev-1`
+
+**IMPORTANT: Don't use `docker compose down -v`**
+- The `-v` flag deletes volumes including Tailscale state
+- Use `docker compose down` (without `-v`) to preserve identity
+
+### Workflow Skills
+| Skill | Purpose |
+|-------|---------|
+| `/mega:where-am-i` | Quick orientation (environment, project, branch) |
+| `/start-work` | Create worktree + branch from Linear issue |
+| `/pr-create` | Create PR with auto-detected Linear tag |
+| `/dev-list` | List all worktrees across all repos in ~/code |
+| `/dev-clean` | Clean up merged/stale worktrees |
+| `/async-standup` | Generate standup summary from git, Linear, Toggl |
+| `/sentry-triage` | Triage Sentry issues (investigate, bulk, link to Linear) |
+| `/linear-triage` | Triage Linear inbox/backlog |
+| `/k8s-switch` | Switch Kubernetes context (minikube, EKS) |
+
+### MCP Integrations
+The following MCPs are available:
+- **Linear** - Issue tracking (list, get, create, update)
+- **Sentry** - Error monitoring (hardcoded org: metr-sh)
+- **GitHub** - Repository operations
+- **Toggl** - Time tracking
+
+### Session Persistence
+- Use `tmux` for session persistence across SSH disconnects
+- Worktrees persist in `~/code/worktrees/`
+- Session handoff files: `~/.claude/handoff/`
+
+## Where to Put Learnings
+
+When you discover something useful during work, document it appropriately:
+
+| Type of Learning | Where to Put It |
+|------------------|-----------------|
+| **Personal workflow improvement** | Edit chezmoi source, create/update skill |
+| **Project-specific knowledge** | Add to project's CLAUDE.md or docs/ |
+| **Bug fix pattern** | Add to project's troubleshooting docs |
+| **Infrastructure discovery** | Update runbooks or terraform docs |
+| **Reusable automation** | Create new skill in `~/.claude/commands/` |
+| **Team knowledge** | Share in Notion, create team doc |
+
+### Creating New Skills
+```bash
+# Edit chezmoi source
+vim ~/.local/share/chezmoi/private_dot_claude/commands/my-skill.md.tmpl
+
+# Apply and test
+chezmoi apply
+/my-skill
+
+# Commit when working
+cd ~/.local/share/chezmoi && git add -A && git commit -m "feat: add my-skill"
+```

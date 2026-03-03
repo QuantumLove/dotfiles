@@ -1,61 +1,57 @@
 ---
 name: start-work
-description: Quick workflow setup for small changes (worktree + issue + branch)
+description: Start or resume work on an issue, PR, or branch (creates/reuses worktree)
 permissions:
   - Bash(git worktree add *)
   - Bash(git worktree list)
   - Bash(git fetch *)
   - Bash(git branch *)
+  - Bash(git pull *)
   - Read(**/*.json)
   - mcp__linear__create_issue
   - mcp__linear__get_issue
   - mcp__github__create_branch
 ---
 
-# Start Work - Quick Workflow Setup
+# Start Work - Start or Resume Work
 
-Streamlined command for starting work on a small change with proper isolation and tracking.
+Single entry point for working on anything. Creates a worktree if needed, or resumes in existing one.
 
 ## Usage
 
 ```bash
-# Interactive mode - prompts for options
-/start-work
-
-# Load existing Linear issue (creates new branch)
+# Start/resume work on a Linear issue
 /start-work METR-123
 
-# Resume work on existing branch (tracks remote branch)
-/start-work --branch METR-123/fix-auth-timeout
-
-# Resume work from existing PR
+# Start/resume work on a PR (yours or someone else's for review)
 /start-work --pr 456
 /start-work #456
 
-# Create new Linear issue
+# Start/resume work on an existing branch
+/start-work --branch feature/some-branch
+
+# Create new Linear issue and start work
 /start-work --new "Fix authentication timeout bug"
 
-# Quick mode - no Linear tracking
+# Quick experiment (no Linear tracking)
 /start-work --quick "experiment-oauth-flow"
 
-# With team assignment
-/start-work --new "Add rate limiting" --team Platform --assign @me
+# Interactive mode - prompts for options
+/start-work
 ```
+
+## Behavior
+
+- **Worktree exists?** → Resumes there (pulls latest if clean)
+- **Worktree doesn't exist?** → Creates it and checks out the branch
 
 ## What It Does
 
-**Full Flow:**
-1. Verifies current repo is clean (no uncommitted changes)
-2. Fetches latest from origin
-3. **If existing issue:** Loads issue details via MCP (Linear or GitHub)
-4. **If --branch flag:** Tracks existing remote branch (no new branch created)
-5. **If --pr flag or #N:** Gets branch from PR, tracks it
-6. **If --new flag:** Creates new Linear issue with provided title
-7. **If --quick flag:** Skips Linear entirely
-8. Creates worktree: `~/code/worktrees/{repo}/{issue-id}`
-9. Creates or tracks branch
-10. Starts DevContainer and writes handoff file
-11. Provides instructions to continue in DevContainer
+1. Fetches latest from origin
+2. Determines worktree path based on issue/PR/branch
+3. **If worktree exists:** Resumes there, pulls latest
+4. **If worktree doesn't exist:** Creates it
+5. Changes to the worktree directory
 
 ## Implementation
 
@@ -279,19 +275,34 @@ elif [ "$MODE" = "create" ]; then
   WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
 fi
 
-# Check if worktree already exists
+# Check if worktree already exists - if so, just resume work there
 if [ -d "$WORKTREE_PATH" ]; then
-  echo "⚠️  Worktree already exists: $WORKTREE_PATH"
-  read -p "Remove and recreate? (yes/no): " confirm
-  if [ "$confirm" = "yes" ]; then
-    git worktree remove "$WORKTREE_PATH" --force
-  else
-    echo "Cancelled"
-    exit 1
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "🔄 Resuming work in existing worktree"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  echo "📂 Worktree: $WORKTREE_PATH"
+  echo "🌿 Branch: $(git -C "$WORKTREE_PATH" branch --show-current)"
+
+  # Check for uncommitted changes
+  if ! git -C "$WORKTREE_PATH" diff --quiet 2>/dev/null || ! git -C "$WORKTREE_PATH" diff --cached --quiet 2>/dev/null; then
+    echo "⚠️  Has uncommitted changes"
   fi
+
+  # Pull latest if clean
+  if git -C "$WORKTREE_PATH" diff --quiet 2>/dev/null && git -C "$WORKTREE_PATH" diff --cached --quiet 2>/dev/null; then
+    echo "📡 Pulling latest..."
+    git -C "$WORKTREE_PATH" pull --ff-only 2>/dev/null || echo "   (no remote changes or can't fast-forward)"
+  fi
+
+  cd "$WORKTREE_PATH"
+  echo ""
+  echo "📂 Changed to: $WORKTREE_PATH"
+  exit 0
 fi
 
-# Create worktree
+# Create worktree (only if it doesn't exist)
 echo "🌳 Creating worktree: $WORKTREE_NAME"
 if [ "${TRACK_EXISTING:-}" = "true" ]; then
   # Track existing remote branch
@@ -359,50 +370,24 @@ HANDOFF_EOF
 
 echo "   Saved to: $HANDOFF_FILE"
 
-# --- Start DevContainer (if available) ---
-if [ -f "$WORKTREE_PATH/.devcontainer/devcontainer.json" ]; then
-  echo ""
-  echo "🐳 Starting DevContainer..."
-  cd "$WORKTREE_PATH"
-  ~/.claude/skills/worktree/scripts/dev-open-worktree.sh
+# --- Mega-Container Workflow ---
+# In mega-container, we work directly in worktrees without DevContainers
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Workspace ready!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "Next steps:"
+echo "  1. cd $WORKTREE_PATH"
+echo "  2. Make your changes (already in mega-container)"
+echo "  3. /pr-create (to create PR with Linear tag)"
+echo ""
+echo "Session context: ~/.claude/handoff/${WORKTREE_NAME}.md"
+echo ""
 
-  echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "✅ DevContainer started! Continue work inside."
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo ""
-  echo "To continue work inside the DevContainer:"
-  echo ""
-  echo "  Option 1 - Warp/Terminal (recommended):"
-  echo "    docker exec -it ${PROJECT}-${BRANCH} claude"
-  echo ""
-  echo "  Option 2 - VSCode:"
-  echo "    Use the integrated terminal in VSCode (already opened)"
-  echo ""
-  echo "Session context saved to:"
-  echo "  ~/.claude/handoff/${WORKTREE_NAME}.md"
-  echo ""
-  echo "This host session will now end. Continue in DevContainer."
-else
-  # No DevContainer available
-  echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "✅ Workspace ready!"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo ""
-  echo "No DevContainer found. Next steps:"
-  echo "  1. cd $WORKTREE_PATH"
-  echo "  2. Start a new Claude session there: claude"
-  echo "  3. Make your changes"
-  echo "  4. /push-pr (to create PR)"
-  echo ""
-  if command -v code &> /dev/null; then
-    read -p "Open in VSCode? (yes/no): " open_editor
-    if [ "$open_editor" = "yes" ]; then
-      code "$WORKTREE_PATH"
-    fi
-  fi
-fi
+# Auto-change to the worktree directory
+cd "$WORKTREE_PATH"
+echo "📂 Changed to: $WORKTREE_PATH"
 ```
 
 ## Examples

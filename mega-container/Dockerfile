@@ -14,10 +14,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     gnupg \
     jq \
+    iptables \
+    iproute2 \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /run/sshd \
     && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config \
     && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+
+# Install Tailscale
+RUN curl -fsSL https://tailscale.com/install.sh | sh
 
 # 1Password CLI
 RUN ARCH=$(dpkg --print-architecture) && \
@@ -45,24 +50,25 @@ RUN ARCH=$(uname -m) && \
     rm -rf /tmp/gh_*
 
 # UID 501 matches macOS host user for SSH socket permissions
-RUN useradd -m -s /bin/bash -u 501 metr && \
-    echo 'metr ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
-    usermod -aG docker metr 2>/dev/null || true
+# Username matches Tailscale identity local-part for Tailscale SSH
+RUN useradd -m -s /bin/bash -u 501 rafaelcarvalho && \
+    echo 'rafaelcarvalho ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
+    usermod -aG docker rafaelcarvalho 2>/dev/null || true
 
-USER metr
-WORKDIR /home/metr
+USER rafaelcarvalho
+WORKDIR /home/rafaelcarvalho
 
-ENV MISE_DATA_DIR="/home/metr/.local/share/mise" \
-    MISE_CONFIG_DIR="/home/metr/.config/mise" \
-    PATH="/home/metr/.local/share/mise/shims:$PATH" \
+ENV MISE_DATA_DIR="/home/rafaelcarvalho/.local/share/mise" \
+    MISE_CONFIG_DIR="/home/rafaelcarvalho/.config/mise" \
+    PATH="/home/rafaelcarvalho/.local/share/mise/shims:$PATH" \
     MISE_YES=true
 
-COPY --chown=metr:metr .config/mise/config.toml .config/mise/
+COPY --chown=rafaelcarvalho:rafaelcarvalho .config/mise/config.toml .config/mise/
 RUN mise trust -a && mise install && \
     npm install -g opencode-ai @anthropic-ai/claude-code oh-my-opencode && \
     oh-my-opencode install --no-tui --claude=yes --gemini=no --copilot=no
 
-COPY --chown=metr:metr entrypoint.sh /usr/local/bin/
+COPY --chown=rafaelcarvalho:rafaelcarvalho entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

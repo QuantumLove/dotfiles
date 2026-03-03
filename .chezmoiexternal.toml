@@ -1,0 +1,8 @@
+# Chezmoi externals - auto-clone git repos
+
+# METR Claude Code plugin marketplace
+[".claude/plugins/marketplaces/metr-claude-code"]
+  type = "git-repo"
+  url = "https://github.com/METR/claude-code.git"
+  refreshPeriod = "168h"  # Re-pull weekly
+  clone.args = ["--depth", "1"]

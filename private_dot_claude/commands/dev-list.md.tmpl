@@ -1,168 +1,94 @@
 ---
 name: dev-list
-description: List all running DevContainers with their worktree associations
+description: List all git worktrees across all repos in ~/code
 permissions:
-  - Bash(docker ps *)
-  - Bash(docker inspect *)
+  - Bash(git worktree list)
+  - Bash(find *)
+  - Bash(ls *)
 ---
 
-# Dev List - List Running DevContainers
+# Dev List - List All Worktrees
 
-Shows all running DevContainers with their associated worktrees, helping you navigate between multiple container environments.
+List all git worktrees across all repositories in the code directory.
 
 ## Usage
 
 ```bash
-/dev-list                 # List all running DevContainers
-/dev-list --verbose       # Show detailed information
-/dev-list --json          # Output as JSON
+/dev-list              # List all worktrees
+/dev-list --active     # Only show worktrees with uncommitted changes
 ```
-
-## What It Shows
-
-- Container name
-- Associated worktree (if detected)
-- Status (running/stopped)
-- Ports exposed
-- Created time
-- Resource usage (CPU/Memory)
 
 ## Implementation
 
 ```bash
 #!/bin/bash
+set -euo pipefail
 
-echo "🐳 DevContainer List"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+CODE_DIR="$HOME/code"
+ACTIVE_ONLY=false
+
+[[ "${1:-}" == "--active" ]] && ACTIVE_ONLY=true
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🌳 Git Worktrees in ~/code"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-VERBOSE=false
-JSON_OUTPUT=false
+# Find all git repos and list their worktrees
+find "$CODE_DIR" -maxdepth 3 -name ".git" -type d 2>/dev/null | while read gitdir; do
+  repo_path=$(dirname "$gitdir")
 
-# Parse arguments
-for arg in "$@"; do
-  case $arg in
-    --verbose)
-      VERBOSE=true
-      ;;
-    --json)
-      JSON_OUTPUT=true
-      ;;
-  esac
-done
+  # Skip if it's a worktree (has .git file, not directory)
+  [[ -f "$gitdir" ]] && continue
 
-# Find all DevContainers (containers with vscode labels)
-CONTAINERS=$(docker ps -a --filter "label=devcontainer.metadata" --format "{{ "{{" }}.Names{{ "}}" }}")
+  worktrees=$(git -C "$repo_path" worktree list 2>/dev/null || true)
 
-if [ -z "$CONTAINERS" ]; then
-  echo "No DevContainers found."
-  exit 0
-fi
+  if [[ -n "$worktrees" && $(echo "$worktrees" | wc -l) -gt 1 ]]; then
+    repo_name=$(basename "$repo_path")
+    echo "📁 $repo_name"
 
-if [ "$JSON_OUTPUT" = true ]; then
-  # JSON output
-  echo "["
-  FIRST=true
-  for container in $CONTAINERS; do
-    if [ "$FIRST" = false ]; then
-      echo ","
-    fi
-    FIRST=false
+    echo "$worktrees" | while read line; do
+      path=$(echo "$line" | awk '{print $1}')
+      branch=$(echo "$line" | awk '{print $3}' | tr -d '[]')
 
-    STATUS=$(docker inspect --format='{{ "{{" }}.State.Status{{ "}}" }}' "$container")
-    CREATED=$(docker inspect --format='{{ "{{" }}.Created{{ "}}" }}' "$container" | cut -d'T' -f1)
-    PORTS=$(docker inspect --format='{{ "{{" }}range $p, $conf := .NetworkSettings.Ports{{ "}}" }}{{ "{{" }}if $conf{{ "}}" }}{{ "{{" }}$p{{ "}}" }} {{ "{{" }}end{{ "}}" }}{{ "{{" }}end{{ "}}" }}' "$container")
+      # Check for uncommitted changes
+      has_changes=""
+      if git -C "$path" diff --quiet 2>/dev/null && git -C "$path" diff --cached --quiet 2>/dev/null; then
+        has_changes=""
+      else
+        has_changes=" *"
+      fi
 
-    cat <<EOF
-  {
-    "name": "$container",
-    "status": "$STATUS",
-    "created": "$CREATED",
-    "ports": "$PORTS"
-  }
-EOF
-  done
-  echo ""
-  echo "]"
-  exit 0
-fi
+      if [[ "$ACTIVE_ONLY" == "true" && -z "$has_changes" ]]; then
+        continue
+      fi
 
-# Human-readable output
-printf "%-40s %-12s %-15s %-30s\n" "CONTAINER NAME" "STATUS" "CREATED" "PORTS"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-for container in $CONTAINERS; do
-  STATUS=$(docker inspect --format='{{ "{{" }}.State.Status{{ "}}" }}' "$container")
-  CREATED=$(docker inspect --format='{{ "{{" }}.Created{{ "}}" }}' "$container" | cut -d'T' -f1)
-  PORTS=$(docker inspect --format='{{ "{{" }}range $p, $conf := .NetworkSettings.Ports{{ "}}" }}{{ "{{" }}if $conf{{ "}}" }}{{ "{{" }}$p{{ "}}" }} {{ "{{" }}end{{ "}}" }}{{ "{{" }}end{{ "}}" }}' "$container" | head -c 30)
-
-  # Color code status
-  if [ "$STATUS" = "running" ]; then
-    STATUS_DISPLAY="✅ $STATUS"
-  else
-    STATUS_DISPLAY="❌ $STATUS"
-  fi
-
-  printf "%-40s %-12s %-15s %-30s\n" "$container" "$STATUS_DISPLAY" "$CREATED" "$PORTS"
-
-  # Verbose mode - show resource usage
-  if [ "$VERBOSE" = true ] && [ "$STATUS" = "running" ]; then
-    CPU=$(docker stats "$container" --no-stream --format "{{ "{{" }}.CPUPerc{{ "}}" }}" 2>/dev/null || echo "N/A")
-    MEM=$(docker stats "$container" --no-stream --format "{{ "{{" }}.MemUsage{{ "}}" }}" 2>/dev/null || echo "N/A")
-    echo "  └─ Resources: CPU: $CPU | Memory: $MEM"
+      printf "   %-50s %s%s\n" "$path" "$branch" "$has_changes"
+    done
+    echo ""
   fi
 done
 
-echo ""
-echo "Total containers: $(echo "$CONTAINERS" | wc -l | tr -d ' ')"
-
-# Show quick actions
-echo ""
-echo "Quick Actions:"
-echo "  • Connect to container:  docker exec -it <container-name> bash"
-echo "  • View logs:             docker logs <container-name>"
-echo "  • Stop container:        docker stop <container-name>"
-echo "  • Remove stopped:        /dev-clean"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "* = uncommitted changes"
 ```
 
 ## Example Output
 
 ```
-🐳 DevContainer List
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌳 Git Worktrees in ~/code
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CONTAINER NAME                           STATUS       CREATED         PORTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-inspect-action-dev-worktree-metr-123    ✅ running   2025-01-15     8000/tcp, 5432/tcp
-mp4-deploy-dev-worktree-metr-456        ✅ running   2025-01-14     3000/tcp
-inspect-action-dev                      ❌ exited    2025-01-10
+📁 inspect-action
+   /Users/me/code/inspect-action                       main
+   /Users/me/code/worktrees/inspect-action/METR-123    METR-123/fix-auth *
+   /Users/me/code/worktrees/inspect-action/METR-456    METR-456/add-cache
 
-Total containers: 3
+📁 platform
+   /Users/me/code/platform                             main
+   /Users/me/code/worktrees/platform/quick-experiment  quick/experiment *
 
-Quick Actions:
-  • Connect to container:  docker exec -it <container-name> bash
-  • View logs:             docker logs <container-name>
-  • Stop container:        docker stop <container-name>
-  • Remove stopped:        /dev-clean
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+* = uncommitted changes
 ```
-
-## Integration
-
-**After creating worktree:**
-```bash
-/start-work METR-123     # Creates worktree
-/dev-open                 # Opens DevContainer
-/dev-list                 # See all your environments
-```
-
-**Navigate between containers:**
-```bash
-/dev-list                            # See what's running
-docker exec -it inspect-action-dev bash  # Jump into container
-```
-
-## Related Commands
-
-- `/dev-open` - Open DevContainer for worktree
-- `/dev-clean` - Clean up stopped containers
-- `/start-work` - Create worktree and open DevContainer

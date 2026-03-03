@@ -1,191 +1,113 @@
 ---
 name: dev-clean
-description: Clean up stopped DevContainers and orphaned volumes
+description: Clean up merged/stale git worktrees across all repos
 permissions:
-  - Bash(docker ps *)
-  - Bash(docker rm *)
-  - Bash(docker volume prune *)
+  - Bash(git worktree *)
+  - Bash(git branch *)
+  - Bash(find *)
 ---
 
-# Dev Clean - DevContainer Cleanup
+# Dev Clean - Clean Up Worktrees
 
-Safely remove stopped DevContainers and clean up orphaned Docker volumes to free disk space.
+Remove merged or stale git worktrees across all repositories in ~/code.
 
 ## Usage
 
 ```bash
-/dev-clean                # Interactive cleanup
-/dev-clean --all          # Remove all stopped containers
-/dev-clean --volumes      # Also prune unused volumes
-/dev-clean --dry-run      # Preview what would be removed
+/dev-clean              # Interactive cleanup
+/dev-clean --merged     # Only remove worktrees whose branches are merged
+/dev-clean --dry-run    # Show what would be removed
 ```
-
-## What It Cleans
-
-1. **Stopped DevContainers** - Containers that are no longer running
-2. **Orphaned volumes** - Volumes not associated with any container
-3. **Dangling images** - Unused DevContainer images (optional)
 
 ## Implementation
 
 ```bash
 #!/bin/bash
+set -euo pipefail
 
-echo "🧹 DevContainer Cleanup"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-
-ALL=false
-VOLUMES=false
+CODE_DIR="$HOME/code"
 DRY_RUN=false
+MERGED_ONLY=false
 
-# Parse arguments
 for arg in "$@"; do
   case $arg in
-    --all)
-      ALL=true
-      ;;
-    --volumes)
-      VOLUMES=true
-      ;;
-    --dry-run)
-      DRY_RUN=true
-      ;;
+    --dry-run) DRY_RUN=true ;;
+    --merged) MERGED_ONLY=true ;;
   esac
 done
 
-# Find stopped DevContainers
-STOPPED=$(docker ps -a --filter "status=exited" --filter "label=devcontainer.metadata" --format "{{ "{{" }}.Names{{ "}}" }}")
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🧹 Worktree Cleanup"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
 
-if [ -z "$STOPPED" ]; then
-  echo "✅ No stopped DevContainers to clean up."
-else
-  echo "📋 Stopped DevContainers:"
-  for container in $STOPPED; do
-    CREATED=$(docker inspect --format='{{ "{{" }}.Created{{ "}}" }}' "$container" | cut -d'T' -f1)
-    SIZE=$(docker inspect --format='{{ "{{" }}.SizeRootFs{{ "}}" }}' "$container" 2>/dev/null | numfmt --to=iec 2>/dev/null || echo "unknown")
-    echo "  • $container (created: $CREATED, size: $SIZE)"
-  done
-  echo ""
+# Find all git repos
+find "$CODE_DIR" -maxdepth 3 -name ".git" -type d 2>/dev/null | while read gitdir; do
+  repo_path=$(dirname "$gitdir")
+  [[ -f "$gitdir" ]] && continue
 
-  if [ "$DRY_RUN" = true ]; then
-    echo "🔍 Dry-run mode: Would remove $(echo "$STOPPED" | wc -l | tr -d ' ') containers"
-  elif [ "$ALL" = true ]; then
-    echo "Removing all stopped containers..."
-    for container in $STOPPED; do
-      docker rm "$container"
-      echo "  ✅ Removed: $container"
-    done
-  else
-    # Interactive mode
-    for container in $STOPPED; do
-      read -p "Remove $container? (y/n): " -n 1 -r
+  repo_name=$(basename "$repo_path")
+
+  # Get worktrees (skip main worktree)
+  git -C "$repo_path" worktree list 2>/dev/null | tail -n +2 | while read line; do
+    wt_path=$(echo "$line" | awk '{print $1}')
+    branch=$(echo "$line" | awk '{print $3}' | tr -d '[]')
+
+    # Skip if path doesn't exist
+    [[ ! -d "$wt_path" ]] && continue
+
+    # Check if branch is merged to main/master
+    is_merged=false
+    default_branch=$(git -C "$repo_path" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
+    if git -C "$repo_path" branch --merged "$default_branch" 2>/dev/null | grep -q "$branch"; then
+      is_merged=true
+    fi
+
+    # Check for uncommitted changes
+    has_changes=false
+    if ! git -C "$wt_path" diff --quiet 2>/dev/null || ! git -C "$wt_path" diff --cached --quiet 2>/dev/null; then
+      has_changes=true
+    fi
+
+    # Decide whether to show/remove
+    if [[ "$MERGED_ONLY" == "true" && "$is_merged" != "true" ]]; then
+      continue
+    fi
+
+    status=""
+    [[ "$is_merged" == "true" ]] && status="[merged] "
+    [[ "$has_changes" == "true" ]] && status="${status}[uncommitted] "
+
+    echo "📁 $repo_name: $wt_path"
+    echo "   Branch: $branch $status"
+
+    if [[ "$has_changes" == "true" ]]; then
+      echo "   ⚠️  Has uncommitted changes - skipping"
       echo ""
-      if [[ $REPLY =~ ^[Yy]$ ]]; then
-        docker rm "$container"
-        echo "  ✅ Removed: $container"
+      continue
+    fi
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "   Would remove: git worktree remove $wt_path"
+    else
+      read -p "   Remove this worktree? (yes/no): " confirm
+      if [[ "$confirm" == "yes" ]]; then
+        git -C "$repo_path" worktree remove "$wt_path"
+        echo "   ✅ Removed"
       else
-        echo "  ⏭️  Skipped: $container"
+        echo "   Skipped"
       fi
-    done
-  fi
-fi
+    fi
+    echo ""
+  done
+done
 
-# Clean up volumes if requested
-if [ "$VOLUMES" = true ]; then
-  echo ""
-  echo "🗑️  Cleaning up orphaned volumes..."
-
-  if [ "$DRY_RUN" = true ]; then
-    ORPHANED=$(docker volume ls -qf dangling=true | wc -l | tr -d ' ')
-    echo "🔍 Dry-run mode: Would prune $ORPHANED orphaned volumes"
-  else
-    docker volume prune -f
-    echo "✅ Orphaned volumes removed"
-  fi
-fi
-
-# Show disk space saved
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "💾 Docker Disk Usage:"
-docker system df
-
-echo ""
-echo "💡 Tip: Run '/dev-clean --all --volumes' to aggressively clean up"
-echo "💡 Tip: Run 'docker system prune -a' for deep cleanup (removes all unused images)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Done!"
 ```
 
-## Example Output
+## Safety
 
-```
-🧹 DevContainer Cleanup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📋 Stopped DevContainers:
-  • inspect-action-dev (created: 2025-01-10, size: 1.2G)
-  • mp4-deploy-old (created: 2025-01-05, size: 890M)
-
-Remove inspect-action-dev? (y/n): y
-  ✅ Removed: inspect-action-dev
-
-Remove mp4-deploy-old? (y/n): y
-  ✅ Removed: mp4-deploy-old
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-💾 Docker Disk Usage:
-TYPE           TOTAL     ACTIVE    SIZE      RECLAIMABLE
-Images         15        3         8.5GB     6.2GB (73%)
-Containers     5         2         120MB     45MB (37%)
-Local Volumes  8         3         2.1GB     890MB (42%)
-
-💡 Tip: Run '/dev-clean --all --volumes' to aggressively clean up
-```
-
-## Safety Features
-
-1. **Interactive by default** - Asks before removing each container
-2. **DevContainer-only** - Only touches containers with devcontainer labels
-3. **Dry-run mode** - Preview changes before executing
-4. **Running containers protected** - Only removes stopped containers
-
-## When To Use
-
-**Weekly cleanup:**
-```bash
-/dev-clean                   # Interactive review and cleanup
-```
-
-**After finishing work on issue:**
-```bash
-/dev-clean --all             # Remove all stopped containers
-```
-
-**Deep cleanup (free lots of space):**
-```bash
-/dev-clean --all --volumes   # Remove containers and volumes
-```
-
-**Preview before cleaning:**
-```bash
-/dev-clean --dry-run --all --volumes
-```
-
-## Disk Space Management
-
-**Check usage:**
-```bash
-docker system df             # See what's using space
-```
-
-**Aggressive cleanup (beyond DevContainers):**
-```bash
-docker system prune -a       # Remove ALL unused Docker data
-# Warning: Removes all unused images, not just DevContainers!
-```
-
-## Related Commands
-
-- `/dev-list` - See what containers are running
-- `/dev-open` - Open new DevContainer
-- `/start-work` - Create worktree + DevContainer
+- Never removes worktrees with uncommitted changes
+- Always confirms before removing (unless --dry-run)
+- Use --merged to only clean up branches already merged to main

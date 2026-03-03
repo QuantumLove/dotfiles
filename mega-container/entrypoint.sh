@@ -3,14 +3,46 @@ set -e
 
 echo "=== Mega Container Bootstrap ==="
 
-# 1. FAIL FAST: Verify 1Password token exists
+# 1. Start Tailscale daemon
+echo "Starting Tailscale..."
+sudo tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/var/run/tailscale/tailscaled.sock &
+TAILSCALED_PID=$!
+
+# Wait for tailscaled to be ready
+sleep 2
+for i in {1..10}; do
+  if tailscale status &>/dev/null; then
+    break
+  fi
+  echo "  Waiting for tailscaled... (attempt $i/10)"
+  sleep 1
+done
+
+# Check if already authenticated or needs login
+if tailscale status &>/dev/null; then
+  TS_STATUS=$(tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"')
+  if [ "$TS_STATUS" = "Running" ]; then
+    echo "✓ Tailscale connected"
+    tailscale status | head -5
+  else
+    echo "⚠️  Tailscale not authenticated. Run one-time setup:"
+    echo "   docker exec -it mega-container-mega-1 tailscale up --ssh --hostname=mega-dev --accept-routes"
+    echo ""
+    echo "   Then follow the login URL and authenticate."
+    echo "   After that, Tailscale will persist across restarts."
+  fi
+else
+  echo "⚠️  Tailscale daemon not responding. Check logs with: docker logs mega-container-mega-1"
+fi
+
+# 2. FAIL FAST: Verify 1Password token exists
 if [ -z "$OP_SERVICE_ACCOUNT_TOKEN" ]; then
   echo "ERROR: OP_SERVICE_ACCOUNT_TOKEN not set"
   echo "Pass via: docker compose run -e OP_SERVICE_ACCOUNT_TOKEN mega"
   exit 1
 fi
 
-# 2. FAIL FAST: Verify 1Password connectivity
+# 3. FAIL FAST: Verify 1Password connectivity
 echo "Checking 1Password connection..."
 if ! op account get &>/dev/null; then
   echo "ERROR: 1Password authentication failed"
@@ -19,7 +51,7 @@ if ! op account get &>/dev/null; then
 fi
 echo "✓ 1Password connected"
 
-# 3. FAIL FAST: Fetch Anthropic API key from 1Password
+# 4. FAIL FAST: Fetch Anthropic API key from 1Password
 echo "Fetching Anthropic API key from 1Password..."
 ANTHROPIC_API_KEY=$(op read "op://Development/Anthropic API Key/credential" 2>/dev/null)
 if [ -z "$ANTHROPIC_API_KEY" ]; then
@@ -32,7 +64,7 @@ export ANTHROPIC_API_KEY
 echo "export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'" >> ~/.secrets_env
 echo "✓ Anthropic API key ready"
 
-# 4. FAIL FAST: Fetch GitHub token from 1Password
+# 5. FAIL FAST: Fetch GitHub token from 1Password
 echo "Fetching GitHub token from 1Password..."
 GH_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null)
 if [ -z "$GH_TOKEN" ]; then
@@ -45,7 +77,7 @@ echo "export GH_TOKEN='$GH_TOKEN'" >> ~/.secrets_env
 chmod 600 ~/.secrets_env
 echo "✓ GitHub token ready"
 
-# 5. Verify SSH agent, setup known_hosts, and configure SSH server
+# 6. Verify SSH agent and setup known_hosts
 echo "Checking SSH agent..."
 mkdir -p ~/.ssh && chmod 700 ~/.ssh
 
@@ -84,12 +116,12 @@ else
   exit 1
 fi
 
-# 6. Start SSH server
-echo "Starting SSH server..."
+# 7. Start OpenSSH server (fallback, Tailscale SSH is primary)
+echo "Starting OpenSSH server (fallback)..."
 sudo /usr/sbin/sshd
-echo "✓ SSH server running"
+echo "✓ OpenSSH server running"
 
-# 7. Apply chezmoi (secrets injected via onepasswordRead templates)
+# 8. Apply chezmoi (secrets injected via onepasswordRead templates)
 echo "Applying chezmoi configuration..."
 if [ ! -d "$HOME/.local/share/chezmoi" ]; then
   chezmoi init --ssh QuantumLove
@@ -116,7 +148,7 @@ if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
 fi
 echo "✓ chezmoi applied"
 
-# 8. Verify mise tools (already pre-installed in image)
+# 9. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
 echo "Verifying mise tools..."
 if ! mise doctor; then

@@ -1,47 +1,37 @@
 services:
-  tailscale:
-    image: tailscale/tailscale:stable
-    hostname: mega-dev
-    environment:
-      # No TS_AUTHKEY - using interactive login instead
-      # Container authenticates AS YOU via browser login
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_USERSPACE=true
-    volumes:
-      - tailscale-state:/var/lib/tailscale
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "tailscale", "status", "--json"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-
   mega:
     build: .
-    network_mode: service:tailscale
-    depends_on:
-      tailscale:
-        condition: service_healthy
+    hostname: mega-dev
+    cap_add:
+      - NET_ADMIN      # Required for Tailscale networking
+      - SYS_MODULE     # May be needed for some network operations
+    devices:
+      - /dev/net/tun:/dev/net/tun  # TUN device for Tailscale
     environment:
       - OP_SERVICE_ACCOUNT_TOKEN
       - SSH_AUTH_SOCK=/ssh-agent
+      - TS_STATE_DIR=/var/lib/tailscale
     volumes:
-      # Code directory - ONLY persistent volume
-      - code:/home/metr/code
+      # Tailscale state - persists identity across container rebuilds
+      - tailscale-state:/var/lib/tailscale
+      # Code directory - persistent workspace
+      - code:/home/rafaelcarvalho/code
       # Docker socket for building images (connects to Docker Desktop VM)
       - /var/run/docker.sock:/var/run/docker.sock
       # SSH Agent forwarding via Docker Desktop magic path (works with 1Password or macOS agent)
       - /run/host-services/ssh-auth.sock:/ssh-agent:ro
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "op", "account", "get"]
-      interval: 30s
+      test: ["CMD", "tailscale", "status", "--json"]
+      interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 30s
+      retries: 5
+      start_period: 60s
 
 volumes:
   tailscale-state:
+    # IMPORTANT: This volume persists Tailscale identity
+    # Do NOT use 'docker compose down -v' or you'll need to re-authenticate
+    # and may get a new hostname (mega-dev-1, mega-dev-2, etc.)
   code:
-  # NOTE: No 'home' volume - config files stay in container filesystem
-  # Secrets injected at runtime via chezmoi apply, not persisted
+    # Persistent workspace for all code repositories
