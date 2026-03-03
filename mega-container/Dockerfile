@@ -63,6 +63,20 @@ RUN ARCH=$(uname -m) && \
     sudo /tmp/aws/install && \
     rm -rf /tmp/aws /tmp/awscliv2.zip
 
+# OSC 52 clipboard wrapper (enables copy from container to host terminal)
+# OpenCode/xclip/xsel use this to send clipboard data via terminal escape sequences
+RUN printf '%s\n' '#!/bin/bash' \
+    '# OSC 52 clipboard wrapper - sends clipboard to host via terminal' \
+    'data=$(cat | base64 | tr -d "\\n")' \
+    'if [ -e /dev/tty ]; then' \
+    '    printf "\\e]52;c;%s\\a" "$data" > /dev/tty' \
+    'else' \
+    '    printf "\\e]52;c;%s\\a" "$data"' \
+    'fi' > /usr/local/bin/osc52-clipboard && \
+    chmod +x /usr/local/bin/osc52-clipboard && \
+    ln -sf /usr/local/bin/osc52-clipboard /usr/local/bin/xclip && \
+    ln -sf /usr/local/bin/osc52-clipboard /usr/local/bin/xsel
+
 # UID 501 matches macOS host user for SSH socket permissions
 # Username matches Tailscale identity local-part for Tailscale SSH
 RUN useradd -m -s /bin/bash -u 501 rafaelcarvalho && \

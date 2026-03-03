@@ -20,8 +20,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # SSH Agent forwarding via Docker Desktop magic path (works with 1Password or macOS agent)
       - /run/host-services/ssh-auth.sock:/ssh-agent:ro
-      # AWS config and SSO cache from host (login once on Mac, works in container)
-      - ~/.aws:/home/rafaelcarvalho/.aws:ro
+      # AWS config and SSO cache from host (rw needed for SSO token refresh)
+      - ~/.aws:/home/rafaelcarvalho/.aws
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "tailscale", "status", "--json"]
