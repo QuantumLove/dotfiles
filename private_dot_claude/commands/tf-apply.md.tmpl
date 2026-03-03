@@ -186,6 +186,17 @@ if $TF_CMD apply "$PLAN_FILE"; then
     $TF_CMD output
   fi
 
+  # Save outputs to private-config repo
+  PRIVATE_CONFIG="$HOME/.private-config"
+  if [ -d "$PRIVATE_CONFIG" ]; then
+    OUTPUT_FILE="$PRIVATE_CONFIG/terraform-outputs/${CURRENT_WORKSPACE}.json"
+    mkdir -p "$(dirname "$OUTPUT_FILE")"
+    $TF_CMD output -json > "$OUTPUT_FILE"
+    echo ""
+    echo "💾 Outputs saved to: $OUTPUT_FILE"
+    echo "   Commit with: cd $PRIVATE_CONFIG && git add -A && git commit -m 'Update ${CURRENT_WORKSPACE} outputs' && git push"
+  fi
+
   # Clean up plan file
   rm "$PLAN_FILE"
 
@@ -270,6 +281,7 @@ bucket_arn = "arn:aws:s3:::metr-eval-logs-dev4"
 4. **Change summary** - Clear count of adds/changes/destroys
 5. **Plan file preservation** - Keep plan if apply fails
 6. **State backup** - Terraform maintains state backups automatically
+7. **Output persistence** - Automatically saves outputs to `~/.private-config/terraform-outputs/`
 
 ## Advanced Usage
 

@@ -200,6 +200,68 @@ cd ~/.local/share/chezmoi && git add -A && git commit -m "feat: add new plugin"
 - Worktrees persist in `~/code/worktrees/`
 - Session handoff files: `~/.claude/handoff/`
 
+## Private Configuration Repository
+
+The `~/.private-config/` directory contains private but non-secret configuration. It's a git repo (QuantumLove/private-config) auto-cloned by chezmoi.
+
+### What Goes in ~/.private-config/
+
+| Type | Location | Example |
+|------|----------|---------|
+| **Kubernetes cluster configs** | `k8s/clusters.yaml` | Cluster names, regions, contexts |
+| **Environment variables** | `env/{env}.env` | AWS_REGION, AWS_PROFILE (non-secrets) |
+| **Terraform/Pulumi outputs** | `terraform-outputs/{env}.json` | Account IDs, ARNs, endpoints, VPC IDs |
+| **Infrastructure variables** | `infra/{env}.yaml` | Resource names, tags, CIDR blocks |
+
+### What Does NOT Go Here (Use 1Password Instead)
+
+- API keys, tokens, passwords
+- Database credentials
+- SSH private keys
+- Anything that would be dangerous if the repo leaked
+
+### Usage in Skills and Scripts
+
+```bash
+# Read cluster config
+cat ~/.private-config/k8s/clusters.yaml
+
+# Source environment variables
+source ~/.private-config/env/dev.env
+
+# Read terraform outputs
+jq '.vpc_id.value' ~/.private-config/terraform-outputs/dev4.json
+```
+
+### Updating Private Config
+
+```bash
+# Edit locally
+vim ~/.private-config/k8s/clusters.yaml
+
+# Commit and push
+cd ~/.private-config
+git add -A && git commit -m "Update cluster configs"
+git push
+
+# Pull in container (or wait for weekly refresh)
+ssh mega-dev-1 "cd ~/.private-config && git pull"
+```
+
+### When to Save Outputs Here
+
+**DO save to ~/.private-config/ when:**
+- Running `tofu output -json` or `pulumi stack output --json`
+- Discovering infrastructure values (VPC IDs, subnet IDs, endpoints)
+- Setting up environment-specific variables for scripts
+
+**Example workflow after terraform apply:**
+```bash
+cd ~/code/infrastructure/dev4
+tofu output -json > ~/.private-config/terraform-outputs/dev4.json
+cd ~/.private-config && git add -A && git commit -m "Update dev4 outputs" && git push
+```
+
 ## Where to Put Learnings
 
 When you discover something useful during work, document it appropriately:
