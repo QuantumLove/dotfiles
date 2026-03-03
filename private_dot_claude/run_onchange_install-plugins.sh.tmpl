@@ -1,6 +1,26 @@
 #!/bin/bash
-# Install required Claude Code plugins
+# =============================================================================
+# Claude Code Plugin Installer (chezmoi run_onchange script)
+# =============================================================================
+#
+# This script automatically installs Claude Code plugins when the plugin list
+# changes. It's triggered by chezmoi's run_onchange mechanism.
+#
+# How it works:
+# 1. The "Hash:" comment below contains a SHA256 of plugin-list.txt
+# 2. When plugin-list.txt changes, the hash changes
+# 3. Chezmoi detects the hash change and re-runs this script
+#
+# Files involved:
+# - plugin-list.txt: List of plugins to install (one per line)
+# - This script: Reads the list and runs `claude plugin install` for each
+#
+# To add new plugins:
+# 1. Edit ~/.local/share/chezmoi/private_dot_claude/plugin-list.txt
+# 2. Run `chezmoi apply`
+#
 # Hash: {{ include "private_dot_claude/plugin-list.txt" | sha256sum }}
+# =============================================================================
 set -euo pipefail
 
 # Only run if claude command is available

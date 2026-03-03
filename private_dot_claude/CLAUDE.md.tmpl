@@ -165,6 +165,35 @@ The following MCPs are available:
 - **Sentry** - Error monitoring (hardcoded org: metr-sh)
 - **GitHub** - Repository operations
 - **Toggl** - Time tracking
+- **Datadog** - Monitoring and observability
+
+### Plugin Management
+
+Claude Code plugins are managed via chezmoi for reproducibility.
+
+**How it works:**
+- Plugin list: `~/.local/share/chezmoi/private_dot_claude/plugin-list.txt`
+- Plugins are auto-installed when:
+  - Running `chezmoi apply` (via run_onchange script)
+  - Container bootstrap (entrypoint.sh fallback)
+
+**Adding new plugins:**
+```bash
+# 1. Edit the plugin list
+vim ~/.local/share/chezmoi/private_dot_claude/plugin-list.txt
+
+# 2. Add line: plugin-name@marketplace-name
+
+# 3. Apply and commit
+chezmoi apply
+cd ~/.local/share/chezmoi && git add -A && git commit -m "feat: add new plugin"
+```
+
+**Current plugins:**
+- `compound-engineering@compound-engineering-plugin` - Workflow automation
+- `superpowers@superpowers-marketplace` - Development superpowers
+- `inspect-ai@metr-claude-code` - METR inspect-ai integration
+- `github@metr-claude-code` - METR GitHub workflows
 
 ### Session Persistence
 - Use `tmux` for session persistence across SSH disconnects
