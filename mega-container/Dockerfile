@@ -63,6 +63,12 @@ RUN ARCH=$(uname -m) && \
     sudo /tmp/aws/install && \
     rm -rf /tmp/aws /tmp/awscliv2.zip
 
+# Docker CLI (for building images via Pulumi docker-build provider)
+RUN ARCH=$(uname -m) && \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-24.0.7.tgz" | tar xz -C /tmp && \
+    mv /tmp/docker/docker /usr/local/bin/ && \
+    rm -rf /tmp/docker
+
 # OSC 52 clipboard wrapper (enables copy from container to host terminal)
 # OpenCode/xclip/xsel use this to send clipboard data via terminal escape sequences
 RUN printf '%s\n' '#!/bin/bash' \
