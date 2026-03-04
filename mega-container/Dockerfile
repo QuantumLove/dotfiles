@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     iptables \
     iproute2 \
+    zstd \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /run/sshd \
     && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config \
