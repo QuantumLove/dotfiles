@@ -61,6 +61,54 @@ Before destroying databases, S3 buckets, EFS, or persistent volumes:
 3. [ ] Stateful resource changes? → Verify backup/migration plan
 4. [ ] Production workspace? → Extra scrutiny required
 
+## Long-Running Infrastructure Commands
+
+Commands like `pulumi up`, `tofu apply`, `pulumi destroy`, and database migrations can take minutes. Never block the agent session waiting for these — run them non-blocking and poll for completion.
+
+### Preferred: tmux via `interactive_bash` (when available)
+
+```bash
+# Start in a named tmux session (returns immediately)
+interactive_bash: new-session -d -s infra-deploy "AWS_PROFILE=staging pulumi up --yes 2>&1 | tee /tmp/pulumi-deploy.log"
+
+# Poll progress (non-blocking — run from regular bash)
+tail -20 /tmp/pulumi-deploy.log
+
+# Check if still running (session exists = still running)
+interactive_bash: has-session -t infra-deploy
+# Exit code 0 = running, 1 = finished
+
+# When done, read final output
+tail -50 /tmp/pulumi-deploy.log
+```
+
+### Fallback: bash background + log file (when tmux unavailable)
+
+```bash
+# Start (returns immediately with PID)
+AWS_PROFILE=staging pulumi up --yes > /tmp/pulumi-deploy.log 2>&1 &
+DEPLOY_PID=$!
+echo "PID: $DEPLOY_PID"
+
+# Poll progress
+tail -20 /tmp/pulumi-deploy.log
+
+# Check if still running
+ps -p $DEPLOY_PID > /dev/null 2>&1 && echo "RUNNING" || echo "DONE"
+
+# When done, check exit code
+wait $DEPLOY_PID; echo "Exit: $?"
+```
+
+### Rules
+
+- **Always use `--yes`** (or equivalent auto-approve) since there's no interactive TTY in background
+- **Always `tee` or redirect to a log file** — you need the output for debugging
+- **Use unique log names** when running multiple deploys: `/tmp/pulumi-deploy-$(date +%s).log`
+- **Continue working** while the command runs — check back periodically or when you need the result
+- **Never run `pulumi stack rm` until `pulumi destroy` finishes** — poll until PID is gone AND log shows completion
+- **For `tofu apply`**: same pattern, swap the command
+
 ## Chezmoi Management
 
 This Claude configuration is managed by chezmoi.
