@@ -69,6 +69,19 @@ RUN ARCH=$(uname -m) && \
     mv /tmp/docker/docker /usr/local/bin/ && \
     rm -rf /tmp/docker
 
+# Docker Compose plugin
+RUN ARCH=$(uname -m) && \
+    mkdir -p /usr/local/lib/docker/cli-plugins && \
+    curl -fsSL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-${ARCH}" \
+      -o /usr/local/lib/docker/cli-plugins/docker-compose && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# Docker Buildx plugin
+RUN ARCH=$(uname -m) && \
+    curl -fsSL "https://github.com/docker/buildx/releases/download/v0.21.1/buildx-v0.21.1.linux-${ARCH}" \
+      -o /usr/local/lib/docker/cli-plugins/docker-buildx && \
+    chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+
 # OSC 52 clipboard wrapper (enables copy from container to host terminal)
 # OpenCode/xclip/xsel use this to send clipboard data via terminal escape sequences
 RUN printf '%s\n' '#!/bin/bash' \
