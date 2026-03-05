@@ -113,7 +113,8 @@ desired_servers='{
     "args": ["--from", "git+https://github.com/shelfio/datadog-mcp.git", "datadog-mcp"],
     "env": {
       "DD_API_KEY": "'"${DD_API_KEY:-}"'",
-      "DD_APP_KEY": "'"${DD_APP_KEY:-}"'"
+      "DD_APP_KEY": "'"${DD_APP_KEY:-}"'",
+      "DD_SITE": "us3.datadoghq.com"
     }
   }
 }'
