@@ -82,6 +82,121 @@ minikube_reset() {
     echo "✅ Minikube reset complete"
 }
 
+# AWS SSO login — auto-detects local vs remote and picks the right flow.
+# Local (browser available): standard browser-based SSO login
+# Remote/headless (SSH, container, no display): device-code flow with pre-filled URL
+# Usage: aws-sso-login [profile]   (default: staging)
+aws-sso-login() {
+    local base_profile="${1:-staging}"
+    local aws_config="$HOME/.aws/config"
+
+    if [ ! -f "$aws_config" ]; then
+        echo "Error: $aws_config not found"
+        return 1
+    fi
+
+    # Detect environment: headless if SSH session, container, or no display
+    local is_headless=false
+    if [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ] || [ -f /.dockerenv ] || [ -f /run/.containerenv ]; then
+        is_headless=true
+    elif [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && [ "$(uname)" != "Darwin" ]; then
+        is_headless=true
+    fi
+
+    if [ "$is_headless" = false ]; then
+        # Local: standard browser flow
+        echo "→ SSO login (browser flow) for profile: ${base_profile}"
+        aws sso login --profile "$base_profile"
+        return $?
+    fi
+
+    # Remote/headless: device-code flow
+    # Needs a profile with inline SSO config (no sso_session reference)
+    local device_profile="${base_profile}-device"
+
+    if ! grep -q "\[profile ${device_profile}\]" "$aws_config" 2>/dev/null; then
+        echo "→ Creating '${device_profile}' profile (device-code flow)..."
+
+        # Read sso_session name from the base profile
+        local sso_session
+        sso_session=$(awk "/\[profile ${base_profile}\]/,/\[/" "$aws_config" | grep 'sso_session' | head -1 | awk '{print $3}')
+        if [ -z "$sso_session" ]; then
+            echo "Error: Profile '${base_profile}' not found or has no sso_session"
+            return 1
+        fi
+
+        # Read values from the sso-session block
+        local sso_start_url sso_region
+        sso_start_url=$(awk "/\[sso-session ${sso_session}\]/,/\[/" "$aws_config" | grep 'sso_start_url' | head -1 | awk '{print $3}')
+        sso_region=$(awk "/\[sso-session ${sso_session}\]/,/\[/" "$aws_config" | grep 'sso_region' | head -1 | awk '{print $3}')
+
+        # Read account/role/region from the base profile
+        local sso_account_id sso_role_name region
+        sso_account_id=$(awk "/\[profile ${base_profile}\]/,/\[/" "$aws_config" | grep 'sso_account_id' | head -1 | awk '{print $3}')
+        sso_role_name=$(awk "/\[profile ${base_profile}\]/,/\[/" "$aws_config" | grep 'sso_role_name' | head -1 | awk '{print $3}')
+        region=$(awk "/\[profile ${base_profile}\]/,/\[/" "$aws_config" | grep '^region' | head -1 | awk '{print $3}')
+
+        if [ -z "$sso_start_url" ] || [ -z "$sso_account_id" ]; then
+            echo "Error: Could not read SSO config from profile '${base_profile}'"
+            return 1
+        fi
+
+        # Append the device profile (inline SSO config = triggers device-code flow)
+        printf '\n[profile %s]\nsso_start_url = %s\nsso_region = %s\nsso_account_id = %s\nsso_role_name = %s\nregion = %s\n' \
+            "$device_profile" "$sso_start_url" "$sso_region" "$sso_account_id" "$sso_role_name" "$region" \
+            >> "$aws_config"
+
+        echo "✓ Added '${device_profile}' profile to $aws_config"
+    fi
+
+    echo "→ SSO login (device-code flow) for profile: ${device_profile}"
+    echo ""
+
+    # Run login, capture output, and extract the autofill URL
+    local logfile
+    logfile=$(mktemp /tmp/aws-sso-login-XXXXXX.log)
+    aws sso login --profile "$device_profile" --no-browser 2>&1 | tee "$logfile" &
+    local login_pid=$!
+
+    # Wait for the URL to appear (up to 15 seconds)
+    local attempts=0
+    while [ $attempts -lt 30 ]; do
+        if grep -q 'user_code=' "$logfile" 2>/dev/null; then
+            local autofill_url
+            autofill_url=$(grep -o 'https://[^ ]*user_code=[^ ]*' "$logfile" | head -1)
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "  Open this URL (code is pre-filled):"
+            echo ""
+            echo "  $autofill_url"
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            break
+        fi
+        sleep 0.5
+        attempts=$((attempts + 1))
+    done
+
+    # Wait for login to complete
+    wait $login_pid
+    local exit_code=$?
+
+    if grep -q 'Successfully logged in' "$logfile" 2>/dev/null; then
+        echo ""
+        echo "✅ SSO login successful (profile: ${device_profile})"
+        echo ""
+        echo "To use:  export AWS_PROFILE=${device_profile}"
+        echo "  or:    aws <command> --profile ${device_profile}"
+    elif [ $exit_code -ne 0 ]; then
+        echo ""
+        echo "❌ SSO login failed (exit code: ${exit_code})"
+    fi
+
+    rm -f "$logfile"
+    return $exit_code
+}
+
 {{- if eq .chezmoi.os "darwin" }}
 # Warp tab helpers (macOS only)
 # Uses working URL scheme: warp://action/new_tab?path=
