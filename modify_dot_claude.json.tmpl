@@ -12,40 +12,29 @@ if [ -z "$current" ] || [ "$current" = "{}" ]; then
     current='{"mcpServers":{}}'
 fi
 
-# Load secrets from 1Password if op CLI available
-if command -v op &> /dev/null; then
-    # Linear
-    if [ -z "${LINEAR_API_KEY:-}" ]; then
-        LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential" 2>/dev/null || echo "")
-    fi
-    # Sentry
-    if [ -z "${SENTRY_ACCESS_TOKEN:-}" ]; then
-        SENTRY_ACCESS_TOKEN=$(op read "op://Development/Sentry MCP API Key/credential" 2>/dev/null || echo "")
-    fi
-    # GitHub
-    if [ -z "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]; then
-        GITHUB_PERSONAL_ACCESS_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null || echo "")
-    fi
-    # Toggl
-    if [ -z "${TOGGL_API_KEY:-}" ]; then
-        TOGGL_API_KEY=$(op read "op://Development/Toggl API Key/credential" 2>/dev/null || echo "")
-    fi
-    # Notion - DISABLED (no permission to create integration)
-    # if [ -z "${NOTION_API_KEY:-}" ]; then
-    #     NOTION_API_KEY=$(op read "op://Development/Notion API Key/credential" 2>/dev/null || echo "")
-    # fi
-    # Slack (User Token - acts as you)
-    if [ -z "${SLACK_MCP_XOXP_TOKEN:-}" ]; then
-        SLACK_MCP_XOXP_TOKEN=$(op read "op://Development/Slack User Token/credential" 2>/dev/null || echo "")
-    fi
-    # Datadog
-    if [ -z "${DD_API_KEY:-}" ]; then
-        DD_API_KEY=$(op read "op://Development/Datadog API Key/credential" 2>/dev/null || echo "")
-    fi
-    if [ -z "${DD_APP_KEY:-}" ]; then
-        DD_APP_KEY=$(op read "op://Development/Datadog App Key/credential" 2>/dev/null || echo "")
-    fi
+# Source secrets_env if it exists (container entrypoint injects token there)
+[ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"
+
+# Check if 1Password is available and working - FAIL LOUDLY if not
+if ! command -v op &> /dev/null; then
+    echo "ERROR: op CLI not installed - cannot configure MCP servers" >&2
+    exit 1
 fi
+
+if ! op account get &>/dev/null; then
+    echo "ERROR: 1Password not authenticated - cannot configure MCP servers" >&2
+    echo "  Set OP_SERVICE_ACCOUNT_TOKEN or source ~/.secrets_env" >&2
+    exit 1
+fi
+
+# 1Password is working - load secrets
+LINEAR_API_KEY="${LINEAR_API_KEY:-$(op read "op://Development/Linear MCP API Key/credential")}"
+SENTRY_ACCESS_TOKEN="${SENTRY_ACCESS_TOKEN:-$(op read "op://Development/Sentry MCP API Key/credential")}"
+GITHUB_PERSONAL_ACCESS_TOKEN="${GITHUB_PERSONAL_ACCESS_TOKEN:-$(op read "op://Development/GitHub Personal Access Token/credential")}"
+TOGGL_API_KEY="${TOGGL_API_KEY:-$(op read "op://Development/Toggl API Key/credential")}"
+SLACK_MCP_XOXP_TOKEN="${SLACK_MCP_XOXP_TOKEN:-$(op read "op://Development/Slack User Token/credential")}"
+DD_API_KEY="${DD_API_KEY:-$(op read "op://Development/Datadog API Key/credential")}"
+DD_APP_KEY="${DD_APP_KEY:-$(op read "op://Development/Datadog App Key/credential")}"
 
 # Define our MCP servers (source of truth)
 mcp_servers='{{ include "private_dot_claude/mcp-servers.yaml" | sha256sum }}'
@@ -55,7 +44,7 @@ desired_servers='{
     "command": "npx",
     "args": ["-y", "@larryhudson/linear-mcp-server"],
     "env": {
-      "LINEAR_API_KEY": "'"${LINEAR_API_KEY:-}"'"
+      "LINEAR_API_KEY": "'"${LINEAR_API_KEY}"'"
     }
   },
   "fetch": {
@@ -78,7 +67,7 @@ desired_servers='{
     "command": "npx",
     "args": ["@sentry/mcp-server@latest"],
     "env": {
-      "SENTRY_ACCESS_TOKEN": "'"${SENTRY_ACCESS_TOKEN:-}"'",
+      "SENTRY_ACCESS_TOKEN": "'"${SENTRY_ACCESS_TOKEN}"'",
       "SENTRY_ORG": "metr-sh"
     }
   },
@@ -87,7 +76,7 @@ desired_servers='{
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-github"],
     "env": {
-      "GITHUB_PERSONAL_ACCESS_TOKEN": "'"${GITHUB_PERSONAL_ACCESS_TOKEN:-}"'"
+      "GITHUB_PERSONAL_ACCESS_TOKEN": "'"${GITHUB_PERSONAL_ACCESS_TOKEN}"'"
     }
   },
   "toggl": {
@@ -95,7 +84,7 @@ desired_servers='{
     "command": "npx",
     "args": ["-y", "@verygoodplugins/mcp-toggl@latest"],
     "env": {
-      "TOGGL_API_KEY": "'"${TOGGL_API_KEY:-}"'"
+      "TOGGL_API_KEY": "'"${TOGGL_API_KEY}"'"
     }
   },
   "slack": {
@@ -103,7 +92,7 @@ desired_servers='{
     "command": "npx",
     "args": ["-y", "slack-mcp-server"],
     "env": {
-      "SLACK_MCP_XOXP_TOKEN": "'"${SLACK_MCP_XOXP_TOKEN:-}"'",
+      "SLACK_MCP_XOXP_TOKEN": "'"${SLACK_MCP_XOXP_TOKEN}"'",
       "SLACK_MCP_ADD_MESSAGE_TOOL": "true"
     }
   },
@@ -112,8 +101,8 @@ desired_servers='{
     "command": "uvx",
     "args": ["--from", "git+https://github.com/shelfio/datadog-mcp.git", "datadog-mcp"],
     "env": {
-      "DD_API_KEY": "'"${DD_API_KEY:-}"'",
-      "DD_APP_KEY": "'"${DD_APP_KEY:-}"'",
+      "DD_API_KEY": "'"${DD_API_KEY}"'",
+      "DD_APP_KEY": "'"${DD_APP_KEY}"'",
       "DD_SITE": "us3.datadoghq.com"
     }
   }

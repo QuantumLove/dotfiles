@@ -1,0 +1,180 @@
+---
+name: hot-patch
+description: Hot-patch container without rebuild (dotfiles, tools, packages)
+permissions:
+  - Bash(chezmoi *)
+  - Bash(mise *)
+  - Bash(claude plugin *)
+  - Bash(git pull)
+  - Bash(source *)
+  - Bash(sudo apt-get *)
+  - Bash(curl *)
+  - Bash(npm install -g *)
+---
+
+# Hot Patch - Update Running Container Without Rebuild
+
+Apply changes to a running mega-container. Works for dotfiles, tools, and even system packages.
+
+## Philosophy
+
+- **Hot-patchable**: Apply now, container keeps running
+- **Non-hot-patchable**: Install directly anyway - it works until next rebuild
+- **Next rebuild**: Gets the golden image with all changes baked in
+- **If it breaks**: Rebuild when convenient, no rollback needed
+
+## Usage
+
+```bash
+/hot-patch                    # Full update
+/hot-patch --chezmoi          # Just dotfiles
+/hot-patch --install <tool>   # Direct install something not in image
+```
+
+## What Gets Updated
+
+| Component | Method |
+|-----------|--------|
+| Dotfiles (skills, CLAUDE.md, MCP) | `chezmoi apply` |
+| Mise tools (node, python, k9s) | `mise install` |
+| Claude plugins | `claude plugin install` |
+| System packages | `sudo apt-get install` |
+| Binaries (helm, gh, etc.) | Direct curl/install |
+| NPM globals | `npm install -g` |
+
+## Implementation
+
+### Step 1: Pre-flight
+
+```bash
+echo "=== Hot Patch ==="
+
+# Source secrets if available
+[ -f "$HOME/.secrets_env" ] && source "$HOME/.secrets_env"
+
+# Check 1Password - chezmoi apply will FAIL if this isn't working
+if op account get &>/dev/null; then
+    echo "✓ 1Password authenticated"
+else
+    echo "❌ 1Password not authenticated"
+    echo "   chezmoi apply will fail - fix this first or handle MCP config manually"
+    echo ""
+    echo "   Options:"
+    echo "   1. Restart container (gets fresh token from host)"
+    echo "   2. export OP_SERVICE_ACCOUNT_TOKEN='...' manually"
+    echo "   3. Skip chezmoi, do other updates only"
+fi
+```
+
+### Step 2: Pull Latest Chezmoi
+
+```bash
+echo ""
+echo "=== Pulling chezmoi source ==="
+cd ~/.local/share/chezmoi
+git pull --rebase origin main || echo "  (already up to date or conflict)"
+echo "✓ Done"
+```
+
+### Step 3: Apply Chezmoi
+
+```bash
+echo ""
+echo "=== Applying chezmoi ==="
+chezmoi apply
+echo "✓ Dotfiles updated"
+```
+
+### Step 4: Mise Tools
+
+```bash
+echo ""
+echo "=== Updating mise tools ==="
+mise install
+echo "✓ Mise tools updated"
+```
+
+### Step 5: Claude Plugins
+
+```bash
+echo ""
+echo "=== Updating Claude plugins ==="
+PLUGIN_LIST="$HOME/.local/share/chezmoi/private_dot_claude/plugin-list.txt"
+if [ -f "$PLUGIN_LIST" ]; then
+    while IFS= read -r plugin || [ -n "$plugin" ]; do
+        [[ -z "$plugin" || "$plugin" =~ ^# ]] && continue
+        claude plugin install "$plugin" 2>/dev/null || true
+    done < "$PLUGIN_LIST"
+fi
+echo "✓ Plugins updated"
+```
+
+### Step 6: Summary
+
+```bash
+echo ""
+echo "=== Done ==="
+echo "Reload shell: exec bash -l"
+```
+
+## Direct Installs (for non-hot-patchable things)
+
+When you need something that's normally baked into the Dockerfile:
+
+### System Package
+```bash
+sudo apt-get update && sudo apt-get install -y <package>
+```
+
+### Binary Tool (example: updating helm)
+```bash
+ARCH=$(dpkg --print-architecture)
+curl -fsSL https://get.helm.sh/helm-v3.15.4-linux-${ARCH}.tar.gz | tar xz -C /tmp
+sudo mv /tmp/linux-${ARCH}/helm /usr/local/bin/helm
+```
+
+### NPM Global
+```bash
+npm install -g <package>
+```
+
+### Python Tool
+```bash
+pip install --user <package>
+# or
+uvx <package>
+```
+
+These work immediately but aren't in the golden image. Next rebuild will get the proper version from Dockerfile.
+
+## Troubleshooting
+
+**chezmoi apply fails with "1Password not authenticated":**
+The script fails loudly instead of silently deleting your keys. Options:
+```bash
+# Option 1: Fix 1Password auth
+source ~/.secrets_env
+op account get  # Should work now
+chezmoi apply
+
+# Option 2: Restart container (gets fresh token from host)
+
+# Option 3: Skip MCP updates, do everything else manually
+mise install
+claude plugin install ...
+# Edit ~/.claude.json manually if needed
+```
+
+**Chezmoi conflicts:**
+```bash
+chezmoi diff                    # See what changed
+chezmoi apply --force           # Force apply
+```
+
+**Something broke:**
+Just rebuild when convenient:
+```bash
+# On host machine
+cd ~/.local/share/chezmoi/mega-container
+./start.sh
+```

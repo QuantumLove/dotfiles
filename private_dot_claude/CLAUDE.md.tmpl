@@ -172,6 +172,26 @@ tmux attach || tmux new -s dev
 /start-work --quick "experiment"  # Quick hack without tracking
 ```
 
+### Hot Patching (Update Without Rebuild)
+
+Apply changes to a running container without rebuilding:
+
+```bash
+/hot-patch              # Full update: chezmoi + mise + plugins
+/hot-patch --chezmoi    # Just dotfiles
+```
+
+**Everything can be hot-patched** - even system packages and binaries. Just install them directly:
+```bash
+sudo apt-get install -y <package>        # System package
+npm install -g <package>                  # NPM global
+curl ... | sudo mv /usr/local/bin/       # Binary
+```
+
+These work immediately. Next rebuild gets the golden image with changes baked in.
+
+**1Password required:** `chezmoi apply` fails loudly if 1Password isn't authenticated (won't silently delete your keys). Fix the auth or handle manually.
+
 ### Troubleshooting
 
 **Container won't start / 1Password auth fails:**
