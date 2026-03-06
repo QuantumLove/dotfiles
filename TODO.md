@@ -4,7 +4,14 @@ Ideas and improvements for the Claude/AI development setup.
 
 ## High Priority
 
-- [ ] **Vulnerability Management Agent** - Agent that monitors security advisories, CVEs, and dependency vulnerabilities across repos. Auto-creates issues or PRs for critical updates.
+- [ ] **Vulnerability Management Agent** - Context-aware security agent that goes beyond code scanning. Monitors and triages vulnerabilities across:
+  - **Code**: Dependency CVEs, security advisories, outdated packages across repos
+  - **AWS**: IAM misconfigurations, security group exposures, unencrypted resources, GuardDuty findings
+  - **Datadog**: Security signals, anomaly detection alerts, audit logs
+  - **Sentry**: Error patterns that indicate security issues (auth failures, injection attempts)
+  - **Infrastructure**: Terraform security linting, container vulnerabilities, secrets in logs
+
+  The agent should correlate findings across systems (e.g., a CVE in code + exposed endpoint in AWS = critical), auto-create Linear issues with proper severity, and generate PRs for straightforward fixes. Consider studying Claude Code's own security model first.
 
 ## Medium Priority
 
@@ -35,4 +42,4 @@ Ideas and improvements for the Claude/AI development setup.
 
 ---
 
-*Last updated: 2026-02-24*
+*Last updated: 2026-03-06*
