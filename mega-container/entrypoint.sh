@@ -117,8 +117,27 @@ if [ -z "$GH_TOKEN" ]; then
 fi
 export GH_TOKEN
 echo "export GH_TOKEN='$GH_TOKEN'" >> ~/.secrets_env
-chmod 600 ~/.secrets_env
 echo "✓ GitHub token ready"
+
+# 7b. FAIL FAST: Fetch Datadog keys from 1Password (for MCP server and agents)
+echo "Fetching Datadog keys from 1Password..."
+DD_API_KEY=$(op read "op://Development/Datadog API Key/credential" 2>/dev/null)
+if [ -z "$DD_API_KEY" ]; then
+  echo "ERROR: Failed to fetch Datadog API Key from 1Password"
+  echo "Ensure 'Datadog API Key' exists in the Development vault with a 'credential' field"
+  exit 1
+fi
+DD_APP_KEY=$(op read "op://Development/Datadog App Key/credential" 2>/dev/null)
+if [ -z "$DD_APP_KEY" ]; then
+  echo "ERROR: Failed to fetch Datadog App Key from 1Password"
+  echo "Ensure 'Datadog App Key' exists in the Development vault with a 'credential' field"
+  exit 1
+fi
+export DD_API_KEY DD_APP_KEY
+echo "export DD_API_KEY='$DD_API_KEY'" >> ~/.secrets_env
+echo "export DD_APP_KEY='$DD_APP_KEY'" >> ~/.secrets_env
+chmod 600 ~/.secrets_env
+echo "✓ Datadog keys ready"
 
 # 8. Login to Docker Hub and dhi.io (METR registry, same creds)
 echo "Logging into Docker registries..."
