@@ -203,6 +203,21 @@ aws-sso-login production   # Login with production
 
 Auto-detects local vs remote: opens a browser locally, or shows a pre-filled device-code URL in headless environments (mega-container, SSH, CI). On first remote use it auto-creates a `-device` profile variant in `~/.aws/config`.
 
+### Kubernetes / Minikube
+
+The container shares `~/.kube` with the host, so all kubectl contexts (minikube, EKS, etc.) are available.
+
+**If minikube was started AFTER the container:**
+```bash
+# From host (or inside container with docker access):
+docker network connect minikube mega-container-mega-1
+
+# Then kubectl should work
+kubectl get nodes
+```
+
+The container auto-connects to minikube network at startup if minikube is already running. But if you start minikube later, you need to manually reconnect.
+
 ### Workflow Skills
 | Skill | Purpose |
 |-------|---------|

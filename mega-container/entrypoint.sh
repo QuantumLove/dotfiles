@@ -68,7 +68,23 @@ if [ -S /var/run/docker.sock ]; then
   echo "✓ Docker compose + buildx ready"
 fi
 
-# 3c. Setup QEMU binfmt for cross-platform Docker builds (aarch64 -> amd64)
+# 3c. Connect to minikube network (allows kubectl to reach host's minikube)
+if [ -S /var/run/docker.sock ]; then
+  if docker network ls --format '{{.Name}}' | grep -q '^minikube$'; then
+    echo "Connecting to minikube network..."
+    # Get our container ID from cgroup
+    CONTAINER_ID=$(cat /proc/self/cgroup 2>/dev/null | grep -oP 'docker/\K[a-f0-9]+' | head -1)
+    if [ -n "$CONTAINER_ID" ]; then
+      # Connect if not already connected
+      if ! docker network inspect minikube --format '{{range .Containers}}{{.Name}}{{end}}' 2>/dev/null | grep -q "$CONTAINER_ID"; then
+        docker network connect minikube "$CONTAINER_ID" 2>/dev/null || true
+      fi
+      echo "✓ Connected to minikube network"
+    fi
+  fi
+fi
+
+# 3d. Setup QEMU binfmt for cross-platform Docker builds (aarch64 -> amd64)
 if [ -S /var/run/docker.sock ]; then
   echo "Setting up QEMU binfmt for cross-platform builds..."
   if ! docker run --privileged --rm tonistiigi/binfmt --install all >/dev/null 2>&1; then

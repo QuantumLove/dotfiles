@@ -22,6 +22,8 @@ services:
       - /run/host-services/ssh-auth.sock:/ssh-agent:ro
       # AWS config and SSO cache from host (rw needed for SSO token refresh)
       - ~/.aws:/home/rafaelcarvalho/.aws
+      # Kubernetes config from host (shares minikube/EKS contexts)
+      - ~/.kube:/home/rafaelcarvalho/.kube
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "tailscale", "status", "--json"]
