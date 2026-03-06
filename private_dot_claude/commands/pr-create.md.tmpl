@@ -138,10 +138,11 @@ if ! git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
   git push -u origin "$BRANCH"
 fi
 
-# Create PR
+# Create PR (auto-assign to self)
 gh pr create \
   --title "$PR_TITLE" \
   --body "$PR_BODY" \
+  --assignee @me \
   ${DRAFT:+--draft}
 
 # Show result

@@ -24,6 +24,10 @@ Ideas and improvements for the Claude/AI development setup.
 
 ## Ideas to Explore
 
+- [ ] **Time tracking skill** - Integrate Toggl MCP with workflow. Auto-track time per Linear issue, generate reports, suggest when to take breaks.
+
+- [ ] **Days since broken production** - Fun tracker/dashboard showing streak of production stability. Reset on incidents, celebrate milestones.
+
 - [ ] Session summarization on disconnect
 - [ ] Auto-commit learnings to `docs/solutions/`
 - [ ] MCP health dashboard

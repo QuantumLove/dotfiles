@@ -5,6 +5,7 @@ FROM debian:bookworm-slim
 # =============================================================================
 # helm:      3.15.4
 # gh:        2.67.0
+# lazygit:   0.44.1
 # pulumi:    3.161.0
 # docker:    24.0.7
 # compose:   2.32.4
@@ -76,6 +77,13 @@ RUN ARCH=$(uname -m) && \
     curl -fsSL https://github.com/cli/cli/releases/download/v2.67.0/gh_2.67.0_linux_${ARCH}.tar.gz | tar xz -C /tmp && \
     mv /tmp/gh_2.67.0_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
     rm -rf /tmp/gh_*
+
+# Lazygit
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="x86_64"; fi && \
+    curl -fsSL https://github.com/jesseduffield/lazygit/releases/download/v0.44.1/lazygit_0.44.1_Linux_${ARCH}.tar.gz | tar xz -C /tmp && \
+    mv /tmp/lazygit /usr/local/bin/lazygit && \
+    rm -rf /tmp/lazygit*
 
 # Pulumi CLI
 RUN ARCH=$(uname -m) && \
