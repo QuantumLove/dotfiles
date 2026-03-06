@@ -28,6 +28,14 @@ Switch between AWS profiles (staging/production) with automatic verification.
 - Warn if credentials are expired
 - Display account ID to prevent production accidents
 
+## Expired Credentials
+
+If `aws sts get-caller-identity` fails with expired credentials, run `aws-sso-login <profile>`.
+
+This auto-detects the environment:
+- **Local (browser available):** Opens the standard browser-based SSO flow
+- **Remote/headless:** Uses device-code flow and displays a pre-filled URL to open on any device
+
 ## Example Output
 
 ```

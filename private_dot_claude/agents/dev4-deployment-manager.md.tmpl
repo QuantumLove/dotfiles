@@ -315,10 +315,7 @@ ls -la ~/code/worktrees/inspect-action-METR-456/terraform
 ```
 Error: Error creating AWS session: NoCredentialProviders
 ```
-**Fix:** Re-authenticate
-```bash
-aws sso login --profile staging
-```
+**Fix:** Re-authenticate with `aws-sso-login staging` (auto-detects local vs remote)
 
 **Issue: "Smoke test env vars missing"**
 ```bash

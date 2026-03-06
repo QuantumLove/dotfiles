@@ -116,7 +116,7 @@ echo ""
 # Check AWS credentials
 if ! aws sts get-caller-identity &>/dev/null; then
   echo "❌ AWS credentials not configured"
-  echo "   Run: /aws-switch staging"
+  echo "   Run: aws-sso-login staging"
   exit 1
 fi
 

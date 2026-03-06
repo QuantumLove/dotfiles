@@ -85,6 +85,15 @@ tmux new -s work   # persistent sessions
 - `/load-env` - Load .env files with secret detection
 - `/mcp-setup-1password` - Interactive credential setup
 
+### 🔧 Shell Functions
+
+| Function | Purpose |
+|----------|---------|
+| `awstg [env]` | Set AWS_PROFILE=staging with optional ENVIRONMENT |
+| `awspr` | Set AWS_PROFILE=production |
+| `aws-sso-login [profile]` | SSO login — auto-detects local (browser) vs remote (device-code flow) |
+| `loadenv <file>` | Load environment variables from a file |
+
 ## Usage Examples
 
 ### Code Review

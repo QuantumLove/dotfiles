@@ -194,6 +194,15 @@ tmux attach || tmux new -s dev
 - The `-v` flag deletes volumes including Tailscale state
 - Use `docker compose down` (without `-v`) to preserve identity
 
+### AWS Authentication
+
+```bash
+aws-sso-login              # Login with staging (default)
+aws-sso-login production   # Login with production
+```
+
+Auto-detects local vs remote: opens a browser locally, or shows a pre-filled device-code URL in headless environments (mega-container, SSH, CI). On first remote use it auto-creates a `-device` profile variant in `~/.aws/config`.
+
 ### Workflow Skills
 | Skill | Purpose |
 |-------|---------|
