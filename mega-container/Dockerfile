@@ -1,5 +1,32 @@
 FROM debian:bookworm-slim
 
+# =============================================================================
+# VERSIONS - Update these when upgrading tools
+# =============================================================================
+# helm:      3.15.4
+# gh:        2.67.0
+# pulumi:    3.161.0
+# docker:    24.0.7
+# compose:   2.32.4
+# buildx:    0.21.1
+# =============================================================================
+
+# =============================================================================
+# ARCHITECTURE NAMING CONVENTIONS (lesson learned: each tool is different!)
+# =============================================================================
+# Tool            | Method                | arm64 value  | x86_64 value
+# ----------------|----------------------|--------------|---------------
+# dpkg            | dpkg --print-arch    | arm64        | amd64
+# uname           | uname -m             | aarch64      | x86_64
+# helm            | dpkg arch            | arm64        | amd64
+# gh              | uname -> arm64       | arm64        | (no mapping)
+# pulumi          | uname -> arm64/x64   | arm64        | x64
+# aws cli         | uname (native)       | aarch64      | x86_64
+# docker cli      | uname (native)       | aarch64      | x86_64
+# docker-compose  | uname (native)       | aarch64      | x86_64
+# docker-buildx   | uname -> arm64/amd64 | arm64        | amd64
+# =============================================================================
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -77,12 +104,15 @@ RUN ARCH=$(uname -m) && \
       -o /usr/local/lib/docker/cli-plugins/docker-compose && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
-# Docker Buildx plugin
+# Docker Buildx plugin (uses arm64/amd64 naming, NOT aarch64/x86_64)
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi && \
     curl -fsSL "https://github.com/docker/buildx/releases/download/v0.21.1/buildx-v0.21.1.linux-${ARCH}" \
       -o /usr/local/lib/docker/cli-plugins/docker-buildx && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+
+# Verify Docker CLI plugins are working (fail fast at build time, not runtime)
+RUN docker compose version && docker buildx version
 
 # OSC 52 clipboard wrapper (enables copy from container to host terminal)
 # OpenCode/xclip/xsel use this to send clipboard data via terminal escape sequences

@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+# Strict mode: exit on error, undefined vars, pipe failures
+set -euo pipefail
 
 echo "=== Mega Container Bootstrap ==="
 
@@ -53,7 +54,21 @@ if [ -S /var/run/docker.sock ]; then
   echo "✓ Docker socket accessible"
 fi
 
-# 3b. Setup QEMU binfmt for cross-platform Docker builds (aarch64 -> amd64)
+# 3b. Verify Docker CLI plugins (fail fast if missing)
+if [ -S /var/run/docker.sock ]; then
+  echo "Verifying Docker CLI plugins..."
+  if ! docker compose version >/dev/null 2>&1; then
+    echo "ERROR: docker compose plugin not working"
+    exit 1
+  fi
+  if ! docker buildx version >/dev/null 2>&1; then
+    echo "ERROR: docker buildx plugin not working"
+    exit 1
+  fi
+  echo "✓ Docker compose + buildx ready"
+fi
+
+# 3c. Setup QEMU binfmt for cross-platform Docker builds (aarch64 -> amd64)
 if [ -S /var/run/docker.sock ]; then
   echo "Setting up QEMU binfmt for cross-platform builds..."
   if ! docker run --privileged --rm tonistiigi/binfmt --install all >/dev/null 2>&1; then
