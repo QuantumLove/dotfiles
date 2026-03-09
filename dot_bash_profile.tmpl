@@ -19,3 +19,8 @@ fi
 # Local Docker: host agent mounted at /ssh-agent
 # Cloud VM: would need 1Password SSH agent or similar
 [ -S "/ssh-agent" ] && export SSH_AUTH_SOCK=/ssh-agent
+
+# Default working directory for mega-container SSH sessions
+if [ -f "$HOME/.secrets_env" ] && [ -d "$HOME/code/platform" ]; then
+  cd "$HOME/code/platform"
+fi
