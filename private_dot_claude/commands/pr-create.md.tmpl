@@ -16,6 +16,7 @@ Create GitHub pull requests with automatic Linear issue detection and tagging.
 
 ```bash
 # Auto-detect from branch name (eng-123-*, METR-123-*, etc.)
+# Creates as DRAFT by default, self-assigned
 /pr-create
 
 # Explicitly specify Linear issue
@@ -27,8 +28,8 @@ Create GitHub pull requests with automatic Linear issue detection and tagging.
 # With custom title (Linear tag still prepended)
 /pr-create --title "Add user authentication"
 
-# Draft PR
-/pr-create --draft
+# Ready for review (not draft)
+/pr-create --ready
 ```
 
 ## What It Does
@@ -138,12 +139,13 @@ if ! git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
   git push -u origin "$BRANCH"
 fi
 
-# Create PR (auto-assign to self)
+# Create PR (draft by default, self-assigned)
+# Use --ready flag to create non-draft PR
 gh pr create \
   --title "$PR_TITLE" \
   --body "$PR_BODY" \
   --assignee @me \
-  ${DRAFT:+--draft}
+  ${READY:---draft}
 
 # Show result
 gh pr view --web
@@ -190,7 +192,7 @@ Opening in browser...
 | `--linear ID` | Explicitly set Linear issue ID |
 | `--no-linear` | Skip Linear tagging entirely |
 | `--title "..."` | Custom PR title (Linear tag still added) |
-| `--draft` | Create as draft PR |
+| `--ready` | Create as ready for review (default is draft) |
 | `--web` | Open PR in browser after creation |
 
 ## Related Commands
