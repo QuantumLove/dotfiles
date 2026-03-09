@@ -2,191 +2,164 @@
 name: async-standup
 description: Generate async standup summary from git, Linear, and Toggl
 permissions:
-  - Bash(git log *)
+  - Bash(git *)
+  - Bash(gh pr list *)
   - Bash(date *)
-  - mcp__linear__list_issues
-  - mcp__toggl__*
+  - mcp__linear__get_my_issues
+  - mcp__toggl__toggl_get_time_entries
 ---
 
 # Async Standup - Daily Summary Generator
 
-Generate a standup summary by aggregating data from git commits, Linear issues, and Toggl time entries. Output is formatted for copy-paste to Slack.
+Generate a standup summary by aggregating data from GitHub PRs, git commits, Linear issues, and Toggl time entries. Output is formatted for copy-paste to Slack with clickable PR links.
 
-## Usage
+## Key Principles
 
-```bash
-# Generate standup for today
-/async-standup
+**PRs are the unit of work, not commits.** Raw commit messages like "refactor: move X to Y" are meaningless without context. Always group work by PR and include:
+- PR title and link
+- Who is reviewing
+- Review status (approved, changes requested, blocking comments, awaiting review)
 
-# Generate for specific date
-/async-standup --date 2026-02-24
+**Don't trust Linear status blindly.** "In Review" in Linear doesn't tell you who's reviewing or if there are blocking comments. The real status comes from GitHub PR reviews.
 
-# Include yesterday's summary too
-/async-standup --yesterday
-
-# Skip Toggl (if not using time tracking)
-/async-standup --no-toggl
-```
-
-## What It Does
-
-1. **Git Activity**: Recent commits across repos in ~/code
-2. **Linear Issues**: Issues you worked on (status changes, comments)
-3. **Toggl Time**: Time entries from the day
-4. **Format**: Slack-ready markdown output
+**Don't trust Linear priority blindly.** The user knows what's actually high priority today, not the backlog grooming from last week.
 
 ## Implementation
 
-### Step 1: Gather Git Activity
+### Step 1: Gather Open PRs (PRIMARY SOURCE OF TRUTH)
+
+This is the most important step. PRs tell the real story of what you're working on.
 
 ```bash
-# Find commits from today (or specified date)
+# For each repo, get open PRs with full review context
+gh pr list --author=@me --state=open --json number,title,url,headRefName,reviewDecision,reviewRequests,reviews
+```
+
+For each PR, extract:
+- **PR number and title**
+- **URL** (for Slack links)
+- **Review status**: APPROVED, CHANGES_REQUESTED, REVIEW_REQUIRED, or no reviews yet
+- **Reviewers**: Who has been requested, who has reviewed
+- **Blocking feedback**: Look for reviews with state "CHANGES_REQUESTED" or "COMMENTED" with blocking issues
+
+### Step 2: Gather Git Activity (SECONDARY - for context)
+
+Git commits provide context for what was done on each PR, but should be grouped by PR branch, not listed raw.
+
+```bash
 DATE="${1:-$(date +%Y-%m-%d)}"
-YESTERDAY=$(date -v-1d +%Y-%m-%d 2>/dev/null || date -d "yesterday" +%Y-%m-%d)
+GIT_EMAIL=$(git config --global user.email)
 
-echo "📊 Gathering activity for $DATE..."
-
-# Get commits from all repos in ~/code
-GIT_ACTIVITY=""
+# Get commits from all repos
 for repo in ~/code/*/; do
-  if [ -d "$repo/.git" ]; then
-    REPO_NAME=$(basename "$repo")
-    COMMITS=$(cd "$repo" && git log --author="$(git config user.email)" --since="$DATE 00:00" --until="$DATE 23:59" --format="• %s" 2>/dev/null)
-    if [ -n "$COMMITS" ]; then
-      GIT_ACTIVITY="$GIT_ACTIVITY\n*$REPO_NAME:*\n$COMMITS"
-    fi
-  fi
+  git log --author="$GIT_EMAIL" --since="$DATE 00:00" --until="$DATE 23:59" --format="• %s (%h)"
 done
 ```
 
-### Step 2: Gather Linear Activity
+**Important**: Match commits to PRs by branch name. A commit on branch `feat/model-group-mapping` belongs to PR #951.
 
-Query Linear MCP for:
-- Issues assigned to me that were updated today
-- Issues I commented on today
-- Issues I moved (status changed) today
+### Step 3: Gather Linear Activity (TERTIARY - for planning)
 
-```
-Use the Linear MCP to list my issues that were updated since $DATE.
-Include: issue ID, title, current status, and what changed.
-```
-
-Format as:
-```
-*Linear:*
-• [ENG-123] Fixed auth timeout - moved to Done
-• [ENG-456] API rate limiting - in progress
-• Commented on ENG-789
-```
-
-### Step 3: Gather Toggl Time (if enabled)
-
-Query Toggl MCP for time entries:
+Use Linear MCP to get active issues, but remember:
+- Linear status may lag behind GitHub PR status
+- Use Linear for "Today" planning section, not for "Yesterday" accomplishments
+- The real work is in the PRs
 
 ```
-Use the Toggl MCP to get my time entries for $DATE.
-Include: project, description, duration.
+mcp__linear__get_my_issues with state="active"
 ```
 
-Format as:
+### Step 4: Gather Toggl Time (OPTIONAL)
+
 ```
-*Time Tracked:*
-• inspect-action: 3h 15m
-• mp4-deploy: 2h 30m
-• meetings: 1h
-Total: 6h 45m
+mcp__toggl__toggl_get_time_entries with period="today"
 ```
 
-### Step 4: Format Output
+### Step 5: Format Output for Slack
 
-Generate Slack-formatted summary:
+**Always include PR links in a Slack-clickable format**: `[#123](https://github.com/org/repo/pull/123)`
 
 ```markdown
-📋 *Standup - $DATE*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 **STANDUP SUMMARY** - Ready to paste to Slack
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 *Standup - YYYY-MM-DD*
 
 *Yesterday:*
-$GIT_ACTIVITY
-
-$LINEAR_ACTIVITY
+• **PR Title** ([#123](url)) - What you actually did, review status, who reviewed
+• **Another PR** ([#456](url)) - Context about the work
 
 *Today:*
-• [Plan item 1 from Linear "In Progress" issues]
-• [Plan item 2]
+• **PR Title** ([#123](url)) - What you plan to do
+• **New work** - Description
 
-*Blockers:*
-• None / [List any blockers]
+*Open PRs:*
+• [#123](url) PR Title → reviewer1, reviewer2 (✅ approved / 🔄 awaiting / ⚠️ changes requested)
+• [#456](url) PR Title → reviewer3 (📝 drafting)
 
-$TOGGL_SUMMARY
-```
+*Blockers:* None / List blockers
 
-### Step 5: Output for Copy-Paste
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 STANDUP SUMMARY - Ready to paste to Slack
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[Generated summary here]
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copy the text above and paste to #standup
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ## Example Output
 
 ```
-/async-standup
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 STANDUP SUMMARY - Ready to paste to Slack
+📋 **STANDUP SUMMARY** - Ready to paste to Slack
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📋 *Standup - 2026-02-25*
+📋 *Standup - 2026-03-06*
 
 *Yesterday:*
-*inspect-action:*
-• feat(mcp): Add GitHub, Toggl MCPs
-• fix: Resolve Sentry org prompt issue
-
-*mp4-deploy:*
-• chore: Update terraform providers
-
-*Linear:*
-• [ENG-123] MCP Integration - ✅ Done
-• [ENG-456] Mega container Phase 2 - 🔄 In Progress
+• **RLS Model Group Mapping** ([#951](https://github.com/METR/inspect-action/pull/951)) - Addressed revmischa's blocking review (JSONC parser, include_name filter, migration ordering). APPROVED, needs final review from rasmusfaber.
+• **EC2 Middleman Decommission** ([#54](https://github.com/METR/platform/pull/54)) - Moved to review. Waiting on PaarthShah + rasmusfaber.
 
 *Today:*
-• Continue Phase 3 workflow skills
-• Review PR #234
+• **RLS Model Group Mapping** ([#951](https://github.com/METR/inspect-action/pull/951)) - HIGH PRIORITY - Continue addressing feedback
+• **Datadog Observability** ([#56](https://github.com/METR/platform/pull/56)) - Drafting dashboard/monitors PR
 
-*Blockers:*
-• None
+*Open PRs:*
+• [#951](https://github.com/METR/inspect-action/pull/951) RLS Model Group Mapping → rasmusfaber (✅ approved by revmischa)
+• [#964](https://github.com/METR/inspect-action/pull/964) NaN/Infinity fix → rasmusfaber (🔄 awaiting)
+• [#56](https://github.com/METR/platform/pull/56) Datadog Observability → (📝 drafting)
+• [#54](https://github.com/METR/platform/pull/54) EC2 Decommission → PaarthShah, rasmusfaber (🔄 awaiting)
 
-*Time:* 6h 45m tracked
+*Blockers:* None
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Copy the text above and paste to #standup
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+## Status Icons
+
+| Icon | Meaning |
+|------|---------|
+| ✅ | Approved (ready to merge or needs final approval) |
+| 🔄 | Awaiting review |
+| ⚠️ | Changes requested / blocking feedback |
+| 📝 | Draft / still working on it |
+| 🚫 | Blocked by external dependency |
 
 ## Flags
 
 | Flag | Description |
 |------|-------------|
 | `--date YYYY-MM-DD` | Generate for specific date |
-| `--yesterday` | Include yesterday in "Yesterday" section |
+| `--yesterday` | Include yesterday's git activity |
 | `--no-toggl` | Skip Toggl time tracking |
 | `--no-linear` | Skip Linear issues |
 | `--repos path` | Custom repos path (default: ~/code) |
 
-## Notes
+## Anti-Patterns to Avoid
 
-- **Slack MCP Deferred**: Currently outputs for manual copy-paste. When Slack MCP is enabled, can add `--post` flag to send directly.
-- **Timezone**: Uses system timezone for date calculations.
-- **Privacy**: Only shows your commits/issues (uses git config user.email).
+1. **Don't list raw commits** - "refactor: move X" is meaningless without PR context
+2. **Don't say "In Review"** - Say WHO is reviewing and WHAT the status is
+3. **Don't trust Linear priority** - Ask the user what's actually high priority
+4. **Don't forget PR links** - Teammates need to click through to help
 
 ## Related Commands
 
 - `/where-am-i` - Current context
 - `/linear-triage` - Manage Linear issues
-- `@toggl` - Direct Toggl MCP queries
+- `/pr-create` - Create PR with Linear tag
