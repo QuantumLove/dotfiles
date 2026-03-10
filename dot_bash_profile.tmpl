@@ -12,15 +12,14 @@ if [ -d "$HOME/.local/share/mise" ]; then
   eval "$(mise activate bash 2>/dev/null)"
 fi
 
-# Load secrets injected by container entrypoint (mega-container)
-[ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"
+# Container-specific setup (only runs inside Docker containers)
+if [ -f /.dockerenv ]; then
+  # Load secrets injected by container entrypoint
+  [ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"
 
-# SSH Agent for git operations in mega-container
-# Local Docker: host agent mounted at /ssh-agent
-# Cloud VM: would need 1Password SSH agent or similar
-[ -S "/ssh-agent" ] && export SSH_AUTH_SOCK=/ssh-agent
+  # SSH Agent for git operations (host agent mounted at /ssh-agent)
+  [ -S "/ssh-agent" ] && export SSH_AUTH_SOCK=/ssh-agent
 
-# Default working directory for mega-container SSH sessions
-if [ -f "$HOME/.secrets_env" ] && [ -d "$HOME/code/platform" ]; then
-  cd "$HOME/code/platform"
+  # Default working directory for mega-container SSH sessions
+  [ -d "$HOME/code/platform" ] && cd "$HOME/code/platform"
 fi
