@@ -72,8 +72,8 @@ fi
 if [ -S /var/run/docker.sock ]; then
   if docker network ls --format '{{.Name}}' | grep -q '^minikube$'; then
     echo "Connecting to minikube network..."
-    # Get our container ID from cgroup
-    CONTAINER_ID=$(cat /proc/self/cgroup 2>/dev/null | grep -oP 'docker/\K[a-f0-9]+' | head -1)
+    # Get our container ID (hostname in Docker containers)
+    CONTAINER_ID=$(hostname)
     if [ -n "$CONTAINER_ID" ]; then
       # Connect if not already connected
       if ! docker network inspect minikube --format '{{range .Containers}}{{.Name}}{{end}}' 2>/dev/null | grep -q "$CONTAINER_ID"; then
@@ -81,6 +81,8 @@ if [ -S /var/run/docker.sock ]; then
       fi
       echo "✓ Connected to minikube network"
     fi
+  else
+    echo "  (minikube not running, skipping network connection)"
   fi
 fi
 

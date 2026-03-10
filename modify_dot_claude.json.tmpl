@@ -32,7 +32,8 @@ LINEAR_API_KEY="${LINEAR_API_KEY:-$(op read "op://Development/Linear MCP API Key
 SENTRY_ACCESS_TOKEN="${SENTRY_ACCESS_TOKEN:-$(op read "op://Development/Sentry MCP API Key/credential")}"
 GITHUB_PERSONAL_ACCESS_TOKEN="${GITHUB_PERSONAL_ACCESS_TOKEN:-$(op read "op://Development/GitHub Personal Access Token/credential")}"
 TOGGL_API_KEY="${TOGGL_API_KEY:-$(op read "op://Development/Toggl API Key/credential")}"
-SLACK_MCP_XOXP_TOKEN="${SLACK_MCP_XOXP_TOKEN:-$(op read "op://Development/Slack User Token/credential")}"
+# TODO: Make this required once Slack MCP is set up (remove 2>/dev/null || echo "")
+SLACK_MCP_XOXP_TOKEN="${SLACK_MCP_XOXP_TOKEN:-$(op read "op://Development/Slack User Token/credential" 2>/dev/null || echo "")}"
 DD_API_KEY="${DD_API_KEY:-$(op read "op://Development/Datadog API Key/credential")}"
 DD_APP_KEY="${DD_APP_KEY:-$(op read "op://Development/Datadog App Key/credential")}"
 
