@@ -1,0 +1,36 @@
+{{- if .is_macos }}
+---
+name: 6 devs
+active_window_index: 0
+windows:
+  - active_tab_index: 0
+    tabs:
+      - layout:
+          split_direction: horizontal
+          panes:
+            - split_direction: vertical
+              panes:
+                - commands:
+                    - exec: ssh raf-dev
+                - commands:
+                    - exec: ssh raf-dev
+            - split_direction: vertical
+              panes:
+                - is_focused: true
+                  commands:
+                    - exec: ssh raf-dev
+                - commands:
+                    - exec: ssh raf-dev
+            - split_direction: vertical
+              panes:
+                - commands:
+                    - exec: ssh raf-dev
+                - commands:
+                    - exec: ssh raf-dev
+      - title: mega-dev
+        layout:
+          cwd: {{ .chezmoi.homeDir }}/.local/share/chezmoi
+          is_focused: true
+          commands:
+            - exec: claude
+{{- end }}

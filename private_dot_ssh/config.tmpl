@@ -1,0 +1,24 @@
+{{- if .is_macos }}
+# Added by OrbStack: 'orb' SSH host for Linux machines
+# This only works if it's at the top of ssh_config (before any Host blocks).
+# This won't be added again if you remove it.
+Include ~/.orbstack/ssh/config
+{{- end }}
+
+Host *
+  AddKeysToAgent yes
+{{- if .is_macos }}
+  UseKeychain yes
+{{- end }}
+  IdentityFile ~/.ssh/id_ed25519
+
+{{- if .is_macos }}
+
+Host *
+  IdentityAgent "~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+{{- end }}
+
+# Mega-container - skip host key checking (key changes on rebuild)
+Host mega-dev raf-dev
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
