@@ -18,6 +18,80 @@
 - Don't add docstrings, comments, or type annotations to unchanged code
 - Readable code is better than commented code
 
+### Python Testing
+- **Use `@pytest.mark.parametrize`** for testing multiple inputs/scenarios
+- **Never write multiple near-identical test functions** — consolidate into parameterized tests
+- **Name test cases descriptively** using the `ids` parameter
+- Each test should have a clear, distinct purpose described in its name or id
+
+```python
+# BAD: Repetitive individual tests
+def test_validate_email_valid():
+    assert validate_email("user@example.com") is True
+
+def test_validate_email_invalid_no_at():
+    assert validate_email("userexample.com") is False
+
+def test_validate_email_invalid_no_domain():
+    assert validate_email("user@") is False
+
+# GOOD: Parameterized test
+@pytest.mark.parametrize("email,expected", [
+    ("user@example.com", True),
+    ("userexample.com", False),  # missing @
+    ("user@", False),            # missing domain
+    ("@example.com", False),     # missing local part
+], ids=["valid", "no-at", "no-domain", "no-local"])
+def test_validate_email(email, expected):
+    assert validate_email(email) == expected
+```
+
+- For complex test data, use fixtures or test data files
+- Group related parameterized tests by the behavior being tested, not by input type
+
+### JavaScript/TypeScript Testing (Jest/Vitest)
+- **Use `it.each` or `test.each`** for testing multiple inputs/scenarios
+- **Never write multiple near-identical test functions** — consolidate into table-driven tests
+- **Use descriptive test names** with template literals
+
+```typescript
+// BAD: Repetitive individual tests
+it('validates valid email', () => {
+  expect(validateEmail('user@example.com')).toBe(true);
+});
+
+it('rejects email without @', () => {
+  expect(validateEmail('userexample.com')).toBe(false);
+});
+
+it('rejects email without domain', () => {
+  expect(validateEmail('user@')).toBe(false);
+});
+
+// GOOD: Table-driven test
+it.each([
+  ['user@example.com', true, 'valid email'],
+  ['userexample.com', false, 'missing @'],
+  ['user@', false, 'missing domain'],
+  ['@example.com', false, 'missing local part'],
+])('validateEmail(%s) returns %s (%s)', (email, expected, _desc) => {
+  expect(validateEmail(email)).toBe(expected);
+});
+
+// ALSO GOOD: Object syntax for clarity
+it.each`
+  email                  | expected | scenario
+  ${'user@example.com'}  | ${true}  | ${'valid email'}
+  ${'userexample.com'}   | ${false} | ${'missing @'}
+  ${'user@'}             | ${false} | ${'missing domain'}
+`('validateEmail($email) returns $expected ($scenario)', ({ email, expected }) => {
+  expect(validateEmail(email)).toBe(expected);
+});
+```
+
+- Use `describe.each` when multiple tests share the same parameterized setup
+- For async tests, the same patterns apply with `async/await`
+
 ### Pull Requests
 - **Always create PRs as draft** unless explicitly told otherwise
 - **Always self-assign** (`--assignee @me`) when creating PRs
