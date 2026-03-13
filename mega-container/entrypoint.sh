@@ -159,6 +159,11 @@ echo "export DD_APP_KEY='$DD_APP_KEY'" >> ~/.secrets_env
 # DD_SITE for MCP/general use, DD_HOST for Pulumi provider (full URL format)
 echo "export DD_SITE='us3.datadoghq.com'" >> ~/.secrets_env
 echo "export DD_HOST='https://api.us3.datadoghq.com'" >> ~/.secrets_env
+# Pulumi Datadog provider expects DATADOG_* naming convention
+export DATADOG_API_KEY="$DD_API_KEY" DATADOG_APP_KEY="$DD_APP_KEY" DATADOG_API_URL="https://api.us3.datadoghq.com"
+echo "export DATADOG_API_KEY='$DATADOG_API_KEY'" >> ~/.secrets_env
+echo "export DATADOG_APP_KEY='$DATADOG_APP_KEY'" >> ~/.secrets_env
+echo "export DATADOG_API_URL='$DATADOG_API_URL'" >> ~/.secrets_env
 chmod 600 ~/.secrets_env
 echo "✓ Datadog keys ready"
 
