@@ -112,6 +112,8 @@ if ! op account get &>/dev/null; then
 fi
 echo "✓ 1Password connected"
 
+echo "export OP_SERVICE_ACCOUNT_TOKEN='$OP_SERVICE_ACCOUNT_TOKEN'" >> ~/.secrets_env
+
 # 6. FAIL FAST: Fetch Anthropic API key from 1Password
 echo "Fetching Anthropic API key from 1Password..."
 ANTHROPIC_API_KEY=$(op read "op://Development/Anthropic API Key/credential" 2>/dev/null)
@@ -154,6 +156,9 @@ fi
 export DD_API_KEY DD_APP_KEY
 echo "export DD_API_KEY='$DD_API_KEY'" >> ~/.secrets_env
 echo "export DD_APP_KEY='$DD_APP_KEY'" >> ~/.secrets_env
+# DD_SITE for MCP/general use, DD_HOST for Pulumi provider (full URL format)
+echo "export DD_SITE='us3.datadoghq.com'" >> ~/.secrets_env
+echo "export DD_HOST='https://api.us3.datadoghq.com'" >> ~/.secrets_env
 chmod 600 ~/.secrets_env
 echo "✓ Datadog keys ready"
 
