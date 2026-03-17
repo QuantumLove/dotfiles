@@ -21,7 +21,7 @@ The 1Password SSH agent socket (`~/Library/Group Containers/2BUA8C4S2C.com.1pass
 3. Reopen 1Password
 4. Verify SSH agent is enabled: Settings → Developer → "Use the SSH agent"
 5. Test it works: `SSH_AUTH_SOCK=~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock ssh-add -l`
-6. Restart the container: `cd ~/.local/share/chezmoi/mega-container && docker compose down && docker compose up -d`
+6. Restart the container: `cd ~/mega-container && docker compose down && docker compose up -d`
 
 **Verification:**
 ```bash

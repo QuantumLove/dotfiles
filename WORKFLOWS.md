@@ -22,7 +22,7 @@ Access your development environment from any device via SSH.
 
 ```bash
 # From macOS host
-cd ~/.local/share/chezmoi/mega-container && ./start.sh
+~/mega-container/start.sh
 
 # First time only: authenticate Tailscale
 docker compose exec tailscale tailscale up --accept-routes --ssh --hostname=mega-dev
@@ -69,7 +69,7 @@ tmux attach -t work
 
 ```bash
 # After updating chezmoi config
-cd ~/.local/share/chezmoi/mega-container
+cd ~/mega-container
 docker compose up -d --force-recreate mega
 ```
 

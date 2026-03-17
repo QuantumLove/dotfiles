@@ -27,7 +27,7 @@ SSH into a persistent dev container from any device (phone, tablet, laptop):
 
 ```bash
 # Start (from macOS host)
-cd ~/.local/share/chezmoi/mega-container && ./start.sh
+~/mega-container/start.sh
 
 # Connect from anywhere via Tailscale
 ssh mega-dev

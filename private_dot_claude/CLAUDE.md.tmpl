@@ -229,8 +229,7 @@ security add-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w 'YOUR_
 ### Starting the Container
 
 ```bash
-cd ~/.local/share/chezmoi/mega-container
-./start.sh
+~/mega-container/start.sh
 ```
 
 **First time only:** After `start.sh`, authenticate Tailscale:
@@ -277,7 +276,7 @@ These work immediately. Next rebuild gets the golden image with changes baked in
 **Container won't start / 1Password auth fails:**
 1. Verify token on host: `export OP_SERVICE_ACCOUNT_TOKEN=$(security find-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w) && op account get`
 2. Check token hasn't expired (90-day limit) - rotate in 1Password Dashboard if needed
-3. Restart container: `cd ~/.local/share/chezmoi/mega-container && ./start.sh`
+3. Restart container: `~/mega-container/start.sh`
 4. Check logs: `docker compose logs mega`
 
 **SSH connection refused / Permission denied:**

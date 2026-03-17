@@ -4,6 +4,15 @@ set -e
 
 echo "=== Mega Container Startup ==="
 
+# 0. Always run from chezmoi target (where dot_config becomes .config)
+MEGA_DIR="$HOME/mega-container"
+if [ ! -d "$MEGA_DIR" ]; then
+  echo "ERROR: $MEGA_DIR not found. Run 'chezmoi apply' first."
+  exit 1
+fi
+cd "$MEGA_DIR"
+echo "✓ Working from $MEGA_DIR"
+
 # 1. Fetch secrets from macOS Keychain
 echo "Fetching secrets from keychain..."
 

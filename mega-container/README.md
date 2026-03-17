@@ -32,8 +32,7 @@ Persistent development environment accessible via Tailscale SSH from any device.
 
 ```bash
 # Start the container
-cd ~/.local/share/chezmoi/mega-container
-./start.sh
+~/mega-container/start.sh
 
 # First time only: authenticate Tailscale
 docker compose exec mega sudo tailscale up --ssh --hostname=raf-dev --accept-routes
