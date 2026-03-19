@@ -239,7 +239,7 @@ if [ ! -d "$HOME/.local/share/chezmoi" ]; then
     exit 1
   fi
 fi
-chezmoi apply
+chezmoi apply --force
 if [ $? -ne 0 ]; then
   echo "ERROR: chezmoi apply failed"
   exit 1
