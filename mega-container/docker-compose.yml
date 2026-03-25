@@ -24,6 +24,8 @@ services:
       - ~/.aws:/home/rafaelcarvalho/.aws
       # Kubernetes config from host (shares minikube/EKS contexts)
       - ~/.kube:/home/rafaelcarvalho/.kube
+      # Hawk CLI config from host (shares auth tokens across host and container)
+      - ~/.config/hawk-cli:/home/rafaelcarvalho/.config/hawk-cli
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "tailscale", "status", "--json"]
