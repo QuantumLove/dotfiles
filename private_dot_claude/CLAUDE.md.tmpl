@@ -98,6 +98,34 @@ it.each`
 - Use `/pr-create` which does both by default
 - Use `--ready` flag only when PR is actually ready for review
 
+## Git Safety
+
+**CRITICAL:** These rules prevent production incidents. Violations have happened before — treat these as non-negotiable.
+
+### Never commit or push to main/master
+- **NEVER** run `git commit` while on the `main` or `master` branch
+- **NEVER** run `git push` to `main` or `master` (directly or implicitly)
+- **NEVER** run `git push --force` or `git push -f` on any branch
+- **Always** create a feature branch first: `git checkout -b feature/description`
+- If you find yourself on `main`, **stop and switch to a feature branch** before making any commits
+
+### Never merge PRs
+- **NEVER** run `gh pr merge` — PR merges require human review and approval
+- **NEVER** merge PRs via any CLI command or MCP tool
+- You may **create** draft PRs (`gh pr create --draft`) but never merge them
+- Merging happens through the GitHub UI by a human, not by the agent
+
+### Required git workflow
+1. Create or switch to a feature branch (`git checkout -b feature/...`)
+2. Make changes and commit to the feature branch
+3. Push the feature branch (`git push -u origin feature/...`)
+4. Create a draft PR (`gh pr create --draft`)
+5. **Stop.** The human reviews and merges.
+
+### Exceptions
+- **Chezmoi/dotfiles repo** (`~/.local/share/chezmoi`): Direct commits to main are OK — this is a personal dotfiles repo
+- If the user **explicitly** says "commit to main" or "push to main" or "merge the PR" with clear intent, you may proceed — but confirm first
+
 ## Terraform/Infrastructure Safety
 
 **CRITICAL:** These rules prevent production incidents. Always check before applying TF changes.
