@@ -2,488 +2,112 @@
 name: start-work
 description: Start or resume work on an issue, PR, or branch (creates/reuses worktree)
 permissions:
-  - Bash(git worktree add *)
+  - Bash(git worktree *)
   - Bash(git worktree list)
   - Bash(git fetch *)
   - Bash(git branch *)
-  - Bash(git pull *)
-  - Read(**/*.json)
-  - mcp__linear__create_issue
-  - mcp__linear__get_issue
-  - mcp__github__create_branch
+  - Bash(git check-ignore *)
+  - Bash(ls *)
+  - mcp__linear__get_ticket
+  - mcp__github__get_pull_request
 ---
 
-# Start Work - Start or Resume Work
+# Start Work
 
-Single entry point for working on anything. Creates a worktree if needed, or resumes in existing one.
+Single entry point for starting or resuming any piece of work. Creates a worktree if needed, or resumes in an existing one. Always ends with a `cd` instruction so the human can continue in the same session.
 
-## Usage
+## How to Invoke
 
-```bash
-# Start/resume work on a Linear issue
+Just describe what you want to work on — no flags needed:
+
+```
 /start-work METR-123
-
-# Start/resume work on a PR (yours or someone else's for review)
-/start-work --pr 456
-/start-work #456
-
-# Start/resume work on an existing branch
-/start-work --branch feature/some-branch
-
-# Create new Linear issue and start work
-/start-work --new "Fix authentication timeout bug"
-
-# Quick experiment (no Linear tracking)
-/start-work --quick "experiment-oauth-flow"
-
-# Interactive mode - prompts for options
+/start-work https://linear.app/metr/issue/METR-123/fix-auth-timeout
+/start-work https://github.com/org/repo/pull/456
+/start-work fix the authentication timeout bug
 /start-work
 ```
 
-## Behavior
+## What the Agent Does
 
-- **Worktree exists?** → Resumes there (pulls latest if clean)
-- **Worktree doesn't exist?** → Creates it and checks out the branch
+### Step 1: Detect intent
 
-## What It Does
+Infer what the user wants from the input:
 
-1. Fetches latest from origin
-2. Determines worktree path based on issue/PR/branch
-3. **If worktree exists:** Resumes there, pulls latest
-4. **If worktree doesn't exist:** Creates it
-5. Changes to the worktree directory
+- **Linear issue ID** (`METR-123`, `PLT-456`) or Linear URL → fetch issue via `linear_get_ticket` MCP tool → derive branch name `ISSUE-ID/slug-from-title`
+- **GitHub PR URL or "PR 456"** → fetch PR via `gh pr view` → get branch name → treat as existing branch
+- **Branch name** (contains `/` or looks like a slug) → use directly
+- **Free text or no input** → treat as quick experiment, ask: "Should I also create a Linear issue for this?"
 
-## Implementation
+### Step 2: Determine worktree path (superpowers convention)
+
+From the repo root, check in priority order:
 
 ```bash
-#!/bin/bash
-set -euo pipefail
+# 1. Project-local hidden directory (preferred)
+ls -d .worktrees 2>/dev/null
 
-# Parse arguments
-MODE="interactive"
-ISSUE_ID=""
-TITLE=""
-TEAM=""
-ASSIGN=""
-QUICK=false
-EXISTING_BRANCH=""
-PR_NUMBER=""
+# 2. Project-local visible directory
+ls -d worktrees 2>/dev/null
 
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --new)
-      MODE="create"
-      TITLE="$2"
-      shift 2
-      ;;
-    --quick)
-      QUICK=true
-      TITLE="${2:-quick-fix}"
-      shift 2
-      ;;
-    --team)
-      TEAM="$2"
-      shift 2
-      ;;
-    --assign)
-      ASSIGN="$2"
-      shift 2
-      ;;
-    --branch)
-      MODE="existing-branch"
-      EXISTING_BRANCH="$2"
-      shift 2
-      ;;
-    --pr)
-      MODE="pr"
-      PR_NUMBER="$2"
-      shift 2
-      ;;
-    \#*)
-      # Handle #123 format for PR
-      MODE="pr"
-      PR_NUMBER="${1#\#}"
-      shift
-      ;;
-    *)
-      ISSUE_ID="$1"
-      MODE="existing"
-      shift
-      ;;
-  esac
-done
+# 3. If neither exists, ask:
+#    "No worktree directory found. Use .worktrees/ (project-local) or ~/.config/superpowers/worktrees/<project>/ (global)?"
+```
 
-# Verify in git repo
-if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "❌ Not in a git repository"
-  exit 1
-fi
+If using a project-local directory, verify it's gitignored before creating the worktree:
 
-# Check for uncommitted changes
-if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-  echo "❌ You have uncommitted changes. Commit or stash them first."
-  git status --short
-  exit 1
-fi
+```bash
+git check-ignore -q .worktrees 2>/dev/null
+```
 
-REPO_NAME=$(basename $(git rev-parse --show-toplevel))
-WORKTREE_BASE="$HOME/code/worktrees/$REPO_NAME"
-mkdir -p "$WORKTREE_BASE"
+If NOT ignored: add `.worktrees/` to `.gitignore` and commit before proceeding.
 
-# Fetch latest
-echo "📡 Fetching latest from origin..."
+Worktree path: `<location>/<branch-name-slug>`
+
+### Step 3: Check if worktree already exists
+
+```bash
+git worktree list
+```
+
+- **Exists** → pull latest if clean, skip to Step 5
+- **Doesn't exist** → create it
+
+### Step 4: Create worktree
+
+```bash
+# Fetch latest first
 git fetch origin
 
-# Handle PR mode - get branch from PR
-if [ "$MODE" = "pr" ]; then
-  echo "🔍 Looking up PR #$PR_NUMBER..."
-  PR_JSON=$(gh pr view "$PR_NUMBER" --json headRefName,title,number,state 2>/dev/null || echo "{}")
-  if [ "$PR_JSON" = "{}" ] || [ "$(echo "$PR_JSON" | jq -r '.headRefName')" = "null" ]; then
-    echo "❌ Could not find PR #$PR_NUMBER"
-    exit 1
-  fi
-  EXISTING_BRANCH=$(echo "$PR_JSON" | jq -r '.headRefName')
-  PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
-  echo "   PR: #$PR_NUMBER - $PR_TITLE"
-  echo "   Branch: $EXISTING_BRANCH"
-  MODE="existing-branch"
-fi
+# For new branch (Linear issue or quick experiment):
+git worktree add "<path>" -b "<branch-name>" origin/main
 
-# Handle existing branch mode
-if [ "$MODE" = "existing-branch" ]; then
-  # Check if branch exists on remote
-  if ! git show-ref --verify --quiet "refs/remotes/origin/$EXISTING_BRANCH"; then
-    echo "❌ Branch 'origin/$EXISTING_BRANCH' not found"
-    echo "   Available branches:"
-    git branch -r | grep -v HEAD | head -10
-    exit 1
-  fi
-
-  # Extract issue ID from branch name if possible (e.g., METR-123/fix-thing)
-  if [[ "$EXISTING_BRANCH" =~ ^([A-Z]+-[0-9]+) ]]; then
-    ISSUE_ID="${BASH_REMATCH[1]}"
-    WORKTREE_NAME="$ISSUE_ID"
-  else
-    # Use branch name as worktree name
-    WORKTREE_NAME=$(echo "$EXISTING_BRANCH" | sed 's/[^a-zA-Z0-9-]/-/g' | sed 's/--*/-/g')
-  fi
-  WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
-  BRANCH_NAME="$EXISTING_BRANCH"
-  TRACK_EXISTING=true
-
-  echo "📋 Using existing branch: $EXISTING_BRANCH"
-fi
-
-# Handle different modes
-if [ "$MODE" = "interactive" ]; then
-  echo "🚀 Start Work - Quick Setup"
-  echo ""
-  echo "Choose an option:"
-  echo "  1) Load existing Linear issue"
-  echo "  2) Create new Linear issue"
-  echo "  3) Quick mode (no issue tracking)"
-  read -p "Selection (1-3): " choice
-
-  case $choice in
-    1)
-      read -p "Linear issue ID (e.g., METR-123): " ISSUE_ID
-      MODE="existing"
-      ;;
-    2)
-      read -p "Issue title: " TITLE
-      read -p "Team (optional): " TEAM
-      MODE="create"
-      ;;
-    3)
-      read -p "Branch name slug: " TITLE
-      QUICK=true
-      ;;
-    *)
-      echo "Invalid choice"
-      exit 1
-      ;;
-  esac
-fi
-
-# Process based on mode (skip if existing-branch already set)
-if [ "${TRACK_EXISTING:-}" = "true" ]; then
-  : # Already configured above
-elif [ "$QUICK" = true ]; then
-  # Quick mode - no Linear
-  SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
-  BRANCH_NAME="quick/$SLUG"
-  WORKTREE_NAME="quick-${SLUG}"
-  WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
-
-  echo "⚡ Quick mode - skipping Linear"
-
-elif [ "$MODE" = "existing" ]; then
-  # Load existing issue
-  echo "📋 Loading issue $ISSUE_ID..."
-
-  # Use MCP to fetch issue details
-  ISSUE_JSON=$(claude mcp call linear get_issue --issue-id "$ISSUE_ID" 2>/dev/null || echo "{}")
-
-  if [ "$ISSUE_JSON" = "{}" ]; then
-    echo "❌ Could not load issue $ISSUE_ID"
-    exit 1
-  fi
-
-  ISSUE_TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
-  ISSUE_STATE=$(echo "$ISSUE_JSON" | jq -r '.state.name')
-
-  echo "   Title: $ISSUE_TITLE"
-  echo "   State: $ISSUE_STATE"
-
-  SLUG=$(echo "$ISSUE_TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g' | cut -c1-50)
-  BRANCH_NAME="$ISSUE_ID/$SLUG"
-  WORKTREE_NAME="$ISSUE_ID"
-  WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
-
-elif [ "$MODE" = "create" ]; then
-  # Create new Linear issue
-  echo "📝 Creating Linear issue: $TITLE"
-
-  TEAM_ARG=""
-  if [ -n "$TEAM" ]; then
-    TEAM_ARG="--team $TEAM"
-  fi
-
-  ASSIGN_ARG=""
-  if [ -n "$ASSIGN" ]; then
-    ASSIGN_ARG="--assignee $ASSIGN"
-  fi
-
-  # Create issue via MCP
-  ISSUE_JSON=$(claude mcp call linear create_issue \
-    --title "$TITLE" \
-    $TEAM_ARG \
-    $ASSIGN_ARG \
-    2>/dev/null || echo "{}")
-
-  if [ "$ISSUE_JSON" = "{}" ]; then
-    echo "❌ Could not create Linear issue"
-    exit 1
-  fi
-
-  ISSUE_ID=$(echo "$ISSUE_JSON" | jq -r '.identifier')
-  echo "   Created: $ISSUE_ID"
-
-  SLUG=$(echo "$TITLE" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g' | cut -c1-50)
-  BRANCH_NAME="$ISSUE_ID/$SLUG"
-  WORKTREE_NAME="$ISSUE_ID"
-  WORKTREE_PATH="$WORKTREE_BASE/$WORKTREE_NAME"
-fi
-
-# Check if worktree already exists - if so, just resume work there
-if [ -d "$WORKTREE_PATH" ]; then
-  echo ""
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "🔄 Resuming work in existing worktree"
-  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo ""
-  echo "📂 Worktree: $WORKTREE_PATH"
-  echo "🌿 Branch: $(git -C "$WORKTREE_PATH" branch --show-current)"
-
-  # Check for uncommitted changes
-  if ! git -C "$WORKTREE_PATH" diff --quiet 2>/dev/null || ! git -C "$WORKTREE_PATH" diff --cached --quiet 2>/dev/null; then
-    echo "⚠️  Has uncommitted changes"
-  fi
-
-  # Pull latest if clean
-  if git -C "$WORKTREE_PATH" diff --quiet 2>/dev/null && git -C "$WORKTREE_PATH" diff --cached --quiet 2>/dev/null; then
-    echo "📡 Pulling latest..."
-    git -C "$WORKTREE_PATH" pull --ff-only 2>/dev/null || echo "   (no remote changes or can't fast-forward)"
-  fi
-
-  cd "$WORKTREE_PATH"
-  echo ""
-  echo "📂 Changed to: $WORKTREE_PATH"
-  exit 0
-fi
-
-# Create worktree (only if it doesn't exist)
-echo "🌳 Creating worktree: $WORKTREE_NAME"
-if [ "${TRACK_EXISTING:-}" = "true" ]; then
-  # Track existing remote branch
-  git worktree add "$WORKTREE_PATH" "origin/$BRANCH_NAME"
-  echo "   (tracking existing branch)"
-else
-  # Create new branch from origin/main
-  git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" origin/main
-fi
-
-echo ""
-echo "✅ Worktree created!"
-echo ""
-echo "📂 Worktree: $WORKTREE_PATH"
-echo "🌿 Branch: $BRANCH_NAME"
-if [ "$QUICK" = false ]; then
-  echo "🎫 Issue: $ISSUE_ID"
-fi
-
-# --- Session Handoff ---
-# Write context to handoff file for DevContainer continuation
-HANDOFF_DIR="$HOME/.claude/handoff"
-mkdir -p "$HANDOFF_DIR"
-HANDOFF_FILE="$HANDOFF_DIR/${WORKTREE_NAME}.md"
-
-echo "📝 Writing session handoff..."
-
-cat > "$HANDOFF_FILE" << HANDOFF_EOF
-# Session Handoff: ${ISSUE_ID:-$WORKTREE_NAME}
-
-## Issue Context
-HANDOFF_EOF
-
-# Add issue context if available
-if [ "$QUICK" = false ] && [ -n "$ISSUE_ID" ]; then
-  # Fetch and format issue details
-  ISSUE_JSON=$(claude mcp call linear get_issue --issue-id "$ISSUE_ID" 2>/dev/null || echo "{}")
-  if [ "$ISSUE_JSON" != "{}" ]; then
-    echo "$ISSUE_JSON" | jq -r '"**Title:** \(.title)\n**Status:** \(.state.name)\n**Priority:** \(.priority // "None")\n\n### Description\n\(.description // "No description")\n\n### Acceptance Criteria\n\(.acceptanceCriteria // "None specified")"' >> "$HANDOFF_FILE"
-  else
-    echo "Issue: $ISSUE_ID (details unavailable)" >> "$HANDOFF_FILE"
-  fi
-else
-  echo "Quick mode - no issue tracking" >> "$HANDOFF_FILE"
-fi
-
-cat >> "$HANDOFF_FILE" << HANDOFF_EOF
-
-## Worktree Info
-- **Path:** $WORKTREE_PATH
-- **Branch:** $BRANCH_NAME
-- **Created:** $(date '+%Y-%m-%d %H:%M:%S')
-
-## Next Steps
-1. Review the issue context above
-2. Explore the codebase to understand the change needed
-3. Implement the fix/feature
-4. Run tests and verify
-5. Use \`/push-pr\` to create a pull request
-
-## How to Continue
-Run \`claude\` in this DevContainer terminal to continue work.
-Use \`cat ~/.claude/handoff/${WORKTREE_NAME}.md\` to review this context.
-HANDOFF_EOF
-
-echo "   Saved to: $HANDOFF_FILE"
-
-# --- Mega-Container Workflow ---
-# In mega-container, we work directly in worktrees without DevContainers
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "✅ Workspace ready!"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-echo "Next steps:"
-echo "  1. cd $WORKTREE_PATH"
-echo "  2. Make your changes (already in mega-container)"
-echo "  3. /pr-create (to create PR with Linear tag)"
-echo ""
-echo "Session context: ~/.claude/handoff/${WORKTREE_NAME}.md"
-echo ""
-
-# Auto-change to the worktree directory
-cd "$WORKTREE_PATH"
-echo "📂 Changed to: $WORKTREE_PATH"
+# For existing branch (PR or existing branch):
+git worktree add "<path>" "origin/<branch-name>"
 ```
 
-## Examples
+### Step 5: Output the cd instruction
 
-### Example 1: Existing Linear Issue
+```
+Worktree ready at <full-path>
+Branch: <branch-name>
 
-```bash
-$ /start-work METR-456
-
-📡 Fetching latest from origin...
-📋 Loading issue METR-456...
-   Title: Fix timeout in evaluation runner
-   State: In Progress
-🌳 Creating worktree: METR-456
-
-✅ Worktree created!
-
-📂 Worktree: ~/code/worktrees/inspect-action/METR-456
-🌿 Branch: METR-456/fix-timeout-in-evaluation-runner
-🎫 Issue: METR-456
-
-📝 Writing session handoff...
-   Saved to: ~/.claude/handoff/METR-456.md
-
-🐳 Starting DevContainer...
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ DevContainer started! Continue work inside.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-To continue work inside the DevContainer:
-
-  Option 1 - Warp/Terminal (recommended):
-    docker exec -it inspect-action-METR-456 claude
-
-  Option 2 - VSCode:
-    Use the integrated terminal in VSCode (already opened)
-
-This host session will now end. Continue in DevContainer.
+To continue:
+  cd <full-path>
 ```
 
-### Example 2: Existing Branch (Resume Work)
+That's it. No handoff file. The human does `cd`, resumes the same OpenCode session, and starts working.
 
-```bash
-$ /start-work --branch METR-456/fix-timeout
+## Branch Naming
 
-📡 Fetching latest from origin...
-📋 Using existing branch: METR-456/fix-timeout
-🌳 Creating worktree: METR-456
-   (tracking existing branch)
+- Linear issue: `METR-123/fix-auth-timeout` (ID + slug from title, max 50 chars)
+- PR: use the PR's existing branch name as-is
+- Quick experiment: `quick/<slug>` (e.g. `quick/test-new-cache-layer`)
+- Free text: slugify the description → `quick/<slug>`, ask about Linear issue
 
-✅ Worktree created!
+## Notes
 
-📂 Worktree: ~/code/worktrees/inspect-action/METR-456
-🌿 Branch: METR-456/fix-timeout
-🎫 Issue: METR-456
-
-📝 Writing session handoff...
-🐳 Starting DevContainer...
-
-This host session will now end. Continue in DevContainer.
-```
-
-### Example 3: From Pull Request
-
-```bash
-$ /start-work --pr 456
-
-📡 Fetching latest from origin...
-🔍 Looking up PR #456...
-   PR: #456 - Fix timeout in evaluation runner
-   Branch: METR-456/fix-timeout
-📋 Using existing branch: METR-456/fix-timeout
-🌳 Creating worktree: METR-456
-   (tracking existing branch)
-
-✅ Worktree created!
-...
-```
-
-### Example 4: Quick Mode (No Issue Tracking)
-
-```bash
-$ /start-work --quick "test-new-cache-layer"
-
-📡 Fetching latest from origin...
-⚡ Quick mode - skipping Linear
-🌳 Creating worktree: quick-test-new-cache-layer
-
-✅ Worktree created!
-
-📂 Worktree: ~/code/worktrees/inspect-action/quick-test-new-cache-layer
-🌿 Branch: quick/test-new-cache-layer
-
-📝 Writing session handoff...
-🐳 Starting DevContainer...
-
-This host session will now end. Continue in DevContainer.
-```
+- Always `git fetch origin` before creating a new worktree
+- Never create a worktree if there are uncommitted changes in the current directory
+- If the worktree already exists, just point to it — don't recreate it
+- The `.worktrees/` directory should be in `.gitignore` — fix it if it's not

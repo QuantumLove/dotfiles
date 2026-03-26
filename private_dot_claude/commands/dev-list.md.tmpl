@@ -1,6 +1,6 @@
 ---
 name: dev-list
-description: List all git worktrees across all repos in ~/code
+description: List all git worktrees across all repos
 permissions:
   - Bash(git worktree list)
   - Bash(find *)
@@ -30,7 +30,7 @@ ACTIVE_ONLY=false
 [[ "${1:-}" == "--active" ]] && ACTIVE_ONLY=true
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🌳 Git Worktrees in ~/code"
+echo "🌳 Git Worktrees"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -77,17 +77,17 @@ echo "* = uncommitted changes"
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🌳 Git Worktrees in ~/code
+🌳 Git Worktrees
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📁 inspect-action
-   /Users/me/code/inspect-action                       main
-   /Users/me/code/worktrees/inspect-action/METR-123    METR-123/fix-auth *
-   /Users/me/code/worktrees/inspect-action/METR-456    METR-456/add-cache
+   /home/raf/code/inspect-action                              main
+   /home/raf/code/inspect-action/.worktrees/METR-123          METR-123/fix-auth *
+   /home/raf/code/inspect-action/.worktrees/METR-456          METR-456/add-cache
 
 📁 platform
-   /Users/me/code/platform                             main
-   /Users/me/code/worktrees/platform/quick-experiment  quick/experiment *
+   /home/raf/code/platform                                    main
+   /home/raf/code/platform/.worktrees/quick-experiment        quick/experiment *
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 * = uncommitted changes
