@@ -37,6 +37,14 @@ if command -v op &> /dev/null; then
             export AUTHORIZATION="Bearer $LINEAR_API_KEY"
         fi
 
+        if [ -z "$OPENAI_API_KEY" ]; then
+            export OPENAI_API_KEY=$(op read "op://Development/OpenAI API Key/credential" 2>/dev/null || echo "")
+        fi
+
+        if [ -z "$GEMINI_API_KEY" ]; then
+            export GEMINI_API_KEY=$(op read "op://Development/Google Gemini API Key/credential" 2>/dev/null || echo "")
+        fi
+
         # DISABLED: gh CLI uses keyring auth from `gh auth login`
         # GitHub MCP uses OAuth, not env token
         # Uncomment below ONLY if specific tools require GITHUB_TOKEN

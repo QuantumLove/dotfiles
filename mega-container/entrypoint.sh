@@ -127,6 +127,30 @@ export ANTHROPIC_API_KEY
 echo "export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'" >> ~/.secrets_env
 echo "✓ Anthropic API key ready"
 
+# 6b. FAIL FAST: Fetch OpenAI API key from 1Password
+echo "Fetching OpenAI API key from 1Password..."
+OPENAI_API_KEY=$(op read "op://Development/OpenAI API Key/credential" 2>/dev/null)
+if [ -z "$OPENAI_API_KEY" ]; then
+  echo "ERROR: Failed to fetch OpenAI API Key from 1Password"
+  echo "Ensure 'OpenAI API Key' exists in the Development vault with a 'credential' field"
+  exit 1
+fi
+export OPENAI_API_KEY
+echo "export OPENAI_API_KEY='$OPENAI_API_KEY'" >> ~/.secrets_env
+echo "✓ OpenAI API key ready"
+
+# 6c. FAIL FAST: Fetch Google Gemini API key from 1Password
+echo "Fetching Google Gemini API key from 1Password..."
+GEMINI_API_KEY=$(op read "op://Development/Google Gemini API Key/credential" 2>/dev/null)
+if [ -z "$GEMINI_API_KEY" ]; then
+  echo "ERROR: Failed to fetch Google Gemini API Key from 1Password"
+  echo "Ensure 'Google Gemini API Key' exists in the Development vault with a 'credential' field"
+  exit 1
+fi
+export GEMINI_API_KEY
+echo "export GEMINI_API_KEY='$GEMINI_API_KEY'" >> ~/.secrets_env
+echo "✓ Google Gemini API key ready"
+
 # 7. FAIL FAST: Fetch GitHub token from 1Password
 echo "Fetching GitHub token from 1Password..."
 GH_TOKEN=$(op read "op://Development/GitHub Classic PAT/credential" 2>/dev/null)
