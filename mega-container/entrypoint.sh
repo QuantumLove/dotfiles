@@ -129,10 +129,10 @@ echo "✓ Anthropic API key ready"
 
 # 6b. FAIL FAST: Fetch OpenAI API key from 1Password
 echo "Fetching OpenAI API key from 1Password..."
-OPENAI_API_KEY=$(op read "op://Development/Open AI API Key/credential" 2>/dev/null)
+OPENAI_API_KEY=$(op read "op://Development/OpenAI API Key/credential" 2>/dev/null)
 if [ -z "$OPENAI_API_KEY" ]; then
   echo "ERROR: Failed to fetch OpenAI API Key from 1Password"
-  echo "Ensure 'Open AI API Key' exists in the Development vault with a 'credential' field"
+  echo "Ensure 'OpenAI API Key' exists in the Development vault with a 'credential' field"
   exit 1
 fi
 export OPENAI_API_KEY

@@ -38,7 +38,7 @@ if command -v op &> /dev/null; then
         fi
 
         if [ -z "$OPENAI_API_KEY" ]; then
-            export OPENAI_API_KEY=$(op read "op://Development/Open AI API Key/credential" 2>/dev/null || echo "")
+            export OPENAI_API_KEY=$(op read "op://Development/OpenAI API Key/credential" 2>/dev/null || echo "")
         fi
 
         if [ -z "$GEMINI_API_KEY" ]; then
