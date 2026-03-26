@@ -37,7 +37,9 @@ while IFS= read -r plugin || [ -n "$plugin" ]; do
     [[ -z "$plugin" || "$plugin" =~ ^# ]] && continue
 
     echo "  Installing: $plugin"
-    claude plugin install "$plugin" 2>/dev/null || echo "  (already installed or marketplace unavailable)"
+    if ! claude plugin install "$plugin"; then
+      echo "  ⚠️  Failed to install $plugin (may already be installed or marketplace unavailable)"
+    fi
 done < "{{ .chezmoi.sourceDir }}/private_dot_claude/plugin-list.txt"
 
 echo "Plugin installation complete"
