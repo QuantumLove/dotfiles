@@ -1,47 +1,54 @@
 #!/bin/bash
-# Clone Claude Code plugin marketplaces if not present
-# This script runs once after chezmoi apply
-
+# =============================================================================
+# Claude Code Plugin Bootstrap (chezmoi run_once script)
+# =============================================================================
+#
+# First-time setup: registers marketplaces and installs plugins.
+# Runs once per machine. Subsequent plugin installs are handled by
+# run_onchange_install-plugins.sh when plugin-list.txt changes.
+#
+# Marketplaces are NOT managed as chezmoi files because they contain
+# platform-specific absolute paths. Each platform registers its own
+# via `claude plugin marketplace add` which generates correct paths.
+# =============================================================================
 set -e
 
-PLUGINS_DIR="$HOME/.claude/plugins/marketplaces"
-mkdir -p "$PLUGINS_DIR"
+if ! command -v claude &> /dev/null; then
+    echo "Claude Code not installed, skipping plugin setup"
+    exit 0
+fi
 
-echo "🔌 Installing Claude Code plugins..."
+echo "🔌 Setting up Claude Code plugins..."
 echo ""
 
-clone_if_missing() {
-  local name="$1"
-  local repo="$2"
-  if [ ! -d "$PLUGINS_DIR/$name" ]; then
-    echo "📦 Cloning $name..."
-    git clone --depth 1 "https://github.com/$repo.git" "$PLUGINS_DIR/$name" 2>/dev/null
-    echo "   ✅ Installed"
-  else
-    echo "✅ $name already installed"
+# Register plugin marketplaces (idempotent — no-ops if already registered)
+echo "📦 Registering plugin marketplaces..."
+
+register_marketplace() {
+  local repo="$1"
+  echo "   Registering $repo..."
+  if ! claude plugin marketplace add "$repo"; then
+    echo "   ⚠️  Failed to register $repo"
   fi
 }
 
-clone_if_missing "claude-plugins-official" "anthropics/claude-plugins-official"
-clone_if_missing "compound-engineering-plugin" "EveryInc/compound-engineering-plugin"
-clone_if_missing "superpowers-marketplace" "obra/superpowers-marketplace"
+register_marketplace "anthropics/claude-plugins-official"
+register_marketplace "EveryInc/compound-engineering-plugin"
+register_marketplace "obra/superpowers-marketplace"
+register_marketplace "METR/claude-code"
 
+# Install all plugins from plugin-list.txt
 echo ""
-echo "📥 Installing plugins from marketplaces..."
+echo "📥 Installing plugins..."
 
-# Install plugins via CLI (populates cache)
-install_plugin() {
-  local plugin="$1"
-  if command -v claude &> /dev/null; then
-    echo "   Installing $plugin..."
+while IFS= read -r plugin || [ -n "$plugin" ]; do
+    [[ -z "$plugin" || "$plugin" =~ ^# ]] && continue
+
+    echo "   Installing: $plugin"
     if ! claude plugin install "$plugin"; then
       echo "   ⚠️  Failed to install $plugin (may already be installed or marketplace unavailable)"
     fi
-  fi
-}
-
-install_plugin "compound-engineering@compound-engineering-plugin"
-install_plugin "superpowers@superpowers-marketplace"
+done < "{{ .chezmoi.sourceDir }}/private_dot_claude/plugin-list.txt"
 
 echo ""
 echo "🎉 Claude Code plugins ready!"

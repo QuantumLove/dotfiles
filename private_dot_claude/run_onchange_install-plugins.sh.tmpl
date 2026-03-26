@@ -3,17 +3,13 @@
 # Claude Code Plugin Installer (chezmoi run_onchange script)
 # =============================================================================
 #
-# This script automatically installs Claude Code plugins when the plugin list
-# changes. It's triggered by chezmoi's run_onchange mechanism.
+# Automatically installs Claude Code plugins when the plugin list changes.
+# Also fixes cross-platform marketplace paths (macOS ↔ Linux).
 #
 # How it works:
 # 1. The "Hash:" comment below contains a SHA256 of plugin-list.txt
 # 2. When plugin-list.txt changes, the hash changes
 # 3. Chezmoi detects the hash change and re-runs this script
-#
-# Files involved:
-# - plugin-list.txt: List of plugins to install (one per line)
-# - This script: Reads the list and runs `claude plugin install` for each
 #
 # To add new plugins:
 # 1. Edit ~/.local/share/chezmoi/private_dot_claude/plugin-list.txt
@@ -23,11 +19,31 @@
 # =============================================================================
 set -euo pipefail
 
-# Only run if claude command is available
 if ! command -v claude &> /dev/null; then
     echo "Claude Code not installed, skipping plugin installation"
     exit 0
 fi
+
+# Fix cross-platform marketplace paths.
+# known_marketplaces.json stores absolute paths that differ between macOS
+# (/Users/...) and Linux (/home/...). Normalize all paths to current $HOME.
+MARKETPLACES_FILE="$HOME/.claude/plugins/known_marketplaces.json"
+if [ -f "$MARKETPLACES_FILE" ] && command -v jq &> /dev/null; then
+    # Check if any installLocation doesn't start with $HOME (stale cross-platform path)
+    if jq -e --arg home "$HOME" 'to_entries | any(.value.installLocation | startswith($home) | not)' "$MARKETPLACES_FILE" > /dev/null 2>&1; then
+        echo "Fixing marketplace paths for current platform..."
+        jq --arg home "$HOME" '
+          to_entries | map(.value.installLocation = ($home + "/.claude/plugins/marketplaces/" + .key)) | from_entries
+        ' "$MARKETPLACES_FILE" > "${MARKETPLACES_FILE}.tmp" && mv "${MARKETPLACES_FILE}.tmp" "$MARKETPLACES_FILE"
+    fi
+fi
+
+# Ensure marketplaces are registered (idempotent safety net)
+echo "Registering plugin marketplaces..."
+claude plugin marketplace add anthropics/claude-plugins-official 2>&1 || true
+claude plugin marketplace add EveryInc/compound-engineering-plugin 2>&1 || true
+claude plugin marketplace add obra/superpowers-marketplace 2>&1 || true
+claude plugin marketplace add METR/claude-code 2>&1 || true
 
 echo "Installing Claude Code plugins..."
 
