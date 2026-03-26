@@ -3,10 +3,8 @@
 ## Coding Philosophy
 
 ### Backwards Compatibility
-- **Default:** Don't worry about backwards compatibility unless explicitly stated
-- **When relevant:** Flag real concerns in plans and during code review
-- **Action:** Without explicit confirmation, code as if backwards compatibility is not a concern
-- **Exception:** If a change would break critical production systems or public APIs, flag it before proceeding
+- Don't worry about backwards compatibility unless explicitly stated
+- Exception: flag it if a change would break critical production systems or public APIs
 
 ### General Approach
 - Prefer simple, direct solutions over defensive/future-proof abstractions
@@ -25,16 +23,6 @@
 - Each test should have a clear, distinct purpose described in its name or id
 
 ```python
-# BAD: Repetitive individual tests
-def test_validate_email_valid():
-    assert validate_email("user@example.com") is True
-
-def test_validate_email_invalid_no_at():
-    assert validate_email("userexample.com") is False
-
-def test_validate_email_invalid_no_domain():
-    assert validate_email("user@") is False
-
 # GOOD: Parameterized test
 @pytest.mark.parametrize("email,expected", [
     ("user@example.com", True),
@@ -55,19 +43,6 @@ def test_validate_email(email, expected):
 - **Use descriptive test names** with template literals
 
 ```typescript
-// BAD: Repetitive individual tests
-it('validates valid email', () => {
-  expect(validateEmail('user@example.com')).toBe(true);
-});
-
-it('rejects email without @', () => {
-  expect(validateEmail('userexample.com')).toBe(false);
-});
-
-it('rejects email without domain', () => {
-  expect(validateEmail('user@')).toBe(false);
-});
-
 // GOOD: Table-driven test
 it.each([
   ['user@example.com', true, 'valid email'],
@@ -75,16 +50,6 @@ it.each([
   ['user@', false, 'missing domain'],
   ['@example.com', false, 'missing local part'],
 ])('validateEmail(%s) returns %s (%s)', (email, expected, _desc) => {
-  expect(validateEmail(email)).toBe(expected);
-});
-
-// ALSO GOOD: Object syntax for clarity
-it.each`
-  email                  | expected | scenario
-  ${'user@example.com'}  | ${true}  | ${'valid email'}
-  ${'userexample.com'}   | ${false} | ${'missing @'}
-  ${'user@'}             | ${false} | ${'missing domain'}
-`('validateEmail($email) returns $expected ($scenario)', ({ email, expected }) => {
   expect(validateEmail(email)).toBe(expected);
 });
 ```
@@ -97,6 +62,18 @@ it.each`
 - **Always self-assign** (`--assignee @me`) when creating PRs
 - Use `/pr-create` which does both by default
 - Use `--ready` flag only when PR is actually ready for review
+
+## Writing for Human Audiences
+
+When the output will be read by other humans (PR descriptions, Slack messages, LinkedIn posts, commit messages, code review comments):
+- **Write like a busy senior engineer**, not an AI assistant
+- PR descriptions: 2-5 bullet points max — what changed and why, no "## Summary" headers
+- Slack messages: 1-3 sentences, no bullet lists unless actually needed
+- Never use phrases like "This PR introduces...", "This change enhances...", "This commit adds..."
+- Don't explain obvious things — reviewers are engineers too
+- When in doubt, shorter is better
+
+When the output is just for me (analysis, research, investigation), verbose and detailed is fine.
 
 ## Git Safety
 
@@ -301,25 +278,10 @@ These work immediately. Next rebuild gets the golden image with changes baked in
 
 ### Troubleshooting
 
-**Container won't start / 1Password auth fails:**
-1. Verify token on host: `export OP_SERVICE_ACCOUNT_TOKEN=$(security find-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w) && op account get`
-2. Check token hasn't expired (90-day limit) - rotate in 1Password Dashboard if needed
-3. Restart container: `~/mega-container/start.sh`
-4. Check logs: `docker compose logs mega`
-
-**SSH connection refused / Permission denied:**
-1. Check container is healthy: `docker compose ps`
-2. Enable Tailscale SSH: `docker compose exec mega sudo tailscale up --accept-routes --ssh --hostname=raf-dev`
-3. Check Tailscale status: `docker compose exec mega tailscale status`
-
-**Tailscale hostname changed (e.g., raf-dev-1, raf-dev-2):**
-- This happens when `docker compose down -v` deletes the tailscale-state volume
-- The new hostname is permanent unless you can access Tailscale admin console
-- Just use the new hostname: `ssh raf-dev-1`
-
-**IMPORTANT: Don't use `docker compose down -v`**
-- The `-v` flag deletes volumes including Tailscale state
-- Use `docker compose down` (without `-v`) to preserve identity
+See `~/mega-container/README.md` for detailed troubleshooting. Common issues:
+- **1Password auth fails**: Check token hasn't expired (90-day limit), verify with `op account get`
+- **SSH refused**: Check container health (`docker compose ps`), re-enable Tailscale SSH
+- **Hostname changed**: Happens when `docker compose down -v` deletes volumes — use new hostname, avoid `-v` flag
 
 ### AWS Authentication
 
@@ -454,18 +416,10 @@ ssh raf-dev-1 "cd ~/.private-config && git pull"
 - Discovering infrastructure values (VPC IDs, subnet IDs, endpoints)
 - Setting up environment-specific variables for scripts
 
-**Example workflow after terraform apply:**
+**Example:** After `tofu apply` or `pulumi up`, save outputs and commit:
 ```bash
-cd ~/code/infrastructure/dev4
 tofu output -json > ~/.private-config/terraform-outputs/dev4.json
 cd ~/.private-config && git add -A && git commit -m "Update dev4 outputs" && git push
-```
-
-**Example workflow after pulumi up (platform repo):**
-```bash
-cd ~/code/platform/infra
-AWS_PROFILE=staging pulumi stack output --json > ~/.private-config/pulumi-outputs/$(pulumi stack --show-name).json
-cd ~/.private-config && git add -A && git commit -m "Update $(pulumi stack --show-name) outputs" && git push
 ```
 
 ## Where to Put Learnings
