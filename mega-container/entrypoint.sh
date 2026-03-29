@@ -191,6 +191,18 @@ echo "export DATADOG_API_URL='$DATADOG_API_URL'" >> ~/.secrets_env
 chmod 600 ~/.secrets_env
 echo "✓ Datadog keys ready"
 
+# GWS (Google Workspace CLI) credentials — soft-fail, not required for boot
+GWS_CREDENTIALS_JSON=$(op read "op://Development/GWS Credentials JSON/notesPlain" 2>/dev/null || echo "")
+if [ -n "$GWS_CREDENTIALS_JSON" ]; then
+  mkdir -p ~/.config/gws
+  printf '%s' "$GWS_CREDENTIALS_JSON" > ~/.config/gws/credentials.json
+  chmod 600 ~/.config/gws/credentials.json
+  echo "export GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE='$HOME/.config/gws/credentials.json'" >> ~/.secrets_env
+  echo "✓ GWS credentials ready"
+else
+  echo "⚠️  GWS credentials not found in 1Password (morning-triage will not work)"
+fi
+
 # 8. Login to Docker Hub and dhi.io (METR registry, same creds)
 echo "Logging into Docker registries..."
 DOCKER_USER=$(op read "op://Development/Docker Hub/username" 2>/dev/null)
