@@ -6,146 +6,187 @@ permissions:
   - Bash(gh pr list *)
   - Bash(gh api *)
   - Bash(date *)
+  - Bash(rm *)
   - mcp__linear__get_my_issues
+  - mcp__linear__get_ticket
   - mcp__toggl__toggl_get_time_entries
 ---
 
 # Async Standup - Daily Summary Generator
 
-Generate a standup summary by aggregating data from GitHub PRs, git commits, Linear issues, and Toggl time entries. Output is formatted for copy-paste to Slack with clickable PR links.
+Generate a standup summary by aggregating data from GitHub PRs, Linear issues, and Toggl time entries. Output to a temp file for copy-paste to Slack.
 
-## Key Principles
+## Core Principles
 
-**PRs are the unit of work, not commits.** Raw commit messages like "refactor: move X to Y" are meaningless without context. Always group work by PR and include:
-- PR title and link
-- Who is reviewing
-- Review status (approved, changes requested, blocking comments, awaiting review)
-
-**Read the actual PR reviews and comments.** Don't trust simple review status. Use `gh api` to read:
-- Review comments and their resolution state
-- Discussion comments
-- Commits pushed after approval (staleness detection)
-
-**Don't trust Linear status blindly.** "In Review" in Linear doesn't tell you who's reviewing or if there are blocking comments. The real status comes from GitHub PR reviews.
+1. **File-based output.** Always write to `.standup-YYYY-MM-DD.txt` in the current repo root. Never output the standup inline — the terminal reformats it and breaks Slack formatting.
+2. **PRs are the unit of work, not commits.** Group everything by PR.
+3. **Short descriptions.** 3-5 words max per item. Colleagues click the link if they want details.
+4. **Link hygiene.** If a work item has a PR → link the PR only, never the Linear ID. If no PR → link the Linear issue URL. Never both.
+5. **Read the actual reviews.** Don't trust `reviewDecision` — use `gh api` to read reviews, comments, and detect staleness.
+6. **Deep Linear investigation.** Call `get_ticket` on every active issue to read descriptions and comments. The title alone misses critical context (spike PRs, decisions, blockers).
+7. **Smart date range.** Monday standups cover Friday–Sunday. Other days cover since yesterday.
+8. **Human tone.** Write like an engineer posting in Slack, not a report generator.
 
 ## Implementation
 
-### Step 1: Gather Open PRs with Deep Analysis (PRIMARY SOURCE)
-
-**Get basic PR list:**
-```bash
-gh pr list --author=@me --state=open --json number,title,url,headRefName,reviewDecision,reviewRequests,isDraft
-```
-
-**For each PR, analyze deeply using `gh api`:**
+### Step 0: Create Output File
 
 ```bash
-# Get all reviews (approvals, changes requested, comments)
-gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews
-
-# Get review comments (inline code comments)
-gh api repos/{owner}/{repo}/pulls/{pr_number}/comments
-
-# Get discussion comments (general PR conversation)
-gh api repos/{owner}/{repo}/issues/{pr_number}/comments
-
-# Get commits (to detect changes since last approval)
-gh api repos/{owner}/{repo}/pulls/{pr_number}/commits
+DATE=$(date -u +%Y-%m-%d)
+STANDUP_FILE=".standup-${DATE}.txt"
 ```
 
-**Key signals to detect:**
-- **Approved but stale**: Has APPROVED review but commits pushed AFTER the approval timestamp
-- **Blocking comments**: Review state "CHANGES_REQUESTED" or unresolved threads
-- **Discussion ongoing**: Recent comments requiring response
-- **Needs re-review**: Significant changes since last review
+All output goes into this file. Tell the user the file path at the end so they can copy it.
 
-### Step 2: Gather Recently Merged PRs (last 24h)
+### Step 1: Gather Open PRs with Deep Analysis
 
+**Get PR list:**
 ```bash
-gh pr list --author=@me --state=merged --json number,title,url,mergedAt \
-  --jq '.[] | select(.mergedAt | fromdateiso8601 > (now - 86400))'
+gh pr list --author=@me --state=open --json number,title,url,headRefName,reviewDecision,reviewRequests,isDraft,latestReviews,createdAt,updatedAt
 ```
 
-### Step 3: Gather Linear Activity
+**For each non-draft PR, analyze with `gh api`:**
+```bash
+# Reviews (approvals, changes requested)
+gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews --jq '.[] | {user: .user.login, state: .state, submitted_at: .submitted_at}'
 
-Use Linear MCP to get active issues:
-```
-mcp__linear__get_my_issues with state="active"
+# Latest commit (for staleness detection)
+gh api repos/{owner}/{repo}/pulls/{pr_number}/commits --jq '.[-1] | {sha: .sha, date: .commit.committer.date}'
+
+# Inline review comments (from reviewers, not bots)
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --jq '.[] | select(.user.login != "Copilot" and (.user.login | test("bot") | not)) | {user: .user.login, body: .body[:150], path: .path}'
+
+# Discussion comments
+gh api repos/{owner}/{repo}/issues/{pr_number}/comments --jq '.[] | select(.user.login != "linear[bot]") | {user: .user.login, body: .body[:150]}'
 ```
 
-Match Linear issues to PRs by:
-- Branch name containing issue ID (e.g., `feat/PLT-557-model-mapping`)
-- PR body containing issue link
+**Staleness detection:** Compare latest commit date against each APPROVED review's `submitted_at`. If commit is newer → stale approval, needs re-review.
+
+**Comment-but-no-decision detection:** If a reviewer left COMMENTED state (not APPROVED or CHANGES_REQUESTED), that's "reviewer commented, needs response" — different from "awaiting review".
+
+### Step 2: Gather Recently Merged PRs
+
+**Monday (cover Fri–Sun):**
+```bash
+gh pr list --author=@me --state=merged --json number,title,url,mergedAt,headRefName --limit 20
+# Filter: mergedAt > Friday 00:00 UTC
+```
+
+**Other days (cover last 24h):**
+```bash
+gh pr list --author=@me --state=merged --json number,title,url,mergedAt,headRefName --limit 20
+# Filter: mergedAt > yesterday 00:00 UTC
+```
+
+### Step 3: Deep Linear Investigation
+
+**List active issues:**
+```
+linear_get_my_issues with state="active"
+```
+
+**For EVERY active issue, call `get_ticket`** to read:
+- Full description (may reference PRs, spikes, design decisions)
+- All comments (often contain links to upstream PRs, blockers, status updates)
+- Sub-issues and their status
+
+**Cross-reference:** Match Linear issues to PRs by branch name (e.g., `rafael/plt-672-...` maps to PLT-672). Issues with matching PRs don't need separate mention — the PR covers them.
+
+**Also fetch Linear activity if possible** — recent issue updates, comments posted, status changes.
 
 ### Step 4: Gather Toggl Time (OPTIONAL)
 
 ```
-mcp__toggl__toggl_get_time_entries with period="today"
+toggl_get_time_entries with period="today"
 ```
 
-### Step 5: Format Output for Slack
+Skip if no entries or user passes `--no-toggl`.
 
-**Always include PR links in Slack-clickable format**: `[#123](https://github.com/org/repo/pull/123)`
+### Step 5: Write Standup to File
 
-```markdown
-:clipboard: Standup - YYYY-MM-DD
+Use `[text](url)` for links — Slack's compose box renders these as clickable links.
+Use `*bold*` for section headers — Slack renders this natively.
+Use `:emoji_name:` for status icons.
 
-Today:
-• PR Title ([#123](url)) - Merged. What was accomplished.
-• PR Title ([#456](url)) - Status. What was done (LINEAR-ID).
+**Format:**
 
-Open PRs:
-• [#123](url) PR Title → reviewer (:warning: needs re-review — significant changes since approval)
-• [#456](url) PR Title → reviewer (:arrows_counterclockwise: awaiting)
-• [#789](url) PR Title (:memo: draft)
+```
+:clipboard: *Standup — YYYY-MM-DD (Day)*
 
-Blockers:
-• [LINEAR-ID](url): Issue title — What's needed (context from comments)
+*Today*
+• Merged [#39](url) — pod failure detection (fast-fail)
+• Opened [#63](url) — dev env tooling rework
+• Updated [#41](url) — pipeline diagnostics, needs re-review
+
+*Open PRs:*
+• [#63](url) Dev env tooling → reviewer :arrows_counterclockwise:
+• [#41](url) Pipeline diagnostics → reviewer :warning: re-review needed
+• [#13](url) Admin API + CLI → reviewer :arrows_counterclockwise: — reviewer2 commented on X
+• [#62](url) Fix hardcoded values :memo: draft
+
+*Up next:*
+• Epic progress summary (N/M PRs merged, K remaining)
+• [PLT-672](https://linear.app/metrevals/issue/PLT-672) Runner remote control — waiting on upstream
+• Other planned work
+
+*Needs attention:*
+• [#13](url) open since Mar 24 — needs reviewer's review
+• [PLT-696](https://linear.app/metrevals/issue/PLT-696) Red-team report — waiting on feedback
+```
+
+**Rules for each section:**
+
+*Today:*
+- One bullet per PR (merged, opened, updated)
+- Description: 3-5 words, no technical details
+- If a spike PR is on an external repo, link it with the repo name: `[inspect_ai #3599](url)`
+
+*Open PRs:*
+- `[#N](url) Short description → reviewer :status_icon:`
+- If reviewer commented but didn't approve/reject, note what they commented on briefly
+- Drafts at the bottom with `:memo: draft`
+
+*Up next:*
+- Work items NOT covered by open PRs
+- Link Linear issues (not IDs) for items without PRs
+- Epic summaries with progress counts
+
+*Needs attention:*
+- PRs that have been waiting too long for review
+- Linear issues waiting on someone else's input
+- Always link the item (PR or Linear URL)
+
+### Step 6: Report to User
+
+Tell the user:
+```
+Written to .standup-YYYY-MM-DD.txt — copy and paste to Slack.
+Delete with: rm .standup-YYYY-MM-DD.txt
 ```
 
 ## Status Detection Logic
 
-| Status | Detection Logic |
-|--------|-----------------|
-| `:warning: needs re-review — reason` | Has APPROVED review but commits pushed AFTER approval timestamp |
-| `:warning: changes requested` | Has review with state CHANGES_REQUESTED |
-| `:arrows_counterclockwise: awaiting` | Has pending review requests, no blocking reviews |
-| `:memo: draft` | `isDraft: true` |
-| `:white_check_mark: approved` | Has APPROVED review, no commits since |
-| `:speech_balloon: discussion ongoing` | Recent comments requiring response |
+| Status | Icon | Detection |
+|--------|------|-----------|
+| Approved (fresh) | :white_check_mark: | APPROVED review, no commits since |
+| Needs re-review | :warning: | APPROVED review but commits pushed AFTER approval |
+| Changes requested | :warning: | Review state CHANGES_REQUESTED |
+| Awaiting review | :arrows_counterclockwise: | Pending review requests, no blocking reviews |
+| Reviewer commented | :speech_balloon: | COMMENTED state (not approved/rejected) — needs response |
+| Draft | :memo: | `isDraft: true` |
+| Blocked | :no_entry: | External dependency blocking progress |
 
-## Example Output
+## Anti-Patterns
 
-```
-:clipboard: Standup - 2026-03-13
-
-Today:
-• Add user preference caching ([#142](https://github.com/acme/backend/pull/142)) - Merged. Reduced API latency by 40%.
-• Fix OAuth token refresh race condition ([#138](https://github.com/acme/backend/pull/138)) - Merged. ACME-234 done.
-• Database connection pooling - Tuned pool size based on load testing results.
-• Migrate to new logging format ([#145](https://github.com/acme/backend/pull/145)) - Significantly changed since alice's approval, needs re-review (ACME-267)
-• Add rate limiting middleware ([#151](https://github.com/acme/backend/pull/151)) - Awaiting review from bob
-
-Open PRs:
-• [#145](https://github.com/acme/backend/pull/145) Migrate to new logging format → alice (:warning: needs re-review — significant changes since approval)
-• [#151](https://github.com/acme/backend/pull/151) Add rate limiting middleware → bob (:arrows_counterclockwise: awaiting)
-• [#149](https://github.com/acme/backend/pull/149) Upgrade Redis client library → charlie (:arrows_counterclockwise: awaiting)
-• [#147](https://github.com/acme/backend/pull/147) Add metrics dashboard → dana (:arrows_counterclockwise: awaiting)
-• [#153](https://github.com/acme/backend/pull/153) Batch job scheduler refactor (:memo: draft)
-
-Blockers:
-• [ACME-312](https://linear.app/acme/issue/ACME-312): API versioning strategy — Needs design review (4-PR epic, High priority). Charlie commented on backwards compatibility — need alignment before starting implementation.
-```
-
-## Status Icons
-
-| Icon | Meaning |
-|------|---------|
-| :white_check_mark: | Approved (ready to merge) |
-| :arrows_counterclockwise: | Awaiting review |
-| :warning: | Needs re-review or changes requested |
-| :memo: | Draft / still working on it |
-| :no_entry: | Blocked by external dependency |
+1. **Don't output inline** — always write to file, terminal reformats everything
+2. **Don't use `<url|text>` Slack API links** — they get `%7C`-encoded when pasting. Use `[text](url)`
+3. **Don't list raw commits** — group by PR
+4. **Don't include Linear ID when PR exists** — redundant clutter
+5. **Don't write long descriptions** — 3-5 words, link has the details
+6. **Don't trust `reviewDecision` alone** — read actual reviews via `gh api`
+7. **Don't just list Linear titles** — call `get_ticket` to read comments and find hidden context
+8. **Don't say "In Review"** — say WHO is reviewing and WHAT the actual status is
+9. **Don't include both PR link and Linear link** — pick one (PR wins)
 
 ## Flags
 
@@ -154,16 +195,6 @@ Blockers:
 | `--date YYYY-MM-DD` | Generate for specific date |
 | `--no-toggl` | Skip Toggl time tracking |
 | `--no-linear` | Skip Linear issues |
-| `--repos path` | Custom repos path (default: ~/code) |
-
-## Anti-Patterns to Avoid
-
-1. **Don't list raw commits** - "refactor: move X" is meaningless without PR context
-2. **Don't trust simple review status** - Use `gh api` to read actual reviews and comments
-3. **Don't say just "In Review"** - Say WHO is reviewing and WHAT the actual status is
-4. **Don't forget staleness** - An "approved" PR with new commits needs re-review
-5. **Don't forget PR links** - Teammates need to click through to help
-6. **Don't list blockers without context** - Explain WHY blocked and what's needed
 
 ## Related Commands
 
