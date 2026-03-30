@@ -48,10 +48,10 @@
       "variant": "max"
     },
     "deep": {
-      "model": "openai/o3"
+      "model": "anthropic/claude-opus-4-6"
     },
     "artistry": {
-      "model": "openai/o3"
+      "model": "anthropic/claude-opus-4-6"
     },
     "quick": {
       "model": "anthropic/claude-haiku-4-5"
