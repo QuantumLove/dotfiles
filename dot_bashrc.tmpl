@@ -1,0 +1,102 @@
+# .bashrc — chezmoi-managed
+# Structure: Non-interactive safe stuff first, then interactive-only below the guard
+
+# ==============================================================================
+# NON-INTERACTIVE SAFE SECTION
+# Everything above the interactive guard runs for ALL shells (including
+# non-interactive SSH commands like: ssh host 'some-command')
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# PATH additions
+# ------------------------------------------------------------------------------
+
+export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
+
+# NPM global packages
+export NPM_CONFIG_PREFIX="${HOME}/.npm-global"
+export PATH="${NPM_CONFIG_PREFIX}/bin:$PATH"
+
+# OpenCode
+export PATH="${PATH}:${HOME}/.opencode/bin"
+
+# ------------------------------------------------------------------------------
+# Mise (tool version manager)
+# ------------------------------------------------------------------------------
+
+if [ -d "$HOME/.local/share/mise" ]; then
+  export PATH="$HOME/.local/share/mise/shims:$PATH"
+  eval "$(mise activate bash 2>/dev/null)"
+fi
+
+# ------------------------------------------------------------------------------
+# Tmux socket directory (keep out of /tmp to avoid systemd-tmpfiles cleanup)
+# ------------------------------------------------------------------------------
+
+export TMUX_TMPDIR="${HOME}/.tmux/sockets"
+[ -d "$TMUX_TMPDIR" ] || mkdir -p "$TMUX_TMPDIR"
+
+# ------------------------------------------------------------------------------
+# Shared shell functions (POSIX-compatible, also used by zsh)
+# ------------------------------------------------------------------------------
+
+[ -f "$HOME/.sh_functions" ] && . "$HOME/.sh_functions"
+
+# ------------------------------------------------------------------------------
+# Container-specific setup (only runs inside Docker containers)
+# ------------------------------------------------------------------------------
+
+if [ -f /.dockerenv ]; then
+  # Load secrets injected by container entrypoint
+  [ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"
+
+  # SSH Agent for git operations (host agent mounted at /ssh-agent)
+  [ -S "/ssh-agent" ] && export SSH_AUTH_SOCK=/ssh-agent
+fi
+
+# ==============================================================================
+# INTERACTIVE GUARD
+# Everything below this point only runs for interactive shells
+# ==============================================================================
+
+[[ $- == *i* ]] || return 0
+
+# ==============================================================================
+# INTERACTIVE-ONLY SECTION
+# Completions, prompts, aliases, functions — things that need a terminal
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Bash-only functions (oc utilities, etc.)
+# ------------------------------------------------------------------------------
+
+[ -f "$HOME/.bash_functions" ] && . "$HOME/.bash_functions"
+
+# ------------------------------------------------------------------------------
+# Prompt — colored with git branch
+# ------------------------------------------------------------------------------
+
+# Source git prompt support (bash-completion is disabled system-wide)
+if [ -f /usr/lib/git-core/git-sh-prompt ]; then
+  . /usr/lib/git-core/git-sh-prompt
+fi
+
+# Colored prompt: green user@host : blue dir (yellow branch) $
+PS1='\[\e[01;32m\]\u@\h\[\e[00m\]:\[\e[01;34m\]\w\[\e[33m\]$(__git_ps1 " (%s)" 2>/dev/null)\[\e[00m\]\$ '
+
+# ------------------------------------------------------------------------------
+# Aliases
+# ------------------------------------------------------------------------------
+
+# Tmux session management
+alias tm='tmux attach -t main || tmux new -s main'
+
+# ------------------------------------------------------------------------------
+# Default working directory for mega-container SSH sessions
+# ------------------------------------------------------------------------------
+
+{{- if eq .chezmoi.os "linux" }}
+if [ -f /.dockerenv ]; then
+  [ -d "$HOME/code" ] && [ "$PWD" = "$HOME" ] && cd "$HOME/code"
+fi
+{{- end }}
