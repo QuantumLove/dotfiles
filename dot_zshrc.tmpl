@@ -8,6 +8,9 @@ export PATH="$HOME/bin:$PATH"
 # Load shared custom functions for Warp
 [ -f "$HOME/.sh_functions" ] && . "$HOME/.sh_functions"
 
+# Load bash-compatible functions (oc utilities, etc.) — zsh supports bash-isms
+[ -f "$HOME/.bash_functions" ] && . "$HOME/.bash_functions"
+
 # 1Password Configuration
 # Option 1: Service Account Token (Recommended - no interactive login)
 # Get token from: https://my.1password.com → Integrations → Service Accounts

@@ -1,0 +1,129 @@
+# Fill Toggl Time Entries
+
+Auto-fill missing Toggl time entries by running a preprocessing script to collect and aggregate data, then classify and create entries.
+
+**The preprocessing script has already done the data crunching. Your job is classification and entry creation.**
+
+## Arguments
+
+**Required** (first argument): Date or period
+- `today`, `yesterday`
+- Specific date: `2026-01-15`
+- Date range: `2026-01-13..2026-01-15`
+
+**Optional flags**:
+- `--dry-run`: Show proposed entries without creating them
+- `--auto`: Auto-create entries with safeguards (used by cron). Skips low-confidence entries.
+
+## Workflow
+
+### Phase 1: Data Collection
+
+Run the preprocessing script via Bash tool and capture its JSON output from stdout (stderr goes to progress/warnings):
+
+```
+fill-toggl-collect.py --date <date-arg>
+```
+
+The script handles everything internally:
+- Runs `tt ingest sessions` (do NOT run it again)
+- Runs `tt classify --json` to get session summaries
+- Runs `tt export` for activity blocks
+- Fetches existing Toggl entries via the Toggl API
+- Detects gaps not covered by existing entries
+
+Parse the JSON output and extract these fields:
+- `date_range` — `{start, end}` in YYYY-MM-DD
+- `sessions` — array of pre-aggregated coding sessions
+- `activity_blocks` — array of tmux pane focus blocks
+- `existing_entries` — array of existing Toggl time entries for the date range
+- `gaps` — pre-computed gaps (work periods not covered by Toggl entries)
+- `toggl_projects` — available Toggl projects with `id` and `name`
+- `workspace_id` — Toggl workspace ID (use this for all API calls)
+
+### Phase 1.5: Multi-Tag Cleanup
+
+Every time entry MUST have exactly ONE tag. Scan `existing_entries` from the JSON for violations:
+- Multi-tag entries: propose splits based on session content
+- Zero-tag entries: flag for tagging
+
+### Phase 2: Session Analysis
+
+The `sessions` array is already pre-aggregated. Each session has:
+- `session_id`, `source` (opencode/claude)
+- `project_path`, `project_name`
+- `start_time`, `end_time`, `duration_minutes`
+- `summary` — what was worked on
+- `tool_call_count`
+
+No further analysis of raw logs or databases is needed.
+
+### Phase 3: Gap Detection
+
+The `gaps` array is pre-computed. Each gap has:
+- `start`, `end` — ISO 8601 timestamps
+- `duration_min` — how long the gap is
+- `cwd_hint` — working directory hint for project inference
+- `tmux_session` — tmux session name if available
+- `active_sessions` — list of sessions overlapping this gap: `[{session_id, project_name, duration_minutes}]`
+
+Gaps are already filtered to >= 15 minutes and not covered by existing Toggl entries.
+
+### Phase 4: Activity Classification
+
+For each gap, determine what Toggl entry to create:
+
+1. **Primary signal**: `active_sessions` within the gap → use `project_name` and session `summary` for description
+2. **Secondary signal**: `cwd_hint` → infer project from directory path if no session data
+3. **Tertiary signal**: existing entry patterns from `existing_entries` → time-of-day matching
+
+Map each gap to a Toggl project from `toggl_projects`. Write a human-readable, specific description (not generic "coding" — name the feature/task from the session summary).
+
+Assign confidence: HIGH (session data available + clear project match), MEDIUM (cwd hint only), LOW (no signal).
+
+### Phase 5: Entry Creation
+
+**Manual mode** (default):
+- Present proposed entries as a table showing: time range, duration, project, description, confidence
+- Wait for user approval before creating
+- Allow modifications
+
+**Auto mode** (`--auto` flag, used by cron):
+- Only create entries where classification confidence is HIGH
+- Skip MEDIUM and LOW confidence entries (flag for manual review)
+- Safeguards:
+  - Minimum duration: 15 minutes
+  - No overlaps with existing entries
+  - Max single entry: 2 hours (split longer blocks)
+  - Single tag per entry
+  - Idempotent: check `existing_entries` from JSON before creating
+
+**Dry-run mode** (`--dry-run` flag):
+- Show the proposed entries table but do NOT call any Toggl MCP create tools
+
+Create entries using `toggl_start_timer` + `toggl_stop_timer` or the appropriate Toggl MCP tool. Use the `workspace_id` from the JSON output.
+
+### Phase 6: Verification
+
+Re-fetch entries using `toggl_get_time_entries` and verify:
+- All proposed gaps are now covered
+- No overlaps
+- No duplicate entries
+- Single-tag rule enforced
+
+## Toggl MCP Tools
+
+Use these Toggl MCP tools:
+- `toggl_get_time_entries` — fetch entries for date range
+- `toggl_list_projects` — list available projects
+- `toggl_start_timer` — start a new timer (use to create entries)
+- `toggl_stop_timer` — stop a running timer
+
+All API times are UTC — convert to local timezone for display.
+
+## Notes
+
+- The preprocessing script (`fill-toggl-collect.py`) handles all data ingestion: `tt ingest`, `tt classify`, `tt export`, Toggl API fetching, and gap detection. Do NOT duplicate any of this.
+- `sessions` from the JSON are the primary source of truth for descriptions
+- Run `/fill-toggl today` for interactive mode
+- Cron runs `/fill-toggl today --auto` hourly

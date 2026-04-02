@@ -7,6 +7,7 @@ python = "3.12"
 "asdf:asdf-community/asdf-uv" = "latest"
 "asdf:looztra/asdf-k9s" = "latest"
 "asdf:MetricMike/asdf-awscli" = "latest"
+"github:sjawhar/time-tracker" = { version = "latest", exe = "tt" }
 
 [settings]
 experimental = true

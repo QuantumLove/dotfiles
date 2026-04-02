@@ -1,0 +1,28 @@
+#!/bin/bash
+# Install hourly cron job for fill-toggl auto-create
+# Triggered by chezmoi on changes to this script
+# {{ include "private_dot_claude/commands/fill-toggl.md.tmpl" | sha256sum }}
+
+set -euo pipefail
+
+# DISABLED: fill-toggl pipeline not production-ready yet.
+# Remove this block to re-enable cron installation.
+echo "ℹ️  fill-toggl cron install disabled (pipeline not ready)"
+exit 0
+
+mkdir -p "$HOME/.local/state/fill-toggl"
+
+if ! command -v crontab &>/dev/null; then
+    echo "⚠️  crontab not available — skipping fill-toggl cron install (install cron and re-run chezmoi apply)"
+    exit 0
+fi
+
+CRON_MARKER="# fill-toggl hourly auto-create"
+CRON_CMD="0 * * * * $HOME/.local/bin/fill-toggl-cron.sh >> $HOME/.local/state/fill-toggl/cron.log 2>&1"
+
+if crontab -l 2>/dev/null | grep -qF "$CRON_MARKER"; then
+    echo "✓ fill-toggl cron job already installed"
+else
+    (crontab -l 2>/dev/null; echo "$CRON_MARKER"; echo "$CRON_CMD") | crontab -
+    echo "✓ fill-toggl hourly cron job installed"
+fi
