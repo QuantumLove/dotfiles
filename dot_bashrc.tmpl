@@ -36,6 +36,9 @@ fi
 export TMUX_TMPDIR="${HOME}/.tmux/sockets"
 [ -d "$TMUX_TMPDIR" ] || mkdir -p "$TMUX_TMPDIR"
 
+# Tmux snapshot output directory (backed by persistent Docker volume)
+export OC_SNAPSHOT_DIR="$HOME/.local/share/tmux-snapshots"
+
 # ------------------------------------------------------------------------------
 # Shared shell functions (POSIX-compatible, also used by zsh)
 # ------------------------------------------------------------------------------

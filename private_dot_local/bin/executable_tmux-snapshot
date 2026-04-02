@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+"""Snapshot tmux workspace: capture pane state and OpenCode session IDs.
+
+Non-destructive: reads session IDs from the oc() shell function's registry
+instead of interrupting running sessions. Only detects instances launched
+via the `oc` wrapper (which registers PID, port, and session info).
+
+Output directory: $OC_SNAPSHOT_DIR (default: ~/.local/share/tmux-snapshots/)
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import json
+import os
+import socket
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass
+class Pane:
+    pane_id: str
+    pane_pid: int
+    window_index: int
+    window_name: str
+    pane_index: int
+    cwd: str
+    command: str
+
+
+def eprint(message: str = "") -> None:
+    print(message, file=sys.stderr)
+
+
+def run_tmux(*args: str) -> str:
+    proc = subprocess.run(
+        ["tmux", *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return proc.stdout
+
+
+def get_tmux_session_name() -> str:
+    output = run_tmux("display-message", "-p", "#S")
+    return output.strip()
+
+
+def list_panes_for_session(tmux_session: str, own_pane_id: str | None) -> list[Pane]:
+    separator = "\x1f"
+    fmt = separator.join(
+        [
+            "#{pane_id}",
+            "#{pane_pid}",
+            "#{window_index}",
+            "#{window_name}",
+            "#{pane_index}",
+            "#{pane_current_path}",
+            "#{pane_current_command}",
+        ]
+    )
+    output = run_tmux("list-panes", "-s", "-t", tmux_session, "-F", fmt)
+
+    panes: list[Pane] = []
+    for line in output.splitlines():
+        if not line.strip():
+            continue
+        parts = line.split(separator)
+        if len(parts) != 7:
+            eprint(f"warning: unable to parse pane metadata row: {line!r}")
+            continue
+
+        pane_id, pane_pid, window_index, window_name, pane_index, cwd, command = parts
+        if own_pane_id and pane_id == own_pane_id:
+            continue
+
+        try:
+            pane = Pane(
+                pane_id=pane_id,
+                pane_pid=int(pane_pid),
+                window_index=int(window_index),
+                window_name=window_name,
+                pane_index=int(pane_index),
+                cwd=cwd,
+                command=command,
+            )
+            panes.append(pane)
+        except ValueError as exc:
+            eprint(f"warning: invalid pane metadata for {pane_id}: {exc}")
+
+    panes.sort(key=lambda p: (p.window_index, p.pane_index))
+    return panes
+
+
+def get_oc_registry_dir() -> Path:
+    """Get the OC registry directory (matches .bashrc oc() convention)."""
+    xdg_runtime = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+    return Path(xdg_runtime) / f"opencode-{os.getuid()}"
+
+
+def read_oc_registry() -> dict[int, dict]:
+    """Read live OC registry entries, keyed by shell PID.
+
+    Registry files are written by the oc() shell function in .bashrc.
+    Each contains: pid, port, dir, started, and optionally session {id, title}.
+    """
+    registry_dir = get_oc_registry_dir()
+    entries: dict[int, dict] = {}
+    if not registry_dir.is_dir():
+        return entries
+
+    for path in registry_dir.glob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        pid = data.get("pid")
+        if not isinstance(pid, int):
+            continue
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            continue
+        entries[pid] = data
+
+    return entries
+
+
+def build_snapshot(panes: list[Pane], tmux_session: str) -> dict[str, object]:
+    registry = read_oc_registry()
+    eprint(f"OC registry: {len(registry)} live instance(s)")
+
+    pane_entries: list[dict[str, object]] = []
+    matched = 0
+    for pane in panes:
+        ai_session: dict[str, str] | None = None
+        reg_entry = registry.get(pane.pane_pid)
+        if reg_entry:
+            session = reg_entry.get("session")
+            if session and session.get("id"):
+                ai_session = {
+                    "type": "opencode",
+                    "session_id": session["id"],
+                    "title": session.get("title", ""),
+                    "resume_cmd": f"opencode -s {session['id']}",
+                }
+                matched += 1
+            else:
+                eprint(
+                    f"warning: OC instance in pane {pane.pane_id} has no session info yet"
+                )
+
+        pane_entries.append(
+            {
+                "window_index": pane.window_index,
+                "window_name": pane.window_name,
+                "pane_index": pane.pane_index,
+                "cwd": pane.cwd,
+                "command": pane.command,
+                "ai_session": ai_session,
+            }
+        )
+
+    eprint(f"Matched {matched}/{len(registry)} OC instance(s) to panes")
+
+    captured_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+    captured_at = captured_at.replace("+00:00", "Z")
+
+    return {
+        "version": 1,
+        "captured_at": captured_at,
+        "hostname": socket.gethostname(),
+        "tmux_session": tmux_session,
+        "panes": pane_entries,
+    }
+
+
+def write_snapshot(snapshot: dict[str, object]) -> Path:
+    default_dir = Path.home() / ".local" / "share" / "tmux-snapshots"
+    output_dir = Path(os.environ.get("OC_SNAPSHOT_DIR", str(default_dir)))
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    serialized = json.dumps(snapshot, indent=2)
+
+    # Save per-session snapshot (multi-session safe)
+    session_name = snapshot.get("tmux_session", "unknown")
+    session_path = output_dir / f"snapshot-{session_name}.json"
+    session_path.write_text(serialized + "\n", encoding="utf-8")
+
+    # Also save as latest (backwards compatible with tmux-restore)
+    latest_path = output_dir / "snapshot.json"
+    latest_path.write_text(serialized + "\n", encoding="utf-8")
+
+    return session_path
+
+
+def main() -> int:
+    # When run via tmux run-shell (hooks/cron), TMUX env isn't set
+    # but tmux commands still work. Only bail if tmux server is unreachable.
+    if "TMUX" not in os.environ:
+        try:
+            run_tmux("display-message", "-p", "")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            eprint("error: tmux server not reachable")
+            return 1
+
+    own_pane_id = os.environ.get("TMUX_PANE")
+    try:
+        tmux_session = get_tmux_session_name()
+        panes = list_panes_for_session(tmux_session, own_pane_id)
+        eprint(f"Snapshotting tmux session: {tmux_session}")
+        eprint(f"Found {len(panes)} pane(s)")
+        snapshot = build_snapshot(panes, tmux_session)
+        output_path = write_snapshot(snapshot)
+        eprint(f"Saved to {output_path}")
+        return 0
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip() if exc.stderr else str(exc)
+        eprint(f"error: tmux command failed: {stderr}")
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

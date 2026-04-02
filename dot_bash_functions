@@ -1,0 +1,139 @@
+#!/bin/bash
+# Bash-only functions (uses bash-isms: [[ ]], arrays, local, process substitution)
+# Sourced from .bashrc interactive section only
+# For POSIX-compatible shared functions, see .sh_functions
+
+# ==============================================================================
+# OpenCode instance registry (oc, occ, oc ps, oc history)
+# ==============================================================================
+
+OC_REGISTRY="${XDG_RUNTIME_DIR:-/tmp}/opencode-$(id -u)"
+mkdir -p "$OC_REGISTRY" 2>/dev/null
+
+
+oc() {
+    case "${1:-}" in
+        ps) shift; _oc_ps "$@"; return ;;
+        history) shift; _oc_sessions "$@"; return ;;
+    esac
+    # Opt-out
+    if [ "${OPENCODE_NO_SERVE:-}" = "1" ]; then
+        opencode "$@"
+        return
+    fi
+    # Skip if user already passed --port
+    local arg
+    for arg in "$@"; do
+        [ "$arg" = "--port" ] && { opencode "$@"; return; }
+    done
+    # Export env vars for session-registry plugin
+    export OC_SHELL_PID=$$
+    export OC_REGISTRY
+    # Write registry (port filled in async by session-registry plugin)
+    printf '{"pid":%d,"port":null,"dir":"%s","started":"%s"}\n' "$$" "$PWD" "$(date -Iseconds)" > "$OC_REGISTRY/$$.json"
+    # Clean up registry when function returns
+    trap 'rm -f "$OC_REGISTRY/$$.json"' RETURN
+    # Handle -s/--session flag: convert to opencode's --session format
+    local session_id="" oc_args=()
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -s|--session)
+                shift
+                session_id="${1:-}"
+                ;;
+            *)
+                oc_args+=("$1")
+                ;;
+        esac
+        shift
+    done
+    if [ -n "$session_id" ]; then
+        opencode --port 0 --session "$session_id" "${oc_args[@]}"
+    else
+        opencode --port 0 "${oc_args[@]}"
+    fi
+}
+
+occ() { oc --continue "$@"; }
+
+_oc_ps() {
+    local json=false
+    [ "${1:-}" = "--json" ] && json=true
+    local entries="[]"
+    for f in "$OC_REGISTRY"/*.json; do
+        [ -f "$f" ] || continue
+        local pid
+        pid=$(jq -r .pid "$f" 2>/dev/null) || continue
+        # Skip corrupt entries (0-byte files, missing pid)
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
+        # Stale detection: remove dead entries
+        if ! kill -0 "$pid" 2>/dev/null; then
+            rm -f "$f" "${f%.json}.enricher"
+            continue
+        fi
+        entries=$(echo "$entries" | jq -c --slurpfile e "$f" '. + $e')
+    done
+    if [ "$json" = true ]; then
+        echo "$entries" | jq .
+        return
+    fi
+    if [ "$(echo "$entries" | jq length)" = "0" ]; then
+        echo "No running instances"
+        return
+    fi
+    {
+        printf 'PID\tPORT\tDIR\tSESSION\tTITLE\tSTARTED\n'
+        echo "$entries" | jq -r '.[] | [.pid, (.port // "-"), .dir, (.session.id // "-"), (.session.title // "-"), .started] | @tsv'
+    } | column -t -s $'\t'
+}
+
+# List recent OpenCode sessions from the database
+# Usage: oc history [HOURS]       — default 24h
+#        oc history --json        — JSON output
+#        oc history 48 --json     — last 48h, JSON
+_oc_sessions() {
+    local hours=24 json=false
+    local args=()
+    for arg in "$@"; do
+        case "$arg" in
+            --json) json=true ;;
+            *) args+=("$arg") ;;
+        esac
+    done
+    [ ${#args[@]} -gt 0 ] && hours="${args[0]}"
+    local db="${OPENCODE_DB:-$HOME/.local/share/opencode/opencode.db}"
+    if [ ! -f "$db" ]; then
+        echo "error: database not found: $db" >&2
+        return 1
+    fi
+    local cutoff_ms
+    cutoff_ms=$(( ($(date -u +%s) - hours * 3600) * 1000 ))
+    local query
+    read -r -d '' query <<-SQL || true
+		SELECT
+		  id,
+		  REPLACE(directory, '$HOME', '~') as dir,
+		  title,
+		  strftime('%Y-%m-%d %H:%M', time_created/1000, 'unixepoch', 'localtime') as created,
+		  strftime('%Y-%m-%d %H:%M', time_updated/1000, 'unixepoch', 'localtime') as updated,
+		  (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) as msgs
+		FROM session s
+		WHERE parent_id IS NULL
+		  AND time_updated >= $cutoff_ms
+		ORDER BY time_created DESC
+	SQL
+    if [ "$json" = true ]; then
+        sqlite3 -json "$db" "$query"
+    else
+        local result
+        result=$(sqlite3 -separator $'\t' "$db" "$query")
+        if [ -z "$result" ]; then
+            echo "No sessions in the last ${hours}h"
+            return
+        fi
+        {
+            printf 'ID\tDIR\tTITLE\tCREATED\tUPDATED\tMSGS\n'
+            echo "$result"
+        } | column -t -s $'\t'
+    fi
+}

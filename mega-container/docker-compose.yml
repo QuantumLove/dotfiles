@@ -12,20 +12,24 @@ services:
       - SSH_AUTH_SOCK=/ssh-agent
       - TS_STATE_DIR=/var/lib/tailscale
     volumes:
-      # Tailscale state - persists identity across container rebuilds
-      - tailscale-state:/var/lib/tailscale
-      # Code directory - persistent workspace
-      - code:/home/rafaelcarvalho/code
-      # Docker socket for building images (connects to Docker Desktop VM)
-      - /var/run/docker.sock:/var/run/docker.sock
-      # SSH Agent forwarding via Docker Desktop magic path (works with 1Password or macOS agent)
-      - /run/host-services/ssh-auth.sock:/ssh-agent:ro
-      # AWS config and SSO cache from host (rw needed for SSO token refresh)
-      - ~/.aws:/home/rafaelcarvalho/.aws
-      # Kubernetes config from host (shares minikube/EKS contexts)
-      - ~/.kube:/home/rafaelcarvalho/.kube
-      # Hawk CLI config from host (shares auth tokens across host and container)
-      - ~/.config/hawk-cli:/home/rafaelcarvalho/.config/hawk-cli
+       # Tailscale state - persists identity across container rebuilds
+       - tailscale-state:/var/lib/tailscale
+       # Code directory - persistent workspace
+       - code:/home/rafaelcarvalho/code
+       # Docker socket for building images (connects to Docker Desktop VM)
+       - /var/run/docker.sock:/var/run/docker.sock
+       # SSH Agent forwarding via Docker Desktop magic path (works with 1Password or macOS agent)
+       - /run/host-services/ssh-auth.sock:/ssh-agent:ro
+       # AWS config and SSO cache from host (rw needed for SSO token refresh)
+       - ~/.aws:/home/rafaelcarvalho/.aws
+       # Kubernetes config from host (shares minikube/EKS contexts)
+       - ~/.kube:/home/rafaelcarvalho/.kube
+       # Hawk CLI config from host (shares auth tokens across host and container)
+       - ~/.config/hawk-cli:/home/rafaelcarvalho/.config/hawk-cli
+       # OpenCode state - persists database and session history across rebuilds
+       - opencode-state:/home/rafaelcarvalho/.local/share/opencode
+       # Tmux workspace snapshots - persists layout snapshots across rebuilds
+       - opencode-snapshots:/home/rafaelcarvalho/.local/share/tmux-snapshots
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "tailscale", "status", "--json"]
@@ -41,3 +45,7 @@ volumes:
     # and may get a new hostname (raf-dev-1, raf-dev-2, etc.)
   code:
     # Persistent workspace for all code repositories
+  opencode-state:
+    # Persists OpenCode database, session history, logs
+  opencode-snapshots:
+    # Persists tmux workspace snapshots
