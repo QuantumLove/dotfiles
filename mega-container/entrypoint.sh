@@ -332,6 +332,14 @@ fi
 tt init --label "$(hostname)"
 echo "✓ time-tracker ready"
 
+# 15. Verify sqlite3 is available (required for oc history)
+echo "Verifying sqlite3..."
+if ! command -v sqlite3 &>/dev/null; then
+  echo "ERROR: sqlite3 not found (required for oc history)"
+  exit 1
+fi
+echo "✓ sqlite3 ready"
+
 echo "=== Bootstrap Complete ==="
 
 # Execute the main command
