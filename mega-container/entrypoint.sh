@@ -332,13 +332,17 @@ fi
 tt init --label "$(hostname)"
 echo "✓ time-tracker ready"
 
-# 15. Verify sqlite3 is available (required for oc history)
-echo "Verifying sqlite3..."
+# 15. Verify sqlite3 and column are available (required for oc history)
+echo "Verifying sqlite3 and column..."
 if ! command -v sqlite3 &>/dev/null; then
   echo "ERROR: sqlite3 not found (required for oc history)"
   exit 1
 fi
-echo "✓ sqlite3 ready"
+if ! command -v column &>/dev/null; then
+  echo "ERROR: column not found (required for oc history formatting)"
+  exit 1
+fi
+echo "✓ sqlite3 + column ready"
 
 echo "=== Bootstrap Complete ==="
 
