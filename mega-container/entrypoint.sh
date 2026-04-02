@@ -36,12 +36,19 @@ else
   echo "⚠️  Tailscale daemon not responding. Check logs with: docker logs mega-container-mega-1"
 fi
 
-# 2. Fix ~/code directory permissions (volume may be created as root)
-if [ -d "$HOME/code" ] && [ "$(stat -c '%U' "$HOME/code" 2>/dev/null)" = "root" ]; then
-  echo "Fixing ~/code directory permissions..."
-  sudo chown -R "$USER:$USER" "$HOME/code"
-  echo "✓ ~/code permissions fixed"
-fi
+# 2. Fix user-owned volume permissions (Docker creates named volumes as root)
+USER_VOLUMES=(
+  "$HOME/code"
+  "$HOME/.local/share/opencode"
+  "$HOME/.local/share/tmux-snapshots"
+)
+for vol_dir in "${USER_VOLUMES[@]}"; do
+  if [ -d "$vol_dir" ] && [ "$(stat -c '%U' "$vol_dir" 2>/dev/null)" = "root" ]; then
+    echo "Fixing $vol_dir permissions..."
+    sudo chown -R "$USER:$USER" "$vol_dir"
+  fi
+done
+echo "✓ Volume permissions ready"
 
 # 2b. Create ~/code/worktrees directory for /start-work skill
 mkdir -p "$HOME/code/worktrees" || { echo "ERROR: Failed to create ~/code/worktrees"; exit 1; }
@@ -315,6 +322,15 @@ if ! mise doctor; then
   exit 1
 fi
 echo "✓ mise tools ready"
+
+# 14. Initialize time-tracker (tt) machine identity (idempotent)
+echo "Initializing time-tracker..."
+if ! command -v tt &>/dev/null; then
+  echo "ERROR: tt (time-tracker) not found in PATH"
+  exit 1
+fi
+tt init --label "$(hostname)"
+echo "✓ time-tracker ready"
 
 echo "=== Bootstrap Complete ==="
 
