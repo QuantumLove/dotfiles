@@ -100,6 +100,6 @@ alias tm='tmux attach -t main || tmux new -s main'
 
 {{- if eq .chezmoi.os "linux" }}
 if [ -f /.dockerenv ]; then
-  [ -d "$HOME/code" ] && [ "$PWD" = "$HOME" ] && cd "$HOME/code"
+  [ -d "$HOME/code/hawk" ] && [ "$PWD" = "$HOME" ] && cd "$HOME/code/hawk"
 fi
 {{- end }}
