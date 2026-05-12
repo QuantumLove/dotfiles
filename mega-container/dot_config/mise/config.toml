@@ -1,5 +1,6 @@
 [tools]
 node = "22.21.1"
+"npm:pnpm" = "latest"
 python = "3.12"
 "asdf:virtualroot/asdf-opentofu" = "latest"
 "asdf:asdf-community/asdf-kubectl" = "latest"
