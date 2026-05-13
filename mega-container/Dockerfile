@@ -166,8 +166,8 @@ ENV MISE_DATA_DIR="/home/rafaelcarvalho/.local/share/mise" \
 
 COPY --chown=rafaelcarvalho:rafaelcarvalho .config/mise/config.toml .config/mise/
 RUN mise trust -a && mise install && \
-    npm install -g yarn opencode-ai @anthropic-ai/claude-code oh-my-opencode @googleworkspace/cli && \
-    oh-my-opencode install --no-tui --claude=yes --gemini=no --copilot=no
+    npm install -g yarn opencode-ai @anthropic-ai/claude-code oh-my-openagent @googleworkspace/cli && \
+    oh-my-openagent install --no-tui --claude=yes --gemini=no --copilot=no
 
 COPY --chown=rafaelcarvalho:rafaelcarvalho entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
