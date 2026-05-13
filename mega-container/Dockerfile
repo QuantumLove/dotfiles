@@ -1,5 +1,16 @@
 FROM debian:bookworm-slim
 
+# Default locale: C.UTF-8 is built into glibc 2.35+ (Debian bookworm ships
+# 2.36, no locale-gen needed). Without this, LANG/LC_CTYPE fall back to POSIX,
+# where libc wcwidth() returns -1 for multibyte codepoints — which breaks tmux
+# cursor tracking for emoji, Braille spinners, and Nerd-Font glyphs (TUIs
+# render fine outside tmux because outer terminals use their own font
+# metrics). Baking LANG here covers cron, sshd-spawned login shells, and any
+# process that doesn't read ~/.bashrc. Deliberately NOT setting LC_ALL: it
+# would override per-category locale settings (LC_TIME, LC_NUMERIC, etc.) and
+# can't be opted out of — match the Python official image policy.
+ENV LANG=C.UTF-8
+
 # =============================================================================
 # VERSIONS - Update these when upgrading tools
 # =============================================================================

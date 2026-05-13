@@ -8,6 +8,16 @@
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
+# Locale — must be UTF-8 for tmux to render multibyte glyphs.
+# Without this, `tmux attach` sees libc fall back to POSIX and reports
+# client_utf8=0, which makes the tmux server strip/replace multibyte chars
+# (emoji, Braille spinners, Nerd-Font icons) before sending them to the client.
+# Idempotent: only sets when unset, so host-side overrides still win.
+# ------------------------------------------------------------------------------
+
+export LANG="${LANG:-C.UTF-8}"
+
+# ------------------------------------------------------------------------------
 # PATH additions
 # ------------------------------------------------------------------------------
 
