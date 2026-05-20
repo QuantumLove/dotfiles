@@ -46,6 +46,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     sudo \
     tmux \
+    vim \
     openssh-client \
     openssh-server \
     build-essential \
