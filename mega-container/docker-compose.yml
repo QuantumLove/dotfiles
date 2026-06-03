@@ -32,11 +32,13 @@ services:
        - opencode-snapshots:/home/rafaelcarvalho/.local/share/tmux-snapshots
     restart: "on-failure:5"  # Max 5 restart attempts, then stops (prevents crash-loops)
     healthcheck:
-      test: ["CMD", "tailscale", "status", "--json"]
-      interval: 10s
+      # Cheap liveness probe — validates Tailscale + sshd + claude/opencode binaries.
+      # Heavyweight validation (secrets, MCPs, mounts) lives in mega-doctor.
+      test: ["CMD-SHELL", "tailscale status --json >/dev/null && pgrep sshd >/dev/null && claude --version >/dev/null && opencode --version >/dev/null"]
+      interval: 30s
       timeout: 5s
-      retries: 5
-      start_period: 60s
+      retries: 3
+      start_period: 90s
 
 volumes:
   tailscale-state:

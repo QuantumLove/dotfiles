@@ -346,5 +346,12 @@ echo "✓ sqlite3 + column ready"
 
 echo "=== Bootstrap Complete ==="
 
+# 16. Run mega-doctor (quick mode — no slow MCP/AWS probes)
+# Non-fatal: warnings don't block container start, only printed for visibility.
+if [ -x "$HOME/.local/bin/mega-doctor" ]; then
+  echo
+  "$HOME/.local/bin/mega-doctor" --quick || echo "⚠️  mega-doctor reported issues — run 'mega-doctor' for full check"
+fi
+
 # Execute the main command
 exec "$@"

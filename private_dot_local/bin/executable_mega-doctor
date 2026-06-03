@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# mega-doctor — comprehensive health check for the mega-container (and host).
+#
+# Usage:
+#   mega-doctor            # full check (~10-20s, includes MCP probe)
+#   mega-doctor --quick    # skip network/MCP probes (~1s) — used by entrypoint
+#   mega-doctor --no-mcp   # skip only the slow MCP probe
+#
+# Exit code: 0 if all critical checks pass, non-zero otherwise.
+
+set -uo pipefail
+
+QUICK=0
+NO_MCP=0
+for arg in "$@"; do
+  case "$arg" in
+    --quick) QUICK=1; NO_MCP=1 ;;
+    --no-mcp) NO_MCP=1 ;;
+    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+  esac
+done
+
+# Colors (only if stdout is a TTY)
+if [ -t 1 ]; then
+  G=$'\033[32m'; R=$'\033[31m'; Y=$'\033[33m'; D=$'\033[2m'; Z=$'\033[0m'
+else
+  G=""; R=""; Y=""; D=""; Z=""
+fi
+
+PASS=0; FAIL=0; WARN=0
+ok()   { echo "${G}✓${Z} $1"; PASS=$((PASS+1)); }
+bad()  { echo "${R}✗${Z} $1${2:+ ${D}— $2${Z}}"; FAIL=$((FAIL+1)); }
+warn() { echo "${Y}⚠${Z} $1${2:+ ${D}— $2${Z}}"; WARN=$((WARN+1)); }
+hdr()  { echo; echo "${D}── $1 ──${Z}"; }
+
+# Detect environment
+IN_CONTAINER=0
+if [ -f /.dockerenv ] || grep -qE '(docker|containerd|kubepods)' /proc/1/cgroup 2>/dev/null; then
+  IN_CONTAINER=1
+fi
+
+hdr "Binaries"
+for bin in claude opencode chezmoi mise git tmux jq op; do
+  command -v "$bin" >/dev/null 2>&1 && ok "$bin: $(command -v "$bin")" || bad "$bin missing"
+done
+
+if [ $IN_CONTAINER -eq 1 ]; then
+  hdr "Container tools"
+  for bin in helm gh pulumi docker aws kubectl tflint gitleaks age sops bun tailscale; do
+    command -v "$bin" >/dev/null 2>&1 && ok "$bin" || bad "$bin missing"
+  done
+fi
+
+hdr "Claude Code"
+if command -v claude >/dev/null 2>&1; then
+  ok "version: $(claude --version 2>/dev/null | head -1)"
+  PLUGIN_COUNT=$(claude plugin list 2>/dev/null | grep -c '^  ❯' || echo 0)
+  [ "$PLUGIN_COUNT" -ge 1 ] && ok "$PLUGIN_COUNT plugin(s) installed" || warn "no plugins installed"
+fi
+
+hdr "OpenCode"
+if command -v opencode >/dev/null 2>&1; then
+  ok "version: $(opencode --version 2>/dev/null)"
+  OC_CONFIG="$HOME/.config/opencode/oh-my-openagent.json"
+  if [ -f "$OC_CONFIG" ]; then
+    ok "active config: $OC_CONFIG"
+    if command -v jq >/dev/null 2>&1; then
+      OPUS_MODEL=$(jq -r '.agents.sisyphus.model // "?"' "$OC_CONFIG")
+      if [[ "$OPUS_MODEL" == *"opus-4-8"* ]]; then
+        ok "Opus model: $OPUS_MODEL"
+      else
+        warn "Opus model: $OPUS_MODEL" "expected claude-opus-4-8"
+      fi
+    fi
+  else
+    bad "OpenCode config missing" "$OC_CONFIG"
+  fi
+  # Stale legacy file
+  if [ -f "$HOME/.config/opencode/oh-my-opencode.json" ]; then
+    warn "legacy oh-my-opencode.json present" "remove to avoid confusion"
+  fi
+fi
+
+if [ $IN_CONTAINER -eq 1 ]; then
+  hdr "Secrets in env"
+  for v in OP_SERVICE_ACCOUNT_TOKEN ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GH_TOKEN DD_API_KEY DD_APP_KEY; do
+    if [ -n "${!v:-}" ]; then ok "$v set"; else bad "$v missing"; fi
+  done
+  # Soft-fail items
+  for v in GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE; do
+    if [ -n "${!v:-}" ]; then ok "$v set"; else warn "$v not set" "soft-fail; some skills disabled"; fi
+  done
+
+  hdr "Mounts & services"
+  [ -S /var/run/docker.sock ] && docker ps >/dev/null 2>&1 && ok "docker socket passthrough" || bad "docker socket"
+  [ -d "$HOME/.aws" ] && ok "~/.aws mount" || bad "~/.aws mount"
+  [ -d "$HOME/.kube" ] && ok "~/.kube mount" || bad "~/.kube mount"
+  [ -d "$HOME/code" ] && ok "~/code volume ($(ls "$HOME/code" 2>/dev/null | wc -l | tr -d ' ') entries)" || bad "~/code volume"
+  pgrep sshd >/dev/null && ok "sshd running" || bad "sshd not running"
+  pgrep -x cron >/dev/null && ok "cron daemon running" || warn "cron daemon not running" "snapshot/toggl crons won't fire"
+  if command -v tailscale >/dev/null 2>&1; then
+    TS_STATE=$(tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"')
+    [ "$TS_STATE" = "Running" ] && ok "tailscale: $TS_STATE" || bad "tailscale: $TS_STATE"
+  fi
+
+  if [ $QUICK -eq 0 ]; then
+    hdr "External auth (slow)"
+    if command -v aws >/dev/null 2>&1; then
+      if aws sts get-caller-identity >/dev/null 2>&1; then
+        ok "AWS: $(aws sts get-caller-identity --query Arn --output text 2>/dev/null)"
+      else
+        warn "AWS: not logged in" "run: aws-sso-login"
+      fi
+    fi
+    if command -v kubectl >/dev/null 2>&1; then
+      KCTX=$(kubectl config current-context 2>/dev/null || echo "")
+      [ -n "$KCTX" ] && ok "kubectl context: $KCTX" || warn "no current kubectl context"
+    fi
+    if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+      KEYS=$(ssh-add -l 2>/dev/null | wc -l | tr -d ' ')
+      [ "$KEYS" -gt 0 ] && ok "ssh-agent: $KEYS key(s)" || warn "ssh-agent: 0 keys"
+    else
+      warn "ssh-agent not available"
+    fi
+  fi
+
+  if [ $NO_MCP -eq 0 ] && command -v claude >/dev/null 2>&1; then
+    hdr "MCP servers (probe)"
+    MCP_OUT=$(timeout 30 claude mcp list 2>/dev/null || true)
+    CONNECTED=$(echo "$MCP_OUT" | grep -c '✓ Connected' || echo 0)
+    FAILED=$(echo "$MCP_OUT" | grep -c '✗ Failed' || echo 0)
+    [ "$CONNECTED" -gt 0 ] && ok "$CONNECTED MCP server(s) connected" || warn "0 MCP servers connected"
+    if [ "$FAILED" -gt 0 ]; then
+      echo "$MCP_OUT" | grep '✗ Failed' | sed "s/^/  $R✗$Z /"
+      WARN=$((WARN+FAILED))
+    fi
+  fi
+fi
+
+hdr "Summary"
+echo "${G}$PASS passed${Z}, ${Y}$WARN warning(s)${Z}, ${R}$FAIL failed${Z}"
+[ $FAIL -eq 0 ]
