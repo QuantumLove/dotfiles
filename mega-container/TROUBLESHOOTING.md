@@ -60,8 +60,9 @@ A required 1Password item doesn't exist in the Development vault.
    - Create the missing item in 1Password (Development vault)
    - Or make the secret optional in `modify_dot_claude.json.tmpl` (add `2>/dev/null || echo ""`)
 
-**Currently Optional Secrets:**
-- `Slack User Token` - TODO: make required once Slack MCP is configured
+**Currently Optional Secrets** (soft-fail at boot, surfaced as warnings by `mega-doctor`):
+- `Slack User Token` — Slack MCP disabled if missing
+- `GWS Credentials JSON` — morning-triage / Gmail access disabled if missing
 
 ---
 
@@ -79,24 +80,43 @@ docker info
 
 ---
 
-## Verification Checklist
+### OpenCode web returns 502 from the Tailscale URL
 
-After starting the container, verify all services:
+**Symptoms:**
+- `https://raf-dev.koi-moth.ts.net` shows 502 or "Bad Gateway"
+- Container is `(healthy)` but the URL doesn't work
+
+**Diagnose:**
+```bash
+ssh raf-dev
+tail -50 ~/.local/state/opencode-web.log     # opencode web's own log
+tailscale serve status                       # should show / → http://127.0.0.1:4096
+curl -sf http://127.0.0.1:4096/ >/dev/null && echo "local OK" || echo "local FAIL"
+mega-doctor                                  # one-shot summary
+```
+
+**Common causes:**
+- `opencode web` crashed → restart container (`./start.sh` from host)
+- Tailscale serve config drifted → re-run `sudo tailscale serve --bg http://127.0.0.1:4096`
+- API key missing → check `~/.secrets_env` and 1Password
+
+---
+
+### Container marked `(unhealthy)` in `docker ps`
+
+The healthcheck probes: tailscale, sshd, cron, opencode web port, claude + opencode binaries.
 
 ```bash
-# Container is healthy
-docker compose ps  # Should show "healthy"
-
-# Bootstrap completed
-docker compose logs mega | grep "Bootstrap Complete"
-
-# SSH into container works
-ssh raf-dev
-
-# Inside container:
-claude --version
-gh auth status
-op account get
-docker info
-tailscale status
+mega-doctor   # tells you which specific check failed
+docker compose logs mega | tail -50
 ```
+
+---
+
+## Verification Checklist
+
+```bash
+mega-doctor   # comprehensive: binaries, secrets, mounts, MCPs, opencode web, tailscale serve
+```
+
+Returns 0 if all critical checks pass. Warnings are printed but don't fail the script.

@@ -5,11 +5,13 @@ Persistent development environment accessible via Tailscale SSH from any device.
 ## Features
 
 - **Tailscale SSH** - Access from laptop, phone, tablet via `ssh <hostname>`
+- **OpenCode web** - Browser UI at `https://raf-dev.koi-moth.ts.net` (tailnet-only, HTTPS via tailscale serve). Works from phone.
 - **1Password Integration** - Secrets injected at startup via Service Account
 - **chezmoi** - Dotfiles and configuration management
 - **mise** - Tool version management (Node, Python, etc.)
 - **Claude Code + OpenCode** - AI coding assistants
 - **MCP Servers** - Linear, Sentry, GitHub, Toggl, Datadog integrations
+- **`mega-doctor`** - One-shot health check (binaries, secrets, mounts, MCPs, opencode web)
 
 ## Prerequisites
 
@@ -50,7 +52,13 @@ tmux attach || tmux new -s dev
 
 # Start work on an issue
 /start-work METR-123
+
+# Verify everything is healthy
+mega-doctor               # full check (~10-20s, includes MCP/AWS probes)
+mega-doctor --quick       # fast, no network probes
 ```
+
+**From a phone** (or any browser on your tailnet): open `https://raf-dev.koi-moth.ts.net` for the OpenCode web UI — skips tmux entirely.
 
 ## Architecture
 
@@ -142,25 +150,22 @@ The `-v` flag deletes volumes including Tailscale state.
 ## Rebuilding
 
 ```bash
-# Rebuild without losing state
-docker compose build mega
-docker compose up -d
-
-# Full rebuild (will need Tailscale re-auth)
-docker compose down
-docker compose build --no-cache mega
-./start.sh
+./rebuild.sh    # build image + recreate container + full mega-doctor (preserves volumes)
+./start.sh      # just start (no rebuild)
 ```
+
+Volumes are preserved by both scripts. **Never `docker compose down -v`** — the `-v` flag wipes the Tailscale state and re-auth is required.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | Container orchestration |
-| `Dockerfile` | Container image definition |
-| `entrypoint.sh` | Bootstrap script (1Password, chezmoi, plugins) |
-| `start.sh` | Host-side startup wrapper |
-| `.config/mise/` | Tool versions (baked into image) |
+| `docker-compose.yml` | Container orchestration (init: true for zombie reaping, healthcheck) |
+| `Dockerfile` | Container image definition (apt + binary tools; mise tools live in `.config/mise/config.toml`) |
+| `entrypoint.sh` | Bootstrap: 1Password, chezmoi, sshd, cron, opencode web, tailscale serve |
+| `start.sh` | Host-side startup wrapper (no rebuild) |
+| `rebuild.sh` | Host-side rebuild wrapper (build + recreate + full mega-doctor) |
+| `.config/mise/config.toml` | Tool versions (Node, Python, age, sops, gitleaks, tflint, bun, ...) |
 
 ## Managed by Chezmoi
 

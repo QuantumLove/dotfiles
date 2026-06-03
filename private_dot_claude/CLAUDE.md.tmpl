@@ -233,14 +233,14 @@ security add-generic-password -a "$USER" -s "OP_SERVICE_ACCOUNT_TOKEN" -w 'YOUR_
 
 ### Starting the Container
 
-```bash
-~/mega-container/start.sh
-```
+- `~/mega-container/start.sh` — routine start
+- `~/mega-container/rebuild.sh` — rebuild image + recreate + run full `mega-doctor` (use after Dockerfile / mise / dotfile changes)
+- Phone/browser access: `https://raf-dev.koi-moth.ts.net` (tailnet-only)
+- Validate health anytime: `ssh raf-dev mega-doctor`
 
 **First time only:** After `start.sh`, authenticate Tailscale:
 ```bash
 docker compose exec tailscale tailscale up --accept-routes --hostname=raf-dev
-# Follow the URL to authenticate with your account
 ```
 
 ### Starting Work
