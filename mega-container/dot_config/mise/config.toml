@@ -1,7 +1,11 @@
 [tools]
-node = "22.21.1"
+node = "22.22.3"
 "npm:pnpm" = "latest"
 python = "3.12"
+age = "latest"
+sops = "latest"
+gitleaks = "latest"
+tflint = "latest"
 "asdf:virtualroot/asdf-opentofu" = "latest"
 "asdf:asdf-community/asdf-kubectl" = "latest"
 "asdf:sudermanjr/asdf-yq" = "latest"

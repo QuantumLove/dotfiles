@@ -164,12 +164,40 @@
       }
     ]
   },
-  "model": "claude-opus-4-5-20251101",
+  "model": "opus[1m]",
   "temperature": 0.7,
   "maxTokens": 8192,
   "enabledPlugins": {
     "ralph-loop@claude-plugins-official": true,
     "compound-engineering@compound-engineering-plugin": true,
-    "superpowers@superpowers-marketplace": true
+    "superpowers@superpowers-marketplace": true,
+    "inspect-ai@metr-claude-code": true,
+    "github@metr-claude-code": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "compound-engineering-plugin": {
+      "source": {
+        "source": "github",
+        "repo": "EveryInc/compound-engineering-plugin"
+      }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
+    },
+    "metr-claude-code": {
+      "source": {
+        "source": "github",
+        "repo": "METR/claude-code"
+      }
+    }
   }
 }

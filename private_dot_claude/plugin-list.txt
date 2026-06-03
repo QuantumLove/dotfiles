@@ -5,6 +5,7 @@
 # Core plugins
 compound-engineering@compound-engineering-plugin
 superpowers@superpowers-marketplace
+ralph-loop@claude-plugins-official
 
 # METR plugins (requires metr-claude-code marketplace from .chezmoiexternal.toml)
 inspect-ai@metr-claude-code

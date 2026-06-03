@@ -13,14 +13,15 @@ ENV LANG=C.UTF-8
 
 # =============================================================================
 # VERSIONS - Update these when upgrading tools
+# (mise-managed tools live in dot_config/mise/config.toml)
 # =============================================================================
-# helm:      3.15.4
-# gh:        2.67.0
-# lazygit:   0.44.1
-# pulumi:    3.161.0
-# docker:    24.0.7
-# compose:   2.32.4
-# buildx:    0.21.1
+# helm:      4.2.0
+# gh:        2.93.0
+# lazygit:   0.62.1
+# pulumi:    3.244.0
+# docker:    29.5.2
+# compose:   5.1.4
+# buildx:    0.34.1
 # =============================================================================
 
 # =============================================================================
@@ -44,6 +45,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cron \
     curl \
     git \
+    less \
+    postgresql-client \
+    skopeo \
     sudo \
     tmux \
     vim \
@@ -83,27 +87,27 @@ RUN sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin && \
 
 # helm and gh - direct install (asdf plugins broken, aqua needs GitHub token)
 RUN ARCH=$(dpkg --print-architecture) && \
-    curl -fsSL https://get.helm.sh/helm-v3.15.4-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
+    curl -fsSL https://get.helm.sh/helm-v4.2.0-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
     mv /tmp/linux-${ARCH}/helm /usr/local/bin/helm && \
     rm -rf /tmp/linux-${ARCH}
 
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
-    curl -fsSL https://github.com/cli/cli/releases/download/v2.67.0/gh_2.67.0_linux_${ARCH}.tar.gz | tar xz -C /tmp && \
-    mv /tmp/gh_2.67.0_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
+    curl -fsSL https://github.com/cli/cli/releases/download/v2.93.0/gh_2.93.0_linux_${ARCH}.tar.gz | tar xz -C /tmp && \
+    mv /tmp/gh_2.93.0_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
     rm -rf /tmp/gh_*
 
 # Lazygit
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="x86_64"; fi && \
-    curl -fsSL https://github.com/jesseduffield/lazygit/releases/download/v0.44.1/lazygit_0.44.1_Linux_${ARCH}.tar.gz | tar xz -C /tmp && \
+    curl -fsSL https://github.com/jesseduffield/lazygit/releases/download/v0.62.1/lazygit_0.62.1_Linux_${ARCH}.tar.gz | tar xz -C /tmp && \
     mv /tmp/lazygit /usr/local/bin/lazygit && \
     rm -rf /tmp/lazygit*
 
 # Pulumi CLI
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; else ARCH="x64"; fi && \
-    curl -fsSL https://get.pulumi.com/releases/sdk/pulumi-v3.161.0-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
+    curl -fsSL https://get.pulumi.com/releases/sdk/pulumi-v3.244.0-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
     mv /tmp/pulumi/* /usr/local/bin/ && \
     rm -rf /tmp/pulumi
 
@@ -116,21 +120,21 @@ RUN ARCH=$(uname -m) && \
 
 # Docker CLI (for building images via Pulumi docker-build provider)
 RUN ARCH=$(uname -m) && \
-    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-24.0.7.tgz" | tar xz -C /tmp && \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-29.5.2.tgz" | tar xz -C /tmp && \
     mv /tmp/docker/docker /usr/local/bin/ && \
     rm -rf /tmp/docker
 
 # Docker Compose plugin
 RUN ARCH=$(uname -m) && \
     mkdir -p /usr/local/lib/docker/cli-plugins && \
-    curl -fsSL "https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-${ARCH}" \
+    curl -fsSL "https://github.com/docker/compose/releases/download/v5.1.4/docker-compose-linux-${ARCH}" \
       -o /usr/local/lib/docker/cli-plugins/docker-compose && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 # Docker Buildx plugin (uses arm64/amd64 naming, NOT aarch64/x86_64)
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi && \
-    curl -fsSL "https://github.com/docker/buildx/releases/download/v0.21.1/buildx-v0.21.1.linux-${ARCH}" \
+    curl -fsSL "https://github.com/docker/buildx/releases/download/v0.34.1/buildx-v0.34.1.linux-${ARCH}" \
       -o /usr/local/lib/docker/cli-plugins/docker-buildx && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
 
