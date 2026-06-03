@@ -294,7 +294,7 @@ fi
 echo "✓ opencode web on :4096"
 
 # 10d. Expose opencode web via Tailscale HTTPS (idempotent — persisted in tailscale-state volume)
-if ! sudo tailscale serve --bg https / http://127.0.0.1:4096; then
+if ! sudo tailscale serve --bg http://127.0.0.1:4096; then
   echo "ERROR: tailscale serve failed"
   exit 1
 fi
