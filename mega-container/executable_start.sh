@@ -29,15 +29,18 @@ echo "✓ 1Password token ready"
 echo "Starting container..."
 docker compose up -d
 
-# 3. Check Tailscale status
-echo "Checking Tailscale..."
+# 3. Wait for bootstrap to finish (entrypoint prints "=== Bootstrap Complete ===" when done)
+echo "Waiting for container bootstrap..."
+for _ in $(seq 1 60); do
+  if docker compose logs mega 2>/dev/null | grep -q "=== Bootstrap Complete ==="; then
+    break
+  fi
+  sleep 2
+done
 
-# Wait for container to be ready
-sleep 3
-
+# 4. Check Tailscale status
 if docker compose exec -T mega tailscale status &>/dev/null; then
-  echo "✓ Tailscale already connected"
-  docker compose exec -T mega tailscale status | head -5
+  echo "✓ Tailscale connected"
 else
   echo ""
   echo "⚠️  Tailscale not yet authenticated. Run one-time setup:"
@@ -47,4 +50,12 @@ else
   echo "   After that, Tailscale will persist across restarts (state saved in volume)."
 fi
 
+# 5. Show the tail of bootstrap logs — includes mega-doctor --quick output
+#    (full mega-doctor runs in rebuild.sh, not on every start)
+echo
+echo "=== Bootstrap output ==="
+docker compose logs --tail=40 mega 2>&1 | sed -n '/== Bootstrap Complete ==/,$p; /── Summary ──/q' | tail -40
+
+echo
 echo "=== Startup Complete ==="
+echo "   Run 'mega-doctor' inside the container for full health probe."
