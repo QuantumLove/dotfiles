@@ -278,6 +278,29 @@ echo "Starting cron daemon..."
 sudo cron
 echo "✓ cron running"
 
+# 10c. Start OpenCode web (UI + API on one port, behind tailscale serve)
+echo "Starting opencode web..."
+mkdir -p "$HOME/.local/state"
+nohup opencode web --hostname 127.0.0.1 --port 4096 --log-level INFO \
+  > "$HOME/.local/state/opencode-web.log" 2>&1 &
+for _ in $(seq 1 30); do
+  if curl -sf http://127.0.0.1:4096/ >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+if ! curl -sf http://127.0.0.1:4096/ >/dev/null 2>&1; then
+  echo "ERROR: opencode web failed to start (see ~/.local/state/opencode-web.log)"
+  exit 1
+fi
+echo "✓ opencode web on :4096"
+
+# 10d. Expose opencode web via Tailscale HTTPS (idempotent — persisted in tailscale-state volume)
+if ! sudo tailscale serve --bg https / http://127.0.0.1:4096; then
+  echo "ERROR: tailscale serve failed"
+  exit 1
+fi
+TS_HOST=$(tailscale status --json | jq -r '.Self.DNSName // .Self.HostName' | sed 's/\.$//')
+echo "✓ opencode web reachable at https://$TS_HOST"
+
 # 11. Apply chezmoi (secrets injected via onepasswordRead templates)
 echo "Applying chezmoi configuration..."
 if [ ! -d "$HOME/.local/share/chezmoi" ]; then

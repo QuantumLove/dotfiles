@@ -1,0 +1,2 @@
+# Claude Code runtime spillage when a session runs inside this repo
+.claude/

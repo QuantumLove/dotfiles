@@ -103,6 +103,27 @@ if [ $IN_CONTAINER -eq 1 ]; then
     [ "$TS_STATE" = "Running" ] && ok "tailscale: $TS_STATE" || bad "tailscale: $TS_STATE"
   fi
 
+  # OpenCode web (container-only feature)
+  hdr "OpenCode web"
+  if curl -sf http://127.0.0.1:4096/ >/dev/null 2>&1; then
+    ok "opencode web responding on :4096"
+  else
+    bad "opencode web not responding on :4096" "tail ~/.local/state/opencode-web.log"
+  fi
+  if [ $QUICK -eq 0 ] && command -v tailscale >/dev/null 2>&1; then
+    if tailscale serve status 2>/dev/null | grep -q "http://127.0.0.1:4096"; then
+      TS_URL="https://$(tailscale status --json | jq -r '.Self.DNSName // .Self.HostName' | sed 's/\.$//')"
+      ok "tailscale serve → $TS_URL"
+      if curl -sfk --max-time 5 "$TS_URL/" >/dev/null 2>&1; then
+        ok "$TS_URL reachable"
+      else
+        warn "$TS_URL not reachable from inside container" "may still work from your tailnet"
+      fi
+    else
+      bad "tailscale serve not configured for :4096"
+    fi
+  fi
+
   if [ $QUICK -eq 0 ]; then
     hdr "External auth (slow)"
     if command -v aws >/dev/null 2>&1; then
