@@ -2,6 +2,7 @@ services:
   mega:
     build: .
     hostname: raf-dev
+    init: true   # tini as PID 1 — reaps zombie children
     cap_add:
       - NET_ADMIN      # Required for Tailscale networking
       - SYS_MODULE     # May be needed for some network operations
@@ -32,9 +33,7 @@ services:
        - opencode-snapshots:/home/rafaelcarvalho/.local/share/tmux-snapshots
     restart: "on-failure:5"  # Max 5 restart attempts, then stops (prevents crash-loops)
     healthcheck:
-      # Cheap liveness probe — validates Tailscale + sshd + claude/opencode binaries.
-      # Heavyweight validation (secrets, MCPs, mounts) lives in mega-doctor.
-      test: ["CMD-SHELL", "tailscale status --json >/dev/null && pgrep sshd >/dev/null && claude --version >/dev/null && opencode --version >/dev/null"]
+      test: ["CMD-SHELL", "tailscale status --json >/dev/null && pgrep sshd >/dev/null && pgrep -x cron >/dev/null && claude --version >/dev/null && opencode --version >/dev/null"]
       interval: 30s
       timeout: 5s
       retries: 3

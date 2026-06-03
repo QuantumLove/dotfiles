@@ -273,6 +273,11 @@ echo "Starting OpenSSH server (fallback)..."
 sudo /usr/sbin/sshd
 echo "✓ OpenSSH server running"
 
+# 10b. Start cron daemon
+echo "Starting cron daemon..."
+sudo cron
+echo "✓ cron running"
+
 # 11. Apply chezmoi (secrets injected via onepasswordRead templates)
 echo "Applying chezmoi configuration..."
 if [ ! -d "$HOME/.local/share/chezmoi" ]; then
@@ -300,21 +305,7 @@ if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
 fi
 echo "✓ chezmoi applied"
 
-# 12. Install Claude Code plugins (if not already installed via chezmoi run_onchange)
-echo "Installing Claude Code plugins..."
-PLUGIN_LIST="$HOME/.local/share/chezmoi/private_dot_claude/plugin-list.txt"
-if [ -f "$PLUGIN_LIST" ] && command -v claude &> /dev/null; then
-  while IFS= read -r plugin || [ -n "$plugin" ]; do
-    [[ -z "$plugin" || "$plugin" =~ ^# ]] && continue
-    echo "  Installing: $plugin"
-    claude plugin install "$plugin" 2>/dev/null || true
-  done < "$PLUGIN_LIST"
-  echo "✓ Claude Code plugins installed"
-else
-  echo "  (skipping - plugin list or claude not available)"
-fi
-
-# 13. Verify mise tools (already pre-installed in image)
+# 12. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
 echo "Verifying mise tools..."
 if ! mise doctor; then
@@ -323,7 +314,7 @@ if ! mise doctor; then
 fi
 echo "✓ mise tools ready"
 
-# 14. Initialize time-tracker (tt) machine identity (idempotent)
+# 13. Initialize time-tracker (tt) machine identity (idempotent)
 echo "Initializing time-tracker..."
 if ! command -v tt &>/dev/null; then
   echo "ERROR: tt (time-tracker) not found in PATH"
@@ -332,7 +323,7 @@ fi
 tt init --label "$(hostname)"
 echo "✓ time-tracker ready"
 
-# 15. Verify sqlite3 and column are available (required for oc history)
+# 14. Verify sqlite3 and column are available (required for oc history)
 echo "Verifying sqlite3 and column..."
 if ! command -v sqlite3 &>/dev/null; then
   echo "ERROR: sqlite3 not found (required for oc history)"
@@ -346,7 +337,7 @@ echo "✓ sqlite3 + column ready"
 
 echo "=== Bootstrap Complete ==="
 
-# 16. Run mega-doctor (quick mode — no slow MCP/AWS probes)
+# 15. Run mega-doctor (quick mode — no slow MCP/AWS probes)
 # Non-fatal: warnings don't block container start, only printed for visibility.
 if [ -x "$HOME/.local/bin/mega-doctor" ]; then
   echo
