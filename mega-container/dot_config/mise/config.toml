@@ -1,5 +1,6 @@
 [tools]
 node = "22.22.3"
+bun = "latest"
 "npm:pnpm" = "latest"
 python = "3.12"
 age = "latest"
