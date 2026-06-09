@@ -148,11 +148,15 @@ if [ $IN_CONTAINER -eq 1 ]; then
   if [ $NO_MCP -eq 0 ] && command -v claude >/dev/null 2>&1; then
     hdr "MCP servers (probe)"
     MCP_OUT=$(timeout 30 claude mcp list 2>/dev/null || true)
-    CONNECTED=$(echo "$MCP_OUT" | grep -c '✓ Connected' || echo 0)
-    FAILED=$(echo "$MCP_OUT" | grep -c '✗ Failed' || echo 0)
-    [ "$CONNECTED" -gt 0 ] && ok "$CONNECTED MCP server(s) connected" || warn "0 MCP servers connected"
-    if [ "$FAILED" -gt 0 ]; then
-      echo "$MCP_OUT" | grep '✗ Failed' | sed "s/^/  $R✗$Z /"
+    # Match by status word, not by unicode glyph — claude mcp list uses ✔/✘ (U+2714/U+2718)
+    # and has flipped between glyphs across versions. Word-matching is stable.
+    # `grep -c || true` (not `|| echo 0`) — grep -c already prints "0" on no match;
+    # adding `echo 0` produced "0\n0" and broke the numeric test downstream.
+    CONNECTED=$(echo "$MCP_OUT" | grep -cE 'Connected$' || true)
+    FAILED=$(echo "$MCP_OUT" | grep -cE 'Failed to connect' || true)
+    [ "${CONNECTED:-0}" -gt 0 ] && ok "$CONNECTED MCP server(s) connected" || warn "0 MCP servers connected"
+    if [ "${FAILED:-0}" -gt 0 ]; then
+      echo "$MCP_OUT" | grep -E 'Failed to connect' | sed "s/^/  $R✗$Z /"
       WARN=$((WARN+FAILED))
     fi
   fi
