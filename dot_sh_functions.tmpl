@@ -19,6 +19,11 @@ awspr() {
     echo "✓ Switched to production environment"
 }
 
+# Jump to the chezmoi source directory (works in bash and zsh)
+my-chezmoi() {
+    cd "$HOME/.local/share/chezmoi" || return
+}
+
 # Load environment variables from a file
 # Usage: loadenv .env
 loadenv() {
