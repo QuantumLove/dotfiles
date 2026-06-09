@@ -167,12 +167,14 @@
   "model": "opus[1m]",
   "temperature": 0.7,
   "maxTokens": 8192,
+  "preferredNotifChannel": "terminal_bell",
   "enabledPlugins": {
     "ralph-loop@claude-plugins-official": true,
     "compound-engineering@compound-engineering-plugin": true,
     "superpowers@superpowers-marketplace": true,
     "inspect-ai@metr-claude-code": true,
-    "github@metr-claude-code": true
+    "github@metr-claude-code": true,
+    "warp@claude-code-warp": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -197,6 +199,12 @@
       "source": {
         "source": "github",
         "repo": "METR/claude-code"
+      }
+    },
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
       }
     }
   }
