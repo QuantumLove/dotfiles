@@ -1490,7 +1490,7 @@ cd /tmp  # Not a git repo
 - [ ] 4.1.2 Note annoying permission prompts during usage
 - [ ] 4.1.3 Relax specific permissions iteratively
 
-**4.2 Update start-work Skill**
+**4.2 Update setup-work Skill**
 
 - [ ] 4.2.1 Modify to work with mega-container (no per-repo DevContainer)
 - [ ] 4.2.2 Create worktree inside ~/code in mega-container
@@ -1570,10 +1570,10 @@ git log -1 --oneline
 # Answer: N
 ```
 
-**Test 4.C: start-work Skill in Mega Container**
+**Test 4.C: setup-work Skill in Mega Container**
 ```bash
-# Run start-work skill
-/start-work eng-999 "Test feature"
+# Run setup-work skill
+/setup-work eng-999 "Test feature"
 
 # Expected:
 # 1. Creates worktree at ~/code/eng-999-test-feature
@@ -1627,7 +1627,7 @@ claude
 # Simulate a complete work session
 
 # 1. Start work
-/start-work eng-888 "Add feature X"
+/setup-work eng-888 "Add feature X"
 
 # 2. Check context
 /where-am-i
@@ -1680,7 +1680,7 @@ tmux attach -t work
 - [ ] `git commit` auto-allowed (no prompt)
 - [ ] `tofu apply` prompts for permission
 - [ ] MCP write operations prompt for permission
-- [ ] `/start-work` creates worktree correctly
+- [ ] `/setup-work` creates worktree correctly
 - [ ] CLAUDE.md context is available in sessions
 - [ ] Deprecated skills show warnings
 - [ ] Full workflow (start → code → commit → PR) works smoothly
@@ -1927,7 +1927,7 @@ jobs:
 |------|---------|
 | `modify_dot_claude.json.tmpl` | Add all 5 MCPs with `onepasswordRead` for secrets |
 | `dot_zshrc.tmpl` | Remove `op read` calls (secrets now in config files via chezmoi) |
-| `commands/start-work.md.tmpl` | Update for mega-container workflow |
+| `commands/setup-work.md.tmpl` | Update for mega-container workflow |
 | `CLAUDE.md.tmpl` | Add mega-container guidance, context injection |
 | `settings.json.tmpl` | Add Sentry reads to allow list, container permissions |
 

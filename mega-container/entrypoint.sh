@@ -50,7 +50,7 @@ for vol_dir in "${USER_VOLUMES[@]}"; do
 done
 echo "✓ Volume permissions ready"
 
-# 2b. Create ~/code/worktrees directory for /start-work skill
+# 2b. Create ~/code/worktrees directory for /setup-work skill
 mkdir -p "$HOME/code/worktrees" || { echo "ERROR: Failed to create ~/code/worktrees"; exit 1; }
 echo "✓ ~/code/worktrees directory ready"
 

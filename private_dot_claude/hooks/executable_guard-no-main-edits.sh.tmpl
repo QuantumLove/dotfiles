@@ -1,0 +1,73 @@
+#!/bin/bash
+# PreToolUse hook: blocks Edit/Write/MultiEdit/NotebookEdit when the target
+# file's git repo is currently on main/master. Forces a worktree-based flow.
+#
+# Bypass for one session:  export CLAUDE_ALLOW_MAIN_EDITS=1
+# Allowlisted repo:        ~/.local/share/chezmoi  (per CLAUDE.md, commits to main are expected)
+
+set -euo pipefail
+
+HOOK_NAME="guard-no-main"
+source "$HOME/.claude/hooks/hook-lib.sh"
+
+# Session-level bypass via env var
+if [ "${CLAUDE_ALLOW_MAIN_EDITS:-}" = "1" ]; then
+    hook_log "Bypassed (CLAUDE_ALLOW_MAIN_EDITS=1)"
+    exit 0
+fi
+
+payload="$(cat)"
+tool_name="$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null || echo "")"
+hook_log "tool=$tool_name"
+
+# Only inspect file-modifying tools
+case "$tool_name" in
+    Edit|Write|MultiEdit|NotebookEdit) ;;
+    *) exit 0 ;;
+esac
+
+# Extract target file path (field name varies by tool)
+file_path="$(jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' <<<"$payload" 2>/dev/null || echo "")"
+if [ -z "$file_path" ] || [ "$file_path" = "null" ]; then
+    hook_log "no file_path in tool_input — allowing"
+    exit 0
+fi
+
+# Resolve repo root for that file
+dir="$(dirname "$file_path")"
+repo_root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "")"
+if [ -z "$repo_root" ]; then
+    hook_log "file not in a git repo — allowing"
+    exit 0
+fi
+
+# Allowlist: chezmoi dotfiles repo (commits to main are expected per CLAUDE.md)
+case "$repo_root" in
+    "$HOME/.local/share/chezmoi"|"$HOME/.local/share/chezmoi"/*)
+        hook_log "allowlisted (chezmoi)"
+        exit 0
+        ;;
+esac
+
+# Check branch
+branch="$(git -C "$repo_root" branch --show-current 2>/dev/null || echo "")"
+hook_log "repo=$repo_root branch=$branch"
+
+case "$branch" in
+    main|master)
+        cat >&2 <<EOF
+Blocked: refusing to edit on '$branch' branch.
+  Repo: $repo_root
+  File: $file_path
+
+The main checkout stays on main. Use /setup-work to create a feature worktree:
+  /setup-work <linear-id-or-description>
+
+Bypass for this session if you really mean it:
+  export CLAUDE_ALLOW_MAIN_EDITS=1
+EOF
+        exit 2
+        ;;
+esac
+
+exit 0

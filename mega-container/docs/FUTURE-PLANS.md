@@ -8,7 +8,7 @@ Most of Phase 4 code is complete. What remains is iterative testing and permissi
 
 - [ ] 4.1.2 Note annoying permission prompts during usage
 - [ ] 4.1.3 Relax specific permissions iteratively
-- [ ] 4.2.3 Test /start-work workflow
+- [ ] 4.2.3 Test /setup-work workflow
 
 ### Phase 4 Test Procedure
 
@@ -34,9 +34,9 @@ git add test.txt
 # "Allow Bash(tofu apply *)? [y/N]"
 ```
 
-**Test 4.C: start-work Skill in Container**
+**Test 4.C: setup-work Skill in Container**
 ```bash
-/start-work eng-999 "Test feature"
+/setup-work eng-999 "Test feature"
 
 # Expected:
 # 1. Creates worktree at ~/code/eng-999-test-feature
@@ -47,7 +47,7 @@ git add test.txt
 **Test 4.D: Full Workflow Simulation**
 ```bash
 # 1. Start work
-/start-work eng-888 "Add feature X"
+/setup-work eng-888 "Add feature X"
 
 # 2. Check context
 /where-am-i
@@ -88,7 +88,7 @@ tmux attach -t work
 - [ ] `git commit` auto-allowed (no prompt)
 - [ ] `tofu apply` prompts for permission
 - [ ] MCP write operations prompt for permission
-- [ ] `/start-work` creates worktree correctly
+- [ ] `/setup-work` creates worktree correctly
 - [ ] CLAUDE.md context is available in sessions
 - [ ] Full workflow (start → code → commit → PR) works smoothly
 - [ ] tmux sessions persist across device switches

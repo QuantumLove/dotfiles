@@ -51,7 +51,7 @@ ssh raf-dev
 tmux attach || tmux new -s dev
 
 # Start work on an issue
-/start-work METR-123
+/setup-work METR-123
 
 # Verify everything is healthy
 mega-doctor               # full check (~10-20s, includes MCP/AWS probes)

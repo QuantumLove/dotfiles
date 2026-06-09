@@ -326,7 +326,7 @@ warp-cli launch metr-dev
 /load-issue LIN-123
 
 # Start work
-/start-work LIN-123 implement-oauth
+/setup-work LIN-123 implement-oauth
 
 # Let Claude help
 claude "implement OAuth based on the loaded issue"
@@ -448,7 +448,7 @@ kubectl logs -n metr-dev deployment/hawk
 ### Most Used Commands
 
 ```bash
-/start-work ISSUE-ID    # Begin new feature
+/setup-work ISSUE-ID    # Begin new feature
 /safe-ship              # Complete pre-deployment checks
 /push-pr                # Create pull request
 /test-and-fix           # Run tests, auto-fix failures

@@ -83,7 +83,7 @@ claude
 ```bash
 # In inspect-action DevContainer
 claude
-/start-work LIN-123
+/setup-work LIN-123
 # Do some work...
 
 # Switch to mp4-deploy DevContainer

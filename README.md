@@ -71,7 +71,7 @@ tmux new -s work   # persistent sessions
 - `/k8s-reset` - Reset Kubernetes cluster to clean state
 
 **Git Workflow**
-- `/start-work` - Quick worktree + issue + branch setup
+- `/setup-work` - Quick worktree + issue + branch setup
 - `/push-pr` - Create PR with standardized formatting
 - `/load-issue` - Fetch issue context via Linear/GitHub MCP
 - `/review` - Invoke Code Reviewer agent

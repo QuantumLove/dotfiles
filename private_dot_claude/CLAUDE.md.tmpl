@@ -252,8 +252,8 @@ ssh raf-dev-1  # or whatever hostname Tailscale assigned
 tmux attach || tmux new -s dev
 
 # Start work on an issue
-/start-work METR-123          # From Linear issue
-/start-work --quick "experiment"  # Quick hack without tracking
+/setup-work METR-123          # From Linear issue
+/setup-work --quick "experiment"  # Quick hack without tracking
 ```
 
 ### Hot Patching (Update Without Rebuild)
@@ -311,7 +311,7 @@ The container auto-connects to minikube network at startup if minikube is alread
 | Skill | Purpose |
 |-------|---------|
 | `/mega:where-am-i` | Quick orientation (environment, project, branch) |
-| `/start-work` | Create worktree + branch from Linear issue |
+| `/setup-work` | Create worktree + branch from Linear issue |
 | `/pr-create` | Create PR with auto-detected Linear tag |
 | `/dev-list` | List all worktrees across all repos in ~/code |
 | `/dev-clean` | Clean up merged/stale worktrees |
