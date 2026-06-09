@@ -170,10 +170,12 @@ ENV MISE_DATA_DIR="/home/rafaelcarvalho/.local/share/mise" \
     MISE_YES=true
 
 COPY --chown=rafaelcarvalho:rafaelcarvalho .config/mise/config.toml .config/mise/
-# mise install pulls everything declared in config.toml, including npm CLI agents
-# (opencode, claude-code, yarn, oh-my-openagent, @googleworkspace/cli). Single source
-# of truth: edit dot_config/mise/config.toml to bump.
+# mise owns the language toolchains (node, bun, python, etc.). The CLI agents below
+# are installed via npm-global instead of mise's npm backend because mise skips
+# postinstall scripts, and both opencode-ai and @anthropic-ai/claude-code rely on
+# postinstall to download their platform-native binaries. npm install -g runs them.
 RUN mise trust -a && mise install && \
+    npm install -g yarn opencode-ai @anthropic-ai/claude-code oh-my-openagent @googleworkspace/cli && \
     oh-my-openagent install --no-tui --claude=yes --gemini=no --copilot=no
 
 COPY --chown=rafaelcarvalho:rafaelcarvalho entrypoint.sh /usr/local/bin/

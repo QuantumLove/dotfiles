@@ -14,13 +14,9 @@ tflint = "latest"
 "asdf:looztra/asdf-k9s" = "latest"
 "asdf:MetricMike/asdf-awscli" = "latest"
 "github:sjawhar/time-tracker" = { version = "latest", exe = "tt" }
-
-# CLI agents — pin via mise so they're declarative + upgradable via `mise up`
-"npm:opencode-ai" = "latest"
-"npm:@anthropic-ai/claude-code" = "latest"
-"npm:oh-my-openagent" = "latest"
-"npm:@googleworkspace/cli" = "latest"
-"npm:yarn" = "latest"
+# NB: opencode-ai, @anthropic-ai/claude-code, oh-my-openagent, @googleworkspace/cli,
+# yarn are installed via npm-global in the Dockerfile rather than here, because
+# mise's npm backend doesn't run postinstall scripts (needed for platform binaries).
 
 [settings]
 experimental = true
