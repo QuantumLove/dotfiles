@@ -22,3 +22,6 @@ Host *
 Host mega-dev raf-dev
     StrictHostKeyChecking no
     UserKnownHostsFile /dev/null
+    # Forward Warp's CLI-agent protocol marker so opencode-warp and friends
+    # activate inside the container. Requires matching AcceptEnv in sshd_config.
+    SendEnv WARP_CLI_AGENT_PROTOCOL_VERSION

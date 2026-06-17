@@ -18,6 +18,19 @@
 export LANG="${LANG:-C.UTF-8}"
 
 # ------------------------------------------------------------------------------
+# Warp CLI Agent protocol — opt-in fallback when SSH'd in.
+# The @warp-dot-dev/opencode-warp plugin (and other Warp CLI integrations) gates
+# entirely on this var; without it the plugin self-disables. Warp sets it in
+# local shells; this re-asserts it inside SSH sessions where SendEnv/AcceptEnv
+# may have stripped it. The OSC 777 sequences the plugin emits are ignored by
+# non-Warp terminals, so it's safe to set unconditionally over SSH.
+# ------------------------------------------------------------------------------
+
+if [ -n "$SSH_CONNECTION" ] && [ -z "$WARP_CLI_AGENT_PROTOCOL_VERSION" ]; then
+  export WARP_CLI_AGENT_PROTOCOL_VERSION=1
+fi
+
+# ------------------------------------------------------------------------------
 # PATH additions
 # ------------------------------------------------------------------------------
 
