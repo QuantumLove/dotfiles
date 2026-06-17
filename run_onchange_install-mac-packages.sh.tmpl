@@ -1,0 +1,25 @@
+{{- if eq .chezmoi.os "darwin" -}}
+#!/bin/bash
+# Install Homebrew (if missing) and run `brew bundle` against the chezmoi-managed Brewfile.
+# Re-runs whenever the Brewfile changes (its sha256 is embedded below, so chezmoi
+# sees this script as "changed" when the Brewfile content changes).
+#
+# Brewfile sha256: {{ include "Brewfile" | sha256sum }}
+
+set -euo pipefail
+
+if ! command -v brew >/dev/null 2>&1; then
+    echo "==> Installing Homebrew..."
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+
+# Ensure brew is on PATH for this shell (handles fresh installs before shellenv is sourced).
+if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+fi
+
+echo "==> brew bundle..."
+brew bundle --file="{{ .chezmoi.sourceDir }}/Brewfile"
+{{- end -}}

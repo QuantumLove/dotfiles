@@ -203,6 +203,12 @@ aws-sso-login() {
 }
 
 {{- if eq .chezmoi.os "darwin" }}
+# Update Homebrew formulae and casks. Casks with `auto_updates true`
+# are skipped by brew on purpose — their apps update themselves.
+brew-up() {
+    brew update && brew upgrade && brew cleanup
+}
+
 # Warp tab helpers (macOS only)
 # Uses working URL scheme: warp://action/new_tab?path=
 
