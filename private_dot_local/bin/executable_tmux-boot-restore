@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Restore the work tmux session set — run at boot and any time on demand.
+#
+# After a container rebuild nothing brings the work server back, so this does it:
+# start a server, restore the saved layout, and resume opencode in the restored
+# panes. It restores EXPLICITLY via tmux-resurrect's restore.sh rather than
+# relying on tmux-continuum's auto-restore-on-start, which fires inconsistently
+# (a fresh new-session sometimes triggers it, sometimes not).
+#
+# Idempotent: no-op if the work server already has real sessions, or if there's
+# no saved state to restore.
+set -uo pipefail
+export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+sock="${WARP_TMUX_SOCKET:-work}"
+probe="__boot_restore"
+restore_script="$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh"
+
+# Already up with real (non-probe) sessions? Nothing to do.
+if tmux -L "$sock" list-sessions 2>/dev/null | grep -qv "^${probe}:"; then
+    exit 0
+fi
+
+# Nothing to restore from / restore script missing.
+[ -e "$HOME/.local/share/tmux-snapshots/resurrect/last" ] || exit 0
+[ -x "$restore_script" ] || exit 0
+
+# Start a base server to restore into, then restore explicitly.
+tmux -L "$sock" new-session -d -s "$probe" 2>/dev/null || exit 0
+tmux -L "$sock" run-shell "$restore_script"
+
+# Wait (<=10s) for restore to recreate the real sessions.
+for _ in $(seq 1 40); do
+    if tmux -L "$sock" list-sessions 2>/dev/null | grep -qv "^${probe}:"; then break; fi
+    sleep 0.25
+done
+
+# Drop the throwaway (restored sessions keep the server alive). If nothing was
+# restored, this kills the last session and the server — a correct no-op.
+tmux -L "$sock" kill-session -t "$probe" 2>/dev/null || true
+
+# Resume opencode in the restored shell panes (best-effort; no-op if none).
+tmux -L "$sock" list-sessions >/dev/null 2>&1 && tmux-restore --in-place 2>/dev/null || true

@@ -119,6 +119,45 @@ def _start_pane(pane_id: str, pane_data: dict) -> None:
     run_tmux("send-keys", "-t", pane_id, resume_cmd, "Enter")
 
 
+def resume_in_place(snapshot: dict) -> int:
+    """Resume opencode in already-restored shell panes — create no new windows.
+
+    Matches current panes to snapshot panes carrying an ai_session by
+    (window_name, cwd) and sends the resume command to matching shell panes.
+    Used after tmux-continuum restores the layout, so opencode comes back
+    running without re-creating the windows continuum already restored.
+    """
+    # Key by cwd: resurrect restores the cwd reliably, but tmux auto-renames the
+    # window (e.g. "opencode" -> "bash") once the restored shell starts, so the
+    # window name can't be matched on.
+    wanted: dict[str, str] = {}
+    for p in snapshot["panes"]:
+        ai = p.get("ai_session")
+        if ai and ai.get("resume_cmd"):
+            cmd = ai["resume_cmd"]
+            if cmd.startswith("opencode "):
+                cmd = "oc" + cmd[len("opencode"):]
+            wanted[p["cwd"]] = cmd
+    if not wanted:
+        eprint("no opencode sessions in snapshot — nothing to resume")
+        return 0
+
+    sep = "␟"
+    fmt = sep.join(["#{pane_id}", "#{pane_current_path}", "#{pane_current_command}"])
+    shells = {"bash", "zsh", "sh", "-bash", "-zsh", "fish"}
+    resumed = 0
+    for line in run_tmux("list-panes", "-a", "-F", fmt).splitlines():
+        if not line.strip():
+            continue
+        pane_id, cwd, cmd = line.split(sep)
+        if cwd in wanted and cmd in shells:
+            run_tmux("send-keys", "-t", pane_id, wanted.pop(cwd), "Enter")
+            eprint(f"resumed opencode in {pane_id} @ {cwd}")
+            resumed += 1
+    eprint(f"resumed {resumed} opencode session(s); {len(wanted)} unmatched")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Restore tmux workspace from a snapshot file.",
@@ -134,6 +173,11 @@ def main() -> int:
         action="store_true",
         help="show what would be restored without doing it",
     )
+    parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="resume opencode in existing (already-restored) panes; create no windows",
+    )
     args = parser.parse_args()
 
     snapshot_path = Path(args.snapshot)
@@ -141,14 +185,22 @@ def main() -> int:
         eprint(f"error: snapshot not found: {snapshot_path}")
         return 1
 
-    if not args.dry_run and "TMUX" not in os.environ:
-        eprint("error: not running inside tmux (use --dry-run to preview)")
-        return 1
-
     try:
         snapshot = load_snapshot(snapshot_path)
     except (json.JSONDecodeError, ValueError, OSError) as exc:
         eprint(f"error: failed to read snapshot: {exc}")
+        return 1
+
+    if args.in_place:
+        try:
+            run_tmux("display-message", "-p", "")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            eprint("error: no reachable tmux server to resume into")
+            return 1
+        return resume_in_place(snapshot)
+
+    if not args.dry_run and "TMUX" not in os.environ:
+        eprint("error: not running inside tmux (use --dry-run to preview)")
         return 1
 
     windows = group_panes_by_window(snapshot["panes"])

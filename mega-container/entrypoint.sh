@@ -344,6 +344,14 @@ else
   echo "⚠️  supercronic/crontab missing — durability saves not scheduled"
 fi
 
+# 11c. Restore the work tmux session set from the last save (layout + opencode).
+# Nothing else starts the work server on boot, so without this a rebuild leaves
+# you with no sessions until you manually start tmux. No-op if nothing was saved.
+if [ -x "$HOME/.local/bin/tmux-boot-restore" ]; then
+  echo "Restoring work tmux sessions..."
+  "$HOME/.local/bin/tmux-boot-restore" && echo "✓ work tmux sessions restored (if any were saved)"
+fi
+
 # 12. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
 echo "Verifying mise tools..."
