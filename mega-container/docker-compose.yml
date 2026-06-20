@@ -35,7 +35,7 @@ services:
        - ~/.local/share/chezmoi:/home/rafaelcarvalho/.local/share/chezmoi:ro
     restart: "on-failure:5"  # Max 5 restart attempts, then stops (prevents crash-loops)
     healthcheck:
-      test: ["CMD-SHELL", "tailscale status --json >/dev/null && pgrep sshd >/dev/null && pgrep -x cron >/dev/null && pgrep -f supercronic >/dev/null && curl -sf http://127.0.0.1:4096/ >/dev/null && claude --version >/dev/null && opencode --version >/dev/null"]
+      test: ["CMD-SHELL", "tailscale status --json >/dev/null && pgrep sshd >/dev/null && pgrep -f supercronic >/dev/null && curl -sf http://127.0.0.1:4096/ >/dev/null && claude --version >/dev/null && opencode --version >/dev/null"]
       interval: 30s
       timeout: 5s
       retries: 3

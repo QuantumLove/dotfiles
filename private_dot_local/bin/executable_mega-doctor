@@ -97,7 +97,6 @@ if [ $IN_CONTAINER -eq 1 ]; then
   [ -d "$HOME/.kube" ] && ok "~/.kube mount" || bad "~/.kube mount"
   [ -d "$HOME/code" ] && ok "~/code volume ($(ls "$HOME/code" 2>/dev/null | wc -l | tr -d ' ') entries)" || bad "~/code volume"
   pgrep sshd >/dev/null && ok "sshd running" || bad "sshd not running"
-  pgrep -x cron >/dev/null && ok "cron daemon running" || warn "cron daemon not running" "legacy; supercronic handles tmux saves"
   if command -v tailscale >/dev/null 2>&1; then
     TS_STATE=$(tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"')
     [ "$TS_STATE" = "Running" ] && ok "tailscale: $TS_STATE" || bad "tailscale: $TS_STATE"

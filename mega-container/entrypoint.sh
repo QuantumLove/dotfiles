@@ -273,11 +273,6 @@ echo "Starting OpenSSH server (fallback)..."
 sudo /usr/sbin/sshd
 echo "✓ OpenSSH server running"
 
-# 10b. Start cron daemon
-echo "Starting cron daemon..."
-sudo cron
-echo "✓ cron running"
-
 # 10c. Resolve Tailscale hostname up-front so opencode can include it in CORS allowlist.
 # Without --cors, browsers hitting https://$TS_HOST proxied to http://127.0.0.1:4096
 # get cross-origin-blocked SSE — symptom: session list intermittently empty / stale.
