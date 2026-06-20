@@ -1,3 +1,6 @@
 # Durability saves for the work tmux server (supercronic reads this file).
 */5 * * * * $HOME/.local/bin/tmux-save
 */5 * * * * $HOME/.local/bin/tmux-snapshot
+
+# Time tracking: auto-fill Toggl gaps hourly (no-op when no gaps detected).
+0 * * * * $HOME/.local/bin/fill-toggl-cron.sh
