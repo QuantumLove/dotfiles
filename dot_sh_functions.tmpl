@@ -202,6 +202,24 @@ aws-sso-login() {
     return $exit_code
 }
 
+# tmux session helpers (work socket; override with WARP_TMUX_SOCKET)
+# ws [name]  create or attach session <name> (default: main), nesting-safe
+ws() {
+    local sock="${WARP_TMUX_SOCKET:-work}" name="${1:-main}"
+    tmux -L "$sock" has-session -t "$name" 2>/dev/null || tmux -L "$sock" new-session -d -s "$name"
+    if [ -n "${TMUX:-}" ]; then
+        tmux -L "$sock" switch-client -t "$name" 2>/dev/null || TMUX= tmux -L "$sock" attach -t "$name"
+    else
+        tmux -L "$sock" attach -t "$name"
+    fi
+}
+
+# wsl  list sessions on the work socket
+wsl() {
+    local sock="${WARP_TMUX_SOCKET:-work}"
+    tmux -L "$sock" list-sessions 2>/dev/null || echo "no sessions on '$sock'"
+}
+
 {{- if eq .chezmoi.os "darwin" }}
 # Update Homebrew formulae and casks. Casks with `auto_updates true`
 # are skipped by brew on purpose — their apps update themselves.
