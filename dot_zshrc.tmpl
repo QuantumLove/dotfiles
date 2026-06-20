@@ -25,37 +25,66 @@ if [ -z "$OP_SERVICE_ACCOUNT_TOKEN" ] && [ -f ~/.config/op/service-account-token
     export OP_SERVICE_ACCOUNT_TOKEN=$(cat ~/.config/op/service-account-token)
 fi
 
-# Load MCP credentials from 1Password (if 1Password CLI is available)
-if command -v op &> /dev/null; then
-    if [ -n "$OP_SERVICE_ACCOUNT_TOKEN" ]; then
-        # Service account mode - no signin required
+# Load MCP/API credentials from 1Password, cached in the macOS Keychain. A new
+# shell then costs ~3 fast keychain reads instead of ~3 × 0.8s `op read` network
+# round-trips. Cache entry format is "<epoch>:<secret>"; we re-fetch from
+# 1Password only past the TTL, in the background, so a warm shell never blocks.
+OP_SECRET_TTL=43200  # re-fetch keys older than 12h
 
-        # Only load if not already set (allows manual override)
-        if [ -z "$LINEAR_API_KEY" ]; then
-            export LINEAR_API_KEY=$(op read "op://Development/Linear MCP API Key/credential" 2>/dev/null || echo "")
+_op_refresh_secret() {  # $1 = keychain service, $2 = op:// reference
+    command -v op &>/dev/null && command -v security &>/dev/null || return
+    [ -n "$OP_SERVICE_ACCOUNT_TOKEN" ] || return
+    local v; v="$(op read "$2" 2>/dev/null)" || return
+    [ -n "$v" ] && security add-generic-password -U -a "$USER" -s "$1" -w "$(date +%s):${v}" 2>/dev/null
+}
+
+_op_load_secret() {  # $1 = env var, $2 = keychain service, $3 = op:// reference
+    local var="$1" svc="$2" ref="$3" blob ts val now
+    now="$(date +%s)"
+
+    # No keychain (e.g. Linux): direct, uncached read.
+    if ! command -v security &>/dev/null; then
+        command -v op &>/dev/null && [ -n "$OP_SERVICE_ACCOUNT_TOKEN" ] || return
+        val="$(op read "$ref" 2>/dev/null)"; [ -n "$val" ] && export "$var=$val"
+        return
+    fi
+
+    blob="$(security find-generic-password -a "$USER" -s "$svc" -w 2>/dev/null)"
+    ts="${blob%%:*}"; val="${blob#*:}"
+    case "$ts" in ''|*[!0-9]*) ts=0; val="";; esac
+
+    if [ -n "$val" ]; then
+        export "$var=$val"
+        if [ $(( now - ts )) -ge "$OP_SECRET_TTL" ]; then
+            _op_refresh_secret "$svc" "$ref" &!   # stale: refresh in background
         fi
+        return
+    fi
 
-        # Set AUTHORIZATION header for mcp-remote (Linear MCP)
-        if [ -n "$LINEAR_API_KEY" ]; then
-            export AUTHORIZATION="Bearer $LINEAR_API_KEY"
-        fi
+    # Cold cache: fetch once synchronously, then export.
+    _op_refresh_secret "$svc" "$ref"
+    blob="$(security find-generic-password -a "$USER" -s "$svc" -w 2>/dev/null)"
+    val="${blob#*:}"; [ -n "$val" ] && export "$var=$val"
+}
 
-        if [ -z "$OPENAI_API_KEY" ]; then
-            export OPENAI_API_KEY=$(op read "op://Development/OpenAI API Key/credential" 2>/dev/null || echo "")
-        fi
+# Force a re-fetch on the next shell (run after rotating a key in 1Password).
+refresh-op-secrets() {
+    local s
+    for s in OP_CACHE_LINEAR_API_KEY OP_CACHE_OPENAI_API_KEY OP_CACHE_GEMINI_API_KEY; do
+        security delete-generic-password -a "$USER" -s "$s" &>/dev/null
+    done
+    echo "1Password key cache cleared — next shell will re-fetch."
+}
 
-        if [ -z "$GEMINI_API_KEY" ]; then
-            export GEMINI_API_KEY=$(op read "op://Development/Google Gemini API Key/credential" 2>/dev/null || echo "")
-        fi
+if command -v op &>/dev/null || command -v security &>/dev/null; then
+    if [ -n "$OP_SERVICE_ACCOUNT_TOKEN" ] || command -v security &>/dev/null; then
+        [ -z "$LINEAR_API_KEY" ] && _op_load_secret LINEAR_API_KEY OP_CACHE_LINEAR_API_KEY "op://Development/Linear MCP API Key/credential"
+        [ -n "$LINEAR_API_KEY" ] && export AUTHORIZATION="Bearer $LINEAR_API_KEY"
+        [ -z "$OPENAI_API_KEY" ] && _op_load_secret OPENAI_API_KEY OP_CACHE_OPENAI_API_KEY "op://Development/OpenAI API Key/credential"
+        [ -z "$GEMINI_API_KEY" ] && _op_load_secret GEMINI_API_KEY OP_CACHE_GEMINI_API_KEY "op://Development/Google Gemini API Key/credential"
 
-        # DISABLED: gh CLI uses keyring auth from `gh auth login`
-        # GitHub MCP uses OAuth, not env token
-        # Uncomment below ONLY if specific tools require GITHUB_TOKEN
-        # if [ -z "$GITHUB_TOKEN" ]; then
-        #     export GITHUB_TOKEN=$(op read "op://Development/GitHub Personal Access Token/credential" 2>/dev/null || echo "")
-        # fi
+        # gh CLI uses keyring auth; GitHub MCP uses OAuth — no GITHUB_TOKEN needed.
     else
-        # Interactive mode notice
         echo "💡 1Password: No service account token found. You may be prompted to sign in."
         echo "   To enable automatic auth, see: ~/.local/share/chezmoi/1PASSWORD_SETUP.md"
     fi
