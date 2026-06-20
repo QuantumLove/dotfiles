@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Prune opencode sessions (and their messages/parts/etc.) older than 8 weeks,
+# then reclaim disk. Timestamps in opencode.db are epoch milliseconds.
+#   opencode-prune            prune + vacuum
+#   opencode-prune --dry-run  report what would be pruned, change nothing
+set -uo pipefail
+export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/bin:/bin:$PATH"
+
+DB="$HOME/.local/share/opencode/opencode.db"
+WEEKS=8
+LOG="$HOME/.local/state/opencode-prune.log"
+mkdir -p "$(dirname "$LOG")"
+log() { echo "[$(date -Iseconds)] $*" >> "$LOG"; }
+
+[ -f "$DB" ] || { log "no db at $DB"; exit 0; }
+command -v sqlite3 >/dev/null 2>&1 || { log "sqlite3 missing"; exit 0; }
+
+CUTOFF=$(( ( $(date +%s) - WEEKS * 7 * 86400 ) * 1000 ))
+OLD=$(sqlite3 "$DB" "SELECT count(*) FROM session WHERE time_updated < $CUTOFF;" 2>/dev/null || echo "")
+[ -n "$OLD" ] || { log "could not query session count (db busy?)"; exit 0; }
+
+if [ "${1:-}" = "--dry-run" ]; then
+    PARTS=$(sqlite3 "$DB" "SELECT count(*) FROM part WHERE session_id IN (SELECT id FROM session WHERE time_updated < $CUTOFF);" 2>/dev/null)
+    echo "would prune $OLD session(s) older than ${WEEKS}w, ~${PARTS} part row(s); db $(du -h "$DB" | cut -f1)"
+    exit 0
+fi
+
+[ "$OLD" -eq 0 ] && { log "nothing older than ${WEEKS}w"; exit 0; }
+
+before=$(stat -c %s "$DB" 2>/dev/null || echo 0)
+sqlite3 "$DB" >/dev/null 2>>"$LOG" <<SQL
+PRAGMA busy_timeout = 30000;
+BEGIN;
+CREATE TEMP TABLE _old AS SELECT id FROM session WHERE time_updated < $CUTOFF;
+DELETE FROM part                  WHERE session_id IN (SELECT id FROM _old);
+DELETE FROM message               WHERE session_id IN (SELECT id FROM _old);
+DELETE FROM todo                  WHERE session_id IN (SELECT id FROM _old);
+DELETE FROM session_share         WHERE session_id IN (SELECT id FROM _old);
+DELETE FROM session_message       WHERE session_id IN (SELECT id FROM _old);
+DELETE FROM session_input         WHERE session_id IN (SELECT id FROM _old);
+DELETE FROM session_context_epoch WHERE session_id IN (SELECT id FROM _old);
+DELETE FROM session               WHERE id IN (SELECT id FROM _old);
+COMMIT;
+SQL
+rc=$?
+log "pruned $OLD session(s) older than ${WEEKS}w (sqlite rc=$rc)"
+
+# Full VACUUM needs an exclusive lock; skip gracefully if opencode is busy.
+if sqlite3 "$DB" "PRAGMA busy_timeout=60000; VACUUM;" >/dev/null 2>>"$LOG"; then log "vacuum ok"; else log "vacuum skipped (db busy)"; fi
+after=$(stat -c %s "$DB" 2>/dev/null || echo 0)
+log "db size: $before -> $after bytes"

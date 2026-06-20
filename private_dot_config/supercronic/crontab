@@ -4,3 +4,6 @@
 
 # Time tracking: auto-fill Toggl gaps hourly (no-op when no gaps detected).
 0 * * * * $HOME/.local/bin/fill-toggl-cron.sh
+
+# Prune opencode sessions older than 8 weeks, daily.
+30 4 * * * $HOME/.local/bin/opencode-prune
