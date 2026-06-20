@@ -2,3 +2,4 @@
 Brewfile
 {{ end }}
 tests
+docs

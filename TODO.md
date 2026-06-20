@@ -27,6 +27,8 @@ Ideas and improvements for the Claude/AI development setup.
 
 - [ ] **Notification system / Approval queue** - System for batching approval requests instead of interrupting. Could be a queue that accumulates while AFK, then review all at once.
 
+- [ ] **ntfy phone push for agent notifications** - Deferred from the Warp+tmux remote-dev plan (`docs/brainstorms/2026-06-20-warp-extension-tmux-remote-dev-requirements.md`). The plan ships terminal-bell notifications for Claude Code/opencode through tmux+SSH; ntfy adds phone/desktop push that bypasses the terminal entirely. Needs a reachable ntfy endpoint (self-hosted or ntfy.sh topic) wired into the agent notification hooks.
+
 - [x] **Phone access for long-running sessions** - ~~Alert when a session has been running >10min~~ SOLVED: mega-container allows direct SSH from phone via Tailscale. Use `ssh mega-dev` + `tmux attach` to check on sessions.
 
 ## Ideas to Explore
@@ -40,6 +42,8 @@ Ideas and improvements for the Claude/AI development setup.
 - [ ] MCP health dashboard
 - [ ] Cost tracking per session/project
 
+- [ ] **Pilot Warp native persistent sessions** - Warp's committed roadmap ([warpdotdev/warp#9233](https://github.com/warpdotdev/warp/issues/9233)) includes "persistent sessions locally and over SSH, pane detaching" — unshipped as of 2026-06 (v0.2026.06.03). When it lands, re-evaluate whether it can replace the plain-tmux persistence layer (specifically: does it survive a *container reboot*, not just client disconnect?). Track issues #9233 / #9416 and the `preview` channel. Context: `docs/brainstorms/2026-06-20-warp-extension-tmux-remote-dev-requirements.md`.
+
 ---
 
-*Last updated: 2026-03-06*
+*Last updated: 2026-06-20*
