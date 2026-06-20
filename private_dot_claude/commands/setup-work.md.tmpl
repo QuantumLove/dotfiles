@@ -1,12 +1,16 @@
 ---
 name: setup-work
-description: Set up a worktree for new work — and STOP. Detect/create the Linear issue, then delegate worktree creation to the using-git-worktrees skill. Does not execute work.
+description: Set up (or re-enter) an isolated worktree for a task, change into it, then STOP — unless `--go` is passed, in which case it works autonomously through to a draft, self-assigned PR. Reuses the existing worktree for a branch instead of ever creating a duplicate.
 permissions:
   - Bash(git worktree *)
-  - Bash(git worktree list)
   - Bash(git fetch *)
   - Bash(git branch *)
+  - Bash(git rev-parse *)
+  - Bash(git check-ignore *)
+  - Bash(git symbolic-ref *)
+  - Bash(gh pr view *)
   - Bash(ls *)
+  - EnterWorktree
   - mcp__linear__get_ticket
   - mcp__linear__create_issue
   - mcp__github__get_pull_request
@@ -14,86 +18,95 @@ permissions:
 
 # Setup Work
 
-Prepare a worktree (and a Linear issue if applicable), then stop. The human reads the output, `cd`s into the worktree, and resumes their agent session there.
+Get an isolated worktree ready for a task and **change into it**, then hand back to you. By default that is where it stops — you continue in the same session, already inside the worktree. Pass `--go` to have it keep working autonomously, all the way to a draft, self-assigned PR.
 
-**You do NOT do the actual work.** Setting up the workspace IS the entire job.
+Two hard guarantees:
 
-## How to Invoke
+- **Never two worktrees for one branch.** A mandatory `git worktree list --porcelain` check runs first; if the branch already has a worktree, you are dropped into the existing one instead of a duplicate being created.
+- **PR review / existing branches never get a fresh branch.** Reviewing a PR or continuing an existing branch checks *that* branch out — it does not fork a new one.
+
+## How to invoke
 
 ```
 # Linear issues (most common — PLT and SEC prefixes)
 /setup-work PLT-456
-/setup-work SEC-89
 /setup-work https://linear.app/metr/issue/PLT-456/fix-auth-timeout
 
 # Reviewing or iterating on a PR (also common)
-/setup-work https://github.com/METR/inspect-action/pull/1234
+/setup-work https://github.com/METR/hawk/pull/1234
 /setup-work PR 1234
 /setup-work review the auth-rewrite PR
 
 # Existing branch or freeform
 /setup-work some/feature-branch
 /setup-work fix the authentication timeout bug
-/setup-work
+
+# Set up AND keep working through to a draft PR (autonomous)
+/setup-work PLT-456 --go
 ```
+
+## Worktree convention
+
+All worktrees live at **`.worktrees/<name>`** under the repo root — the project-local, gitignored location the `superpowers:using-git-worktrees` skill uses as its fallback when there's no native worktree tool. The same location is used on both opencode (the common case here — no native tool) and Claude Code, so a worktree created by one is found and reused by the other. setup-work follows that convention but drives creation with `git worktree add` directly, so that:
+
+- branch names stay clean (`PLT-456/fix-auth`, not a mangled `worktree-*` name) — which keeps `/pr-create`'s Linear-tag detection working, and
+- an existing branch (PR review) can be checked out — the native create-mode can only ever make a *new* branch.
+
+The session is then moved into the worktree with the **`EnterWorktree`** tool in path mode (`EnterWorktree({path: .worktrees/<name>})`) — the agent-callable equivalent of `/cd`. Run setup-work from the main checkout so path-mode can enter a `.worktrees/` worktree. (On opencode there's no such tool; the twin `setup-work` command there uses the `/cd` command from the vendored `opencode-dir` plugin instead.)
 
 ## Steps
 
-### 1. Identify the issue / branch
+### 1. Parse input and flags
 
-Work out, from the input, what's being worked on and whether a Linear issue is already linked:
+- `--go` anywhere in the args → **autonomous mode** (see step 6). Strip it before interpreting the rest.
+- Interpret the remaining input per the table to get: target **branch**, **base ref**, whether the branch is **existing** (PR/branch) or **new**, and an optional **linear-issue-id**.
 
 | Input | Action |
 |---|---|
-| Linear ID (`PLT-456`, `SEC-89`, etc.) or Linear URL | Fetch via `mcp__linear__get_ticket`. Branch: `ISSUE-ID/slug-from-title`. |
-| GitHub PR URL, `PR 1234`, or "review the X PR" | Fetch via `gh pr view`. Check out the PR's branch (`origin/<pr-branch>`) into the worktree. Check the PR title/body for a Linear issue reference and link it if found. This is the path for PR review sessions. |
-| Branch name (slug or contains `/`) | Use directly. Check Linear for an issue matching the slug prefix; link if found. |
-| Free text describing work | **Ask the user**: "I don't see a linked Linear issue. Create one for this, or treat as a quick experiment (`quick/<slug>`)?" Only create the Linear issue if the user confirms. |
-| Empty | Ask the user what they want to work on. |
+| Linear ID (`PLT-456`, `SEC-89`) or Linear URL | `mcp__linear__get_ticket`. **New** branch `ISSUE-ID/slug-from-title`, base `origin/main`. |
+| GitHub PR URL, `PR 1234`, or "review the X PR" | `gh pr view` → the PR's head branch. **Existing** branch — check it out, base `origin/<pr-branch>`. Link any Linear reference found in the PR title/body. |
+| Branch name (slug or contains `/`) | **Existing** branch. Check Linear for an issue matching the slug prefix; link if found. |
+| Free text describing work | Ask: create a Linear issue for this, or treat as a quick experiment (`quick/<slug>`)? Only create the issue on explicit confirmation. **New** branch. |
+| Empty | Ask what to work on. |
 
-Result of this step: a `branch-name`, optionally a `linear-issue-id`.
+### 2. Refuse setup-on-main
 
-### 2. Refuse setup-on-main requests
+If the request describes editing the main checkout directly, decline: "I'll set up a worktree for this — the main checkout stays on its branch." A dirty working tree in the current checkout is fine; worktrees are independent.
 
-If the user's input describes editing the main checkout directly (not a worktree), don't do that. Respond: "I'll set up a worktree for this — the main checkout stays on main."
+### 3. Mandatory reuse check
 
-### 3. Delegate worktree creation to using-git-worktrees
+`git fetch origin`, then `git worktree list --porcelain`. If a worktree already exists for the target branch → `EnterWorktree({path})` into it and skip to step 5. **Never create a second worktree for a branch that already has one.**
 
-Invoke the `superpowers:using-git-worktrees` skill to create the worktree. It owns the placement rules (project-local `.worktrees/`, gitignore checks, existing-worktree detection, etc.).
+### 4. Create the worktree
 
-Pass it:
-- the branch name from Step 1
-- base ref: **`origin/main`** by default (fetch first to make sure it's fresh). For an existing PR branch, base on `origin/<pr-branch>` instead.
+Worktree dir: `.worktrees/<safe-name>` at the repo's main root (`<safe-name>` = the branch with `/` → `-`). Verify `.worktrees/` is gitignored (`git check-ignore`); if not, add it to `.gitignore` and commit that one change first.
 
-A dirty working tree in the *current* checkout is **fine** — worktrees are independent, your edits stay where they are.
+- **New** branch: `git worktree add .worktrees/<safe-name> -b <branch> origin/main`
+- **Existing** branch (PR / branch review): fetch it, then `git worktree add .worktrees/<safe-name> <branch>` (no `-b`)
 
-### 4. Output and STOP
+Then `EnterWorktree({path: .worktrees/<safe-name>})` to move the session in.
 
-Print exactly this shape and stop:
+### 5. Default: report and STOP
+
+Print:
 
 ```
-Worktree: <full-absolute-path>
-Branch:   <branch-name>
+Worktree: <abs-path>   (you are now cd'd in)
+Branch:   <branch>
 Issue:    <PLT-456 if linked/created, else "none">
-
-Next step (you do this):
-  cd <full-absolute-path>
-  # then resume your agent session OR start a fresh one in that dir
 ```
 
-**Do not** start reading the codebase, planning the change, or making edits. Setup is complete; the human takes over.
+Then **stop**. You are already inside the worktree — pick up the work yourself, or re-run with `--go` to have me continue.
 
-## Naming
+### 6. `--go`: work autonomously through to a draft PR
 
-- Linear issue: `PLT-456/fix-auth-timeout` (ID + slug from title, max 50 chars)
-- PR: use the PR's existing branch name as-is
-- Experiment (user opted out of Linear): `quick/<slug>`
+Only when `--go` was passed. After the cd, do the actual work end-to-end and stop at a **draft, self-assigned PR** (using `/pr-create` conventions): implement, verify, commit on the feature branch, push, open the draft PR with `--assignee @me`. Never merge. If you genuinely hit a point where you lack the context or a decision is the user's to make, stop and ask rather than guess.
 
 ## Hard rules
 
-- Never create or switch a feature branch in the *main* worktree. Always use a worktree via `using-git-worktrees`.
-- Never proceed past Step 4. Setting up the work IS the job.
+- Worktrees only — never create or switch a feature branch in the *main* checkout.
+- Always run the `git worktree list --porcelain` reuse check before creating anything.
+- One worktree per branch, ever.
+- PR review / existing branch → check that branch out; never `-b` a new one.
 - Never create a Linear issue without explicit user confirmation.
-- New worktrees default to `origin/main` as the base. Override only for an existing PR/branch.
-- Uncommitted changes in the current checkout do not block setup — proceed.
-- If the target worktree already exists, point to it rather than recreating.
+- Default stops right after the cd. Only `--go` continues, and only as far as a draft, self-assigned PR.

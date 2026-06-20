@@ -3,6 +3,7 @@
   "plugin": [
     "oh-my-openagent@latest",
     "file://{env:HOME}/.config/opencode/plugins/session-registry.ts",
+    "file://{env:HOME}/.config/opencode/plugins/opencode-dir/index.ts",
     "@warp-dot-dev/opencode-warp"
   ],
   "instructions": ["{env:HOME}/.config/opencode/AGENTS.md"]

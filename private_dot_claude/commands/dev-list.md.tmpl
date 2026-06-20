@@ -9,13 +9,18 @@ permissions:
 
 # Dev List - List All Worktrees
 
-List all git worktrees across all repositories in the code directory.
+List every git worktree across all repos under your code root. This is location-agnostic — it reads
+`git worktree list`, so it shows worktrees wherever they live. Worktrees created by `/setup-work`
+follow the superpowers `using-git-worktrees` convention: `.worktrees/<name>` inside each repo.
 
 ## Usage
 
 ```bash
 /dev-list              # List all worktrees
 /dev-list --active     # Only show worktrees with uncommitted changes
+
+# Scan a different root (default: ~/code)
+DEV_CODE_DIR=~/work /dev-list
 ```
 
 ## Implementation
@@ -24,7 +29,7 @@ List all git worktrees across all repositories in the code directory.
 #!/bin/bash
 set -euo pipefail
 
-CODE_DIR="$HOME/code"
+CODE_DIR="${DEV_CODE_DIR:-$HOME/code}"
 ACTIVE_ONLY=false
 
 [[ "${1:-}" == "--active" ]] && ACTIVE_ONLY=true
@@ -80,14 +85,14 @@ echo "* = uncommitted changes"
 🌳 Git Worktrees
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📁 inspect-action
-   /home/raf/code/inspect-action                              main
-   /home/raf/code/inspect-action/.worktrees/METR-123          METR-123/fix-auth *
-   /home/raf/code/inspect-action/.worktrees/METR-456          METR-456/add-cache
+📁 hawk
+   ~/code/hawk                                            main
+   ~/code/hawk/.worktrees/PLT-456                  PLT-456/fix-auth *
+   ~/code/hawk/.worktrees/SEC-89                   SEC-89/rotate-keys
 
-📁 platform
-   /home/raf/code/platform                                    main
-   /home/raf/code/platform/.worktrees/quick-experiment        quick/experiment *
+📁 infra-shared
+   ~/code/infra-shared                                    main
+   ~/code/infra-shared/.worktrees/quick-spike      quick/spike *
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 * = uncommitted changes

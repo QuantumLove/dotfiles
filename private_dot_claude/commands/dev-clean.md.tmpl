@@ -9,7 +9,10 @@ permissions:
 
 # Dev Clean - Clean Up Worktrees
 
-Remove merged or stale git worktrees across all repositories in ~/code.
+Remove merged or stale git worktrees across all repos under your code root. Location-agnostic — it
+operates on whatever `git worktree list` reports, so it cleans up worktrees wherever they live
+(including the `.worktrees/<name>` layout that `/setup-work` and superpowers `using-git-worktrees`
+create). Pairs with `/dev-list`.
 
 ## Usage
 
@@ -17,6 +20,9 @@ Remove merged or stale git worktrees across all repositories in ~/code.
 /dev-clean              # Interactive cleanup
 /dev-clean --merged     # Only remove worktrees whose branches are merged
 /dev-clean --dry-run    # Show what would be removed
+
+# Scan a different root (default: ~/code)
+DEV_CODE_DIR=~/work /dev-clean
 ```
 
 ## Implementation
@@ -25,7 +31,7 @@ Remove merged or stale git worktrees across all repositories in ~/code.
 #!/bin/bash
 set -euo pipefail
 
-CODE_DIR="$HOME/code"
+CODE_DIR="${DEV_CODE_DIR:-$HOME/code}"
 DRY_RUN=false
 MERGED_ONLY=false
 

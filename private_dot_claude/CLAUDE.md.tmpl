@@ -270,9 +270,10 @@ ssh raf-dev-1  # or whatever hostname Tailscale assigned
 # Attach to tmux session (or create one)
 tmux attach || tmux new -s dev
 
-# Start work on an issue
-/setup-work METR-123          # From Linear issue
-/setup-work --quick "experiment"  # Quick hack without tracking
+# Start work (sets up a worktree, cds you in, then stops)
+/setup-work PLT-456           # From a Linear issue
+/setup-work PR 1234           # Review/iterate on a PR (checks out its branch)
+/setup-work PLT-456 --go      # ...or keep working through to a draft PR
 ```
 
 ### Hot Patching (Update Without Rebuild)
@@ -336,9 +337,9 @@ The container auto-connects to minikube network at startup if minikube is alread
 | Skill | Purpose |
 |-------|---------|
 | `/mega:where-am-i` | Quick orientation (environment, project, branch) |
-| `/setup-work` | Create worktree + branch from Linear issue |
+| `/setup-work` | Set up/re-enter a worktree & cd in, then stop (`--go` → draft PR) |
 | `/pr-create` | Create PR with auto-detected Linear tag |
-| `/dev-list` | List all worktrees across all repos in ~/code |
+| `/dev-list` | List git worktrees across your repos (any location) |
 | `/dev-clean` | Clean up merged/stale worktrees |
 | `/async-standup` | Generate standup summary from git, Linear, Toggl |
 | `/sentry-triage` | Triage Sentry issues (investigate, bulk, link to Linear) |
@@ -383,7 +384,7 @@ cd ~/.local/share/chezmoi && git add -A && git commit -m "feat: add new plugin"
 
 ### Session Persistence
 - Use `tmux` for session persistence across SSH disconnects
-- Worktrees persist in `~/code/worktrees/`
+- Worktrees live in `.worktrees/<name>` per repo (superpowers `using-git-worktrees` convention)
 - Session handoff files: `~/.claude/handoff/`
 
 ## Private Configuration Repository

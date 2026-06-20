@@ -50,10 +50,6 @@ for vol_dir in "${USER_VOLUMES[@]}"; do
 done
 echo "✓ Volume permissions ready"
 
-# 2b. Create ~/code/worktrees directory for /setup-work skill
-mkdir -p "$HOME/code/worktrees" || { echo "ERROR: Failed to create ~/code/worktrees"; exit 1; }
-echo "✓ ~/code/worktrees directory ready"
-
 # 3. Fix Docker socket permissions (Docker Desktop mounts as root:root)
 if [ -S /var/run/docker.sock ]; then
   echo "Fixing Docker socket permissions..."
