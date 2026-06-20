@@ -47,8 +47,9 @@ docker compose exec mega sudo tailscale up --ssh --hostname=raf-dev --accept-rou
 # SSH in (hostname may have suffix like raf-dev-1)
 ssh raf-dev
 
-# Start or attach to tmux session
-tmux attach || tmux new -s dev
+# Create or attach a durable work session (work socket)
+ws                # session 'main'  (or: ws myproj)
+wsl               # list sessions
 
 # Start work on an issue
 /setup-work METR-123
@@ -59,6 +60,10 @@ mega-doctor --quick       # fast, no network probes
 ```
 
 **From a phone** (or any browser on your tailnet): open `https://raf-dev.koi-moth.ts.net` for the OpenCode web UI — skips tmux entirely.
+
+## Session durability
+
+Work runs in plain tmux on the **`work`** socket (Warp's deprecated `-CC` wrapper is retired in favor of the SSH extension). The tmux server lives in the container, so it survives SSH disconnects — reconnect and `ws` drops you back in. Across container restarts, **supercronic** saves every 5 min (tmux-resurrect, flock-serialized, pane contents included, to a persistent volume) and tmux-resurrect restores on the next start; `tmux-snapshot`/`tmux-restore` additionally capture and resume OpenCode sessions by ID. Agent alerts reach Warp via a terminal bell, since Warp's native agent notifications don't survive tmux+SSH. Requires tmux ≥ 3.5 (built from source in the image — Debian's 3.3a has a resurrect restore crash).
 
 ## Architecture
 
