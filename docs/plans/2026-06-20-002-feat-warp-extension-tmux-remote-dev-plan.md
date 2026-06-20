@@ -1,6 +1,6 @@
 ---
 title: "feat: Warp SSH extension + plain-tmux remote dev (durability, history, notifications)"
-status: active
+status: completed
 date: 2026-06-20
 type: feat
 depth: deep
