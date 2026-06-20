@@ -10,6 +10,7 @@ ralph-loop@claude-plugins-official
 # METR plugins (requires metr-claude-code marketplace from .chezmoiexternal.toml)
 inspect-ai@metr-claude-code
 github@metr-claude-code
+metr-security@metr-claude-code
 
 # Warp integration — surfaces Claude Code lifecycle as Warp notifications (OSC 777)
 warp@claude-code-warp
