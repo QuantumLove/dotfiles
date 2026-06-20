@@ -179,5 +179,5 @@ This directory is part of the chezmoi dotfiles repo. Changes should be made here
 Related chezmoi files:
 - `private_dot_claude/CLAUDE.md.tmpl` - Claude Code instructions
 - `private_dot_claude/plugin-list.txt` - Auto-installed plugins
-- `.chezmoiexternal.toml` - Auto-cloned repos (METR plugins, private-config)
+- `.chezmoiexternal.toml` - Auto-cloned repos (METR plugins)
 - `modify_dot_claude.json.tmpl` - MCP server configuration
