@@ -1,0 +1,6 @@
+# Deprecated tooling dropped from source — chezmoi leaves orphaned targets
+# behind when a source file is deleted, so remove them explicitly on apply.
+.claude/commands/deploy-dev.md
+.claude/commands/tf-apply.md
+.claude/agents/dev4-deployment-manager.md
+.claude/skills/worktree
