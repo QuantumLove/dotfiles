@@ -52,7 +52,10 @@ def get_tmux_session_name() -> str:
 
 
 def list_panes_for_session(tmux_session: str, own_pane_id: str | None) -> list[Pane]:
-    separator = "\x1f"
+    # Printable U+241F, not raw 0x1f: tmux >= 3.5 escapes control bytes in -F
+    # output (0x1f -> literal "\037"), which breaks splitting. This glyph passes
+    # through untouched and never appears in real paths/commands.
+    separator = "␟"
     fmt = separator.join(
         [
             "#{pane_id}",
