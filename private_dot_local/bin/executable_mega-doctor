@@ -5,6 +5,7 @@
 #   mega-doctor            # full check (~10-20s, includes MCP probe)
 #   mega-doctor --quick    # skip network/MCP probes (~1s) — used by entrypoint
 #   mega-doctor --no-mcp   # skip only the slow MCP probe
+#   mega-doctor --deep     # also run a durability save->restore round-trip
 #
 # Exit code: 0 if all critical checks pass, non-zero otherwise.
 
@@ -12,11 +13,13 @@ set -uo pipefail
 
 QUICK=0
 NO_MCP=0
+DEEP=0
 for arg in "$@"; do
   case "$arg" in
     --quick) QUICK=1; NO_MCP=1 ;;
     --no-mcp) NO_MCP=1 ;;
-    -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+    --deep) DEEP=1 ;;
+    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
   esac
 done
 
@@ -120,6 +123,25 @@ if [ $IN_CONTAINER -eq 1 ]; then
   else
     warn "no tmux save yet" "appears after first work session + save tick"
   fi
+  # Additions from the durability/auto-restore work
+  if pgrep -x supercronic >/dev/null; then
+    SC_N=$(pgrep -x supercronic | wc -l | tr -d ' ')
+    [ "$SC_N" -eq 1 ] && ok "supercronic: single instance" || warn "supercronic: $SC_N instances" "duplicates double-run cron → save races"
+  fi
+  if [ -x "$HOME/.local/bin/tmux-boot-restore" ] && grep -q tmux-boot-restore /usr/local/bin/entrypoint.sh 2>/dev/null; then
+    ok "boot-restore wired (auto-restore on boot)"
+  else
+    warn "boot-restore not wired" "a rebuild won't auto-restore sessions"
+  fi
+  grep -q -- "--in-place" "$HOME/.local/bin/tmux-restore" 2>/dev/null && ok "opencode in-place resume available" || warn "tmux-restore --in-place missing"
+  grep -q TMUX_TMPDIR "$HOME/.local/bin/tmux-save" 2>/dev/null && ok "durability scripts pin TMUX_TMPDIR (socket consistency)" || warn "TMUX_TMPDIR not pinned" "cron/boot may hit the wrong socket"
+  SNAP="$HOME/.local/share/tmux-snapshots/snapshot.json"
+  if [ -f "$SNAP" ]; then
+    SAGE=$(( ( $(date +%s) - $(stat -L -c %Y "$SNAP" 2>/dev/null || echo 0) ) / 60 ))
+    [ "$SAGE" -lt 60 ] && ok "last opencode snapshot ${SAGE}m ago" || warn "last opencode snapshot ${SAGE}m ago" "stale"
+  else
+    warn "no opencode snapshot yet"
+  fi
 
   # OpenCode web (container-only feature)
   hdr "OpenCode web"
@@ -177,6 +199,29 @@ if [ $IN_CONTAINER -eq 1 ]; then
       echo "$MCP_OUT" | grep -E 'Failed to connect' | sed "s/^/  $R✗$Z /"
       WARN=$((WARN+FAILED))
     fi
+  fi
+
+  if [ $DEEP -eq 1 ]; then
+    hdr "Durability round-trip (--deep)"
+    DS="__deepcheck"; DRDIR="$(mktemp -d)"
+    RSH="$HOME/.tmux/plugins/tmux-resurrect/scripts"
+    if [ -x "$RSH/save.sh" ] && [ -x "$RSH/restore.sh" ]; then
+      tmux -L "$DS" kill-server 2>/dev/null
+      tmux -L "$DS" new-session -d -s probe \; set -g @resurrect-dir "$DRDIR" 2>/dev/null
+      tmux -L "$DS" new-window 2>/dev/null
+      WB=$(tmux -L "$DS" list-windows 2>/dev/null | wc -l | tr -d ' ')
+      tmux -L "$DS" run-shell "$RSH/save.sh" 2>/dev/null; sleep 1
+      [ -e "$DRDIR/last" ] && ok "resurrect save writes a file" || bad "resurrect save produced nothing"
+      tmux -L "$DS" kill-server 2>/dev/null
+      tmux -L "$DS" new-session -d -s probe \; set -g @resurrect-dir "$DRDIR" 2>/dev/null
+      tmux -L "$DS" run-shell "$RSH/restore.sh" 2>/dev/null; sleep 2
+      WA=$(tmux -L "$DS" list-windows 2>/dev/null | wc -l | tr -d ' ')
+      [ "${WA:-0}" -ge "${WB:-99}" ] && ok "resurrect restore round-trips (${WA} windows)" || bad "restore round-trip lost windows (${WA}/${WB})"
+      tmux -L "$DS" kill-server 2>/dev/null
+    else
+      warn "resurrect scripts missing — skipping round-trip"
+    fi
+    rm -rf "$DRDIR"
   fi
 fi
 
