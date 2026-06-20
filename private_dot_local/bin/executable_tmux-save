@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Save the work tmux server's state via tmux-resurrect, serialized with flock
+# so a scheduled save never races a manual one (single writer to the dir).
+set -uo pipefail
+export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+sock="${WARP_TMUX_SOCKET:-work}"
+state="$HOME/.local/state/tmux-warp"
+save="$HOME/.tmux/plugins/tmux-resurrect/scripts/save.sh"
+mkdir -p "$state"
+
+tmux -L "$sock" list-sessions >/dev/null 2>&1 || exit 0
+[ -x "$save" ] || { echo "tmux-save: resurrect not installed" >&2; exit 0; }
+flock -n "$state/save.lock" tmux -L "$sock" run-shell "$save"

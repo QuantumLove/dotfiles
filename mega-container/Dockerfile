@@ -49,7 +49,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     skopeo \
     sudo \
-    tmux \
     vim \
     openssh-client \
     openssh-server \
@@ -64,11 +63,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zstd \
     sqlite3 \
     bsdmainutils \
+    libevent-dev \
+    libncurses-dev \
+    bison \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /run/sshd \
     && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config \
     && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config \
     && echo "AcceptEnv WARP_CLI_AGENT_PROTOCOL_VERSION" >> /etc/ssh/sshd_config
+
+# tmux from source — Debian's 3.3a has a restore race that crashes tmux-resurrect
+RUN TMUX_VERSION=3.5a \
+    && curl -fsSL "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" -o /tmp/tmux.tar.gz \
+    && tar xzf /tmp/tmux.tar.gz -C /tmp \
+    && cd "/tmp/tmux-${TMUX_VERSION}" && ./configure && make -j"$(nproc)" && make install \
+    && cd / && rm -rf /tmp/tmux*
+
+# supercronic — container-native cron (reads a crontab file, runs in foreground)
+RUN ARCH=$(dpkg --print-architecture) \
+    && SUPERCRONIC_VERSION=v0.2.33 \
+    && curl -fsSL "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-${ARCH}" -o /usr/local/bin/supercronic \
+    && chmod +x /usr/local/bin/supercronic
 
 # Install Tailscale
 RUN curl -fsSL https://tailscale.com/install.sh | sh

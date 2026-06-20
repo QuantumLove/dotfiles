@@ -19,5 +19,6 @@ fi
 if command -v tmux &>/dev/null; then
     echo "Installing tmux plugins..."
     "$TPM_DIR/bin/install_plugins" || true
-    echo "✓ Tmux plugins installed"
+    "$TPM_DIR/bin/update_plugins" all || true
+    echo "✓ Tmux plugins installed and updated"
 fi

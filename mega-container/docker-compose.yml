@@ -31,6 +31,8 @@ services:
        - opencode-state:/home/rafaelcarvalho/.local/share/opencode
        # Tmux workspace snapshots - persists layout snapshots across rebuilds
        - opencode-snapshots:/home/rafaelcarvalho/.local/share/tmux-snapshots
+       # chezmoi source from host (ro) - rebuilds apply local changes without a git push
+       - ~/.local/share/chezmoi:/home/rafaelcarvalho/.local/share/chezmoi:ro
     restart: "on-failure:5"  # Max 5 restart attempts, then stops (prevents crash-loops)
     healthcheck:
       test: ["CMD-SHELL", "tailscale status --json >/dev/null && pgrep sshd >/dev/null && pgrep -x cron >/dev/null && curl -sf http://127.0.0.1:4096/ >/dev/null && claude --version >/dev/null && opencode --version >/dev/null"]

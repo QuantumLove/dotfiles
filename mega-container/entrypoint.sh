@@ -308,8 +308,14 @@ echo "✓ opencode web reachable at https://$TS_HOST"
 
 # 11. Apply chezmoi (secrets injected via onepasswordRead templates)
 echo "Applying chezmoi configuration..."
-if [ ! -d "$HOME/.local/share/chezmoi" ]; then
-  chezmoi init --ssh QuantumLove
+# Source may be bind-mounted (local, no-push dev loop) or absent (fresh clone).
+# Ensure the chezmoi config exists either way before applying.
+if [ ! -f "$HOME/.config/chezmoi/chezmoi.toml" ]; then
+  if [ -f "$HOME/.local/share/chezmoi/.chezmoi.toml.tmpl" ]; then
+    chezmoi init
+  else
+    chezmoi init --ssh QuantumLove
+  fi
   if [ $? -ne 0 ]; then
     echo "ERROR: chezmoi init failed"
     exit 1
@@ -332,6 +338,20 @@ if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
   echo "✓ Claude Code configured with API key"
 fi
 echo "✓ chezmoi applied"
+
+# 11b. Start supercronic for durability saves (supervised — tini reaps but won't restart)
+mkdir -p "$HOME/.local/state"
+if command -v supercronic >/dev/null 2>&1 && [ -f "$HOME/.config/supercronic/crontab" ]; then
+  echo "Starting supercronic..."
+  ( while true; do
+      supercronic "$HOME/.config/supercronic/crontab" >> "$HOME/.local/state/supercronic.log" 2>&1
+      echo "[entrypoint] supercronic exited, restarting in 5s" >> "$HOME/.local/state/supercronic.log"
+      sleep 5
+    done ) &
+  echo "✓ supercronic running"
+else
+  echo "⚠️  supercronic/crontab missing — durability saves not scheduled"
+fi
 
 # 12. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
