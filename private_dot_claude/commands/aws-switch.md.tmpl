@@ -30,11 +30,11 @@ Switch between AWS profiles (staging/production) with automatic verification.
 
 ## Expired Credentials
 
-If `aws sts get-caller-identity` fails with expired credentials, run `aws-sso-login <profile>`.
+If `aws sts get-caller-identity` fails with missing/expired credentials, fix it yourself — **never ask the user to log in**:
 
-This auto-detects the environment:
-- **Local (browser available):** Opens the standard browser-based SSO flow
-- **Remote/headless:** Uses device-code flow and displays a pre-filled URL to open on any device
+1. Run `aws-sso-login <profile>` (e.g. `aws-sso-login staging`).
+2. Local (browser available): it opens the standard browser SSO flow. Remote/headless: it prints a device-authorization URL with the code pre-filled — **relay that URL to the user** and ask them to open it and approve; that is their only step.
+3. After approval the active profile is `<profile>-device`. Re-verify with `aws sts get-caller-identity --profile <profile>-device` (or `export AWS_PROFILE=<profile>-device`).
 
 ## Example Output
 

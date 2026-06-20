@@ -59,3 +59,5 @@ If any check fails, display:
 - Why it might have failed
 - How to fix it
 - Whether it's safe to proceed anyway
+
+If the **Authentication** check fails on missing/expired credentials, fix it yourself — **never ask the user to log in**: run `aws-sso-login [staging|production]`, then **relay the device-authorization URL it prints to the user** (code pre-filled) and ask them to open it and approve — that is their only step. After approval, re-run the checks with `--profile <env>-device` (or `export AWS_PROFILE=<env>-device`).
