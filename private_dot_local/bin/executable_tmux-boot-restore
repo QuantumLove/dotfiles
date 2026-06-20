@@ -43,17 +43,18 @@ done
 # restored, this kills the last session and the server — a correct no-op.
 tmux -L "$sock" kill-session -t "$probe" 2>/dev/null || true
 
-# Resume opencode in the restored shell panes. resurrect sets each pane's cwd a
-# moment after creating it, and the match is by cwd, so retry until they settle.
+# Resume opencode in the restored shell panes. resurrect cd's into each pane
+# asynchronously and that lags badly under boot load, and the match is by cwd —
+# so retry patiently, in the BACKGROUND so a slow resume never blocks boot.
 # Idempotent: once a pane runs opencode it's no longer a shell, so it won't be
-# resumed twice.
+# resumed twice. ~90s of retries stays well under the 5-min snapshot interval.
 if tmux -L "$sock" list-sessions >/dev/null 2>&1; then
-    for _ in 1 2 3 4 5; do
+    ( for _ in $(seq 1 30); do
         out="$(tmux-restore --in-place 2>&1)"
         case "$out" in
             *"nothing to resume"*) break ;;
-            *"resumed 0 opencode"*) sleep 2 ;;
+            *"resumed 0 opencode"*) sleep 3 ;;
             *) break ;;
         esac
-    done
+      done ) >/dev/null 2>&1 &
 fi
