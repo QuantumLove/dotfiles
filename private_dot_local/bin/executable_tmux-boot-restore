@@ -11,6 +11,10 @@
 # no saved state to restore.
 set -uo pipefail
 export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+# Pin the socket dir so this works from the entrypoint (no TMUX_TMPDIR) and lands
+# on the same `work` server interactive shells use (.bashrc sets the same path).
+export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.tmux/sockets}"
+mkdir -p "$TMUX_TMPDIR"
 
 sock="${WARP_TMUX_SOCKET:-work}"
 probe="__boot_restore"

@@ -19,6 +19,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+# Pin the socket dir so cron/entrypoint runs (which lack TMUX_TMPDIR) target the
+# same `work` server interactive shells use (.bashrc sets the same path).
+os.environ.setdefault("TMUX_TMPDIR", os.path.expanduser("~/.tmux/sockets"))
+os.makedirs(os.environ["TMUX_TMPDIR"], exist_ok=True)
+
 
 @dataclass
 class Pane:

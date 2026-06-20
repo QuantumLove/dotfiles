@@ -3,6 +3,10 @@
 # so a scheduled save never races a manual one (single writer to the dir).
 set -uo pipefail
 export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+# Pin the socket dir so cron/entrypoint runs (which lack TMUX_TMPDIR) target the
+# same `work` server as interactive shells (.bashrc sets the same path).
+export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.tmux/sockets}"
+mkdir -p "$TMUX_TMPDIR"
 
 sock="${WARP_TMUX_SOCKET:-work}"
 state="$HOME/.local/state/tmux-warp"

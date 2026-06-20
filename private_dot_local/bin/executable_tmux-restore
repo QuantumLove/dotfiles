@@ -18,6 +18,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Pin the socket dir so cron/entrypoint runs (which lack TMUX_TMPDIR) target the
+# same `work` server interactive shells use (.bashrc sets the same path).
+os.environ.setdefault("TMUX_TMPDIR", os.path.expanduser("~/.tmux/sockets"))
+os.makedirs(os.environ["TMUX_TMPDIR"], exist_ok=True)
+
 _default_snapshot_dir = os.environ.get(
     "OC_SNAPSHOT_DIR",
     str(Path.home() / ".local" / "share" / "tmux-snapshots"),
