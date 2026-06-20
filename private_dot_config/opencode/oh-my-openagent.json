@@ -2,77 +2,77 @@
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
   "agents": {
     "sisyphus": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "oracle": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "librarian": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "explore": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "multimodal-looker": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "prometheus": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "metis": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "momus": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "atlas": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "sisyphus-junior": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     }
   },
   "categories": {
     "visual-engineering": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "ultrabrain": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "deep": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "artistry": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "quick": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "unspecified-low": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "unspecified-high": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     },
     "writing": {
-      "model": "anthropic/claude-opus-4-8",
+      "model": "anthropic/claude-opus-4-8-fast",
       "variant": "xhigh"
     }
   }
