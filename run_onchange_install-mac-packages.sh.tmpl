@@ -20,6 +20,14 @@ elif [ -x /usr/local/bin/brew ]; then
     eval "$(/usr/local/bin/brew shellenv)"
 fi
 
+BREWFILE="{{ .chezmoi.sourceDir }}/Brewfile"
+
+# Trust every third-party tap declared in the Brewfile so brew can load their
+# formulae without prompting (required since Homebrew added tap-trust gating).
+grep -E '^[[:space:]]*tap[[:space:]]+"' "$BREWFILE" | sed -E 's/.*"([^"]+)".*/\1/' | while read -r tap; do
+    brew trust --tap "$tap" >/dev/null 2>&1 || true
+done
+
 echo "==> brew bundle..."
-brew bundle --file="{{ .chezmoi.sourceDir }}/Brewfile"
+brew bundle --file="$BREWFILE"
 {{- end -}}
