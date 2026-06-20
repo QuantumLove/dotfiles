@@ -39,5 +39,17 @@ done
 # restored, this kills the last session and the server — a correct no-op.
 tmux -L "$sock" kill-session -t "$probe" 2>/dev/null || true
 
-# Resume opencode in the restored shell panes (best-effort; no-op if none).
-tmux -L "$sock" list-sessions >/dev/null 2>&1 && tmux-restore --in-place 2>/dev/null || true
+# Resume opencode in the restored shell panes. resurrect sets each pane's cwd a
+# moment after creating it, and the match is by cwd, so retry until they settle.
+# Idempotent: once a pane runs opencode it's no longer a shell, so it won't be
+# resumed twice.
+if tmux -L "$sock" list-sessions >/dev/null 2>&1; then
+    for _ in 1 2 3 4 5; do
+        out="$(tmux-restore --in-place 2>&1)"
+        case "$out" in
+            *"nothing to resume"*) break ;;
+            *"resumed 0 opencode"*) sleep 2 ;;
+            *) break ;;
+        esac
+    done
+fi
