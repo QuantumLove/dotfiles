@@ -97,10 +97,29 @@ if [ $IN_CONTAINER -eq 1 ]; then
   [ -d "$HOME/.kube" ] && ok "~/.kube mount" || bad "~/.kube mount"
   [ -d "$HOME/code" ] && ok "~/code volume ($(ls "$HOME/code" 2>/dev/null | wc -l | tr -d ' ') entries)" || bad "~/code volume"
   pgrep sshd >/dev/null && ok "sshd running" || bad "sshd not running"
-  pgrep -x cron >/dev/null && ok "cron daemon running" || warn "cron daemon not running" "snapshot/toggl crons won't fire"
+  pgrep -x cron >/dev/null && ok "cron daemon running" || warn "cron daemon not running" "legacy; supercronic handles tmux saves"
   if command -v tailscale >/dev/null 2>&1; then
     TS_STATE=$(tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"')
     [ "$TS_STATE" = "Running" ] && ok "tailscale: $TS_STATE" || bad "tailscale: $TS_STATE"
+  fi
+
+  # Durability (tmux) — read-only checks; never touches live sessions
+  hdr "Durability (tmux)"
+  TMUX_VER=$(tmux -V 2>/dev/null | awk '{print $2}')
+  case "$TMUX_VER" in
+    3.[5-9]*|[4-9].*) ok "tmux $TMUX_VER (>= 3.5)" ;;
+    *) warn "tmux $TMUX_VER" "resurrect restore can crash below 3.5" ;;
+  esac
+  pgrep -f supercronic >/dev/null && ok "supercronic running" || warn "supercronic not running" "scheduled tmux saves won't fire"
+  [ -f "$HOME/.config/supercronic/crontab" ] && ok "supercronic crontab present" || warn "supercronic crontab missing"
+  [ -d "$HOME/.tmux/plugins/tmux-resurrect" ] && ok "tmux-resurrect installed" || warn "tmux-resurrect not installed" "restore unavailable"
+  grep -q '^ws()' "$HOME/.sh_functions" 2>/dev/null && ok "ws/wsl session helpers deployed" || warn "ws helpers missing"
+  RDIR="$HOME/.local/share/tmux-snapshots/resurrect"
+  if [ -f "$RDIR/last" ]; then
+    AGE=$(( ( $(date +%s) - $(stat -L -c %Y "$RDIR/last" 2>/dev/null || echo 0) ) / 60 ))
+    [ "$AGE" -lt 60 ] && ok "last tmux save ${AGE}m ago" || warn "last tmux save ${AGE}m ago" "stale — saves may not be firing"
+  else
+    warn "no tmux save yet" "appears after first work session + save tick"
   fi
 
   # OpenCode web (container-only feature)
