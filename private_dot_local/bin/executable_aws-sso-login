@@ -76,7 +76,10 @@ main() {
     # Run login, capture output, and extract the autofill URL
     local logfile
     logfile=$(mktemp /tmp/aws-sso-login-XXXXXX.log)
-    aws sso login --profile "$device_profile" --no-browser 2>&1 | tee "$logfile" &
+    # Raw aws output (a plain URL + a separate "enter the code" line) goes ONLY
+    # to the logfile, never stdout, so callers — humans and agents — see just the
+    # curated code-embedded URL below and never the copy-paste-the-code variant.
+    aws sso login --profile "$device_profile" --no-browser >"$logfile" 2>&1 &
     local login_pid=$!
 
     # Wait for the URL to appear (up to 15 seconds)
@@ -112,6 +115,8 @@ main() {
     elif [ $exit_code -ne 0 ]; then
         echo ""
         echo "❌ SSO login failed (exit code: ${exit_code})"
+        echo "--- login output ---" >&2
+        tail -20 "$logfile" >&2
     fi
 
     rm -f "$logfile"
