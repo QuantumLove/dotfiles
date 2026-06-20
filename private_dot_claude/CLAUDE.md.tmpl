@@ -16,6 +16,25 @@
 - Don't add docstrings, comments, or type annotations to unchanged code
 - Readable code is better than commented code
 
+**Comments explain why the code is the way it is — never how it got there or who asked for it.**
+Change history, the reason for an edit, what something used to be, and "remove this later"
+notes are *diff narration*. They belong in the PR description or commit message, not the source —
+the PR is permanent and reviewable; the comment is just noise once merged.
+
+```python
+# BAD — diff narration, belongs in the PR
+amount = round_down_cents(raw)   # was round_half_up, changed per review
+# NEW: added for the METR-123 export feature
+# TODO: remove after the v2 migration lands
+
+# GOOD — explains a "why" the code itself can't convey
+# Stripe truncates sub-cent amounts, so pre-truncate or our totals won't reconcile.
+amount = round_down_cents(raw)
+```
+
+If you catch yourself writing a comment that would only make sense to someone reading the
+*diff*, delete it and put that context in the PR body instead.
+
 ### Python Testing
 - **Use `@pytest.mark.parametrize`** for testing multiple inputs/scenarios
 - **Never write multiple near-identical test functions** — consolidate into parameterized tests

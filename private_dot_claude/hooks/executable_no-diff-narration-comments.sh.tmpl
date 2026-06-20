@@ -1,0 +1,63 @@
+#!/bin/bash
+# PostToolUse hook: warns when an Edit/Write/MultiEdit introduces "diff-narrating"
+# comments — change history, PR/review references, or temporary-removal notes that
+# belong in the PR description, not the source. Non-blocking: the write already
+# happened; exit 2 feeds the offending lines back so they get stripped same turn.
+#
+# Bypass for one session:  export CLAUDE_ALLOW_NARRATION_COMMENTS=1
+# Debug logging:           export CLAUDE_HOOK_DEBUG=1
+
+set -euo pipefail
+
+HOOK_NAME="no-diff-narration"
+source "$HOME/.claude/hooks/hook-lib.sh"
+
+if [ "${CLAUDE_ALLOW_NARRATION_COMMENTS:-}" = "1" ]; then
+    hook_log "Bypassed (CLAUDE_ALLOW_NARRATION_COMMENTS=1)"
+    exit 0
+fi
+
+payload="$(cat)"
+tool_name="$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null || echo "")"
+hook_log "tool=$tool_name"
+
+# Only inspect the text being introduced by file-writing tools
+case "$tool_name" in
+    Edit)      added="$(jq -r '.tool_input.new_string // ""' <<<"$payload" 2>/dev/null || echo "")" ;;
+    Write)     added="$(jq -r '.tool_input.content // ""' <<<"$payload" 2>/dev/null || echo "")" ;;
+    MultiEdit) added="$(jq -r '[.tool_input.edits[]?.new_string] | join("\n") // ""' <<<"$payload" 2>/dev/null || echo "")" ;;
+    *) exit 0 ;;
+esac
+
+if [ -z "$added" ] || [ "$added" = "null" ]; then
+    hook_log "no added text — allowing"
+    exit 0
+fi
+
+# High-precision diff-narration markers (case-insensitive). Kept deliberately tight
+# to minimize false positives; the CLAUDE.md instruction layer is the nuanced filter.
+NARRATION='previously|used to|formerly|changed from|renamed from|moved from|(NEW|CHANGED|REMOVED|ADDED|OLD):|for now|temporar|TODO:? *remove|remove (this )?(after|once|when)|revert (after|before|this)|per review|as requested|as discussed|addressing (the )?(feedback|comment|review)|PR #'
+
+# Look only at lines that are comments (#... or //...) AND match a narration marker.
+offenders="$(printf '%s\n' "$added" \
+    | grep -E '(#|//)' \
+    | grep -iE "$NARRATION" \
+    || true)"
+
+if [ -z "$offenders" ]; then
+    hook_log "clean"
+    exit 0
+fi
+
+hook_log "flagged: $offenders"
+
+cat >&2 <<EOF
+Diff-narration comments detected — these explain how the code changed or who asked
+for it, which belongs in the PR description, not the source. Remove or rewrite them
+to explain *why the code is the way it is*:
+
+$offenders
+
+(If a flag is wrong, leave it and continue, or set CLAUDE_ALLOW_NARRATION_COMMENTS=1.)
+EOF
+exit 2
