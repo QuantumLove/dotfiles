@@ -18,6 +18,10 @@ WORK_DIR="${3:-}"
 
 log "Called with: title='$TITLE' message='$MESSAGE' work_dir='$WORK_DIR'"
 
+# Terminal bell — reaches the attached Warp client through tmux+SSH, where
+# Warp's native OSC agent notifications don't survive. Best-effort.
+printf '\a' > /dev/tty 2>/dev/null || true
+
 # Detect environment
 CONTAINER_NAME="host"
 if [ -f /.dockerenv ] || [ -n "${REMOTE_CONTAINERS:-}" ]; then
