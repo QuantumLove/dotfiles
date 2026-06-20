@@ -36,8 +36,9 @@ def eprint(message: str = "") -> None:
 
 
 def run_tmux(*args: str) -> str:
+    socket = os.environ.get("WARP_TMUX_SOCKET", "work")
     proc = subprocess.run(
-        ["tmux", *args],
+        ["tmux", "-L", socket, *args],
         check=True,
         capture_output=True,
         text=True,
@@ -205,8 +206,7 @@ def main() -> int:
         try:
             run_tmux("display-message", "-p", "")
         except (subprocess.CalledProcessError, FileNotFoundError):
-            eprint("error: tmux server not reachable")
-            return 1
+            return 0  # no server to snapshot (e.g., scheduled tick) — nothing to do
 
     own_pane_id = os.environ.get("TMUX_PANE")
     try:

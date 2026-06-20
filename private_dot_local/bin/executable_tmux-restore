@@ -30,8 +30,9 @@ def eprint(message: str = "") -> None:
 
 
 def run_tmux(*args: str) -> str:
+    socket = os.environ.get("WARP_TMUX_SOCKET", "work")
     proc = subprocess.run(
-        ["tmux", *args],
+        ["tmux", "-L", socket, *args],
         check=True,
         capture_output=True,
         text=True,
