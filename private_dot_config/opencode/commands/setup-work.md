@@ -8,10 +8,10 @@ This is the opencode twin of the Claude Code `setup-work` skill. Same behavior; 
 difference is HOW you change directory:
 
 - Claude Code uses the native `EnterWorktree` tool.
-- **opencode uses the `/cd` command from the vendored `opencode-dir` plugin** (same session, no
-  context loss). You move the session by issuing `/cd <abs-path>`. If your agent cannot itself invoke
-  a slash command on this opencode version, print the exact `/cd <abs-path>` line as the last thing
-  you do so the user runs it with one keystroke — context is preserved either way.
+- **opencode: call the `cd` tool from the vendored `opencode-dir` plugin** with the absolute worktree
+  path. It moves the session the same way `/cd` does (same session, no context loss), but you invoke
+  it yourself — do that, don't ask the user. (The `/cd` slash command still exists for humans; only
+  fall back to printing a `/cd <abs-path>` line if the `cd` tool isn't available.)
 
 Current worktrees (for the reuse check below):
 !`git worktree list --porcelain 2>/dev/null`

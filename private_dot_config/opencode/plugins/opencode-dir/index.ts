@@ -4,10 +4,11 @@
 // Source: https://github.com/adiled/opencode-dir (MIT) @ v1.0.10
 // Local changes vs upstream: the npm self-update check was removed (it fetched
 // the network and mutated the plugin cache), and `reportError` is now a no-op
-// (Sentry telemetry stripped in lib.ts). Nothing here makes network calls.
+// (Sentry telemetry stripped in lib.ts). Added (not upstream): an agent-callable
+// `cd` tool — see the `tool:` block below. Nothing here makes network calls.
 // ---------------------------------------------------------------------------
 
-import { type Plugin } from "@opencode-ai/plugin"
+import { tool, type Plugin } from "@opencode-ai/plugin"
 import { mkdirSync, appendFileSync } from "fs"
 import {
   type Override,
@@ -37,6 +38,19 @@ function log(...args: unknown[]) {
 
 const dirOverrides: Map<string, Override> = loadOverrides(OVERRIDES_FILE)
 
+// Apply a session move: run execMove, then record + persist the override so the
+// redirect hooks below (tool.execute.before / shell.env / system.transform) act
+// on it. Shared by the /cd & /mv commands and the agent-callable `cd` tool.
+function applyMove(sessionID: string, targetPath: string, rewrite: boolean): ExecResult {
+  const exec = execMove(sessionID, targetPath, rewrite)
+  if (exec.oldDir && exec.newDir) {
+    log("storing override", { sessionID, oldDir: exec.oldDir, newDir: exec.newDir })
+    dirOverrides.set(sessionID, { oldDir: exec.oldDir, newDir: exec.newDir })
+    persistOverrides(OVERRIDES_FILE, dirOverrides)
+  }
+  return exec
+}
+
 // ── Commands ────────────────────────────────────────────────────────────────
 
 // /cd  — change session directory (no message rewrite)
@@ -64,6 +78,39 @@ export const OpencodeDir: Plugin = async ({ client }) => {
   // the plugin cache). Upgrades are handled manually — see VENDORED.md.
 
   return {
+    // ── ADDED in this vendored copy (not upstream) ──────────────────────────
+    // Agent-callable equivalent of /cd. The /cd command can only be issued by a
+    // human in the TUI; this tool lets the model move the session into a worktree
+    // itself (e.g. from /setup-work) instead of printing a /cd line for the user
+    // to run. Same mechanism as the command — applyMove() records the override the
+    // redirect hooks below already consume.
+    tool: {
+      cd: tool({
+        description:
+          "Change THIS opencode session's working directory to an absolute path " +
+          "(typically a git worktree). Subsequent tools (bash/edit/read/grep/glob) " +
+          "operate in the new directory immediately; message history is untouched. " +
+          "Prefer this over `bash cd` (which does not persist across tool calls) and " +
+          "over asking the user to run the /cd command.",
+        args: {
+          path: tool.schema
+            .string()
+            .describe("Absolute path of the directory to switch into"),
+        },
+        async execute(args, ctx) {
+          const targetPath = (args.path ?? "").trim()
+          if (!targetPath) return "Error: path is required"
+          try {
+            return applyMove(ctx.sessionID, targetPath, false).result
+          } catch (e: unknown) {
+            const err = e instanceof Error ? e : new Error(String(e))
+            reportError(err)
+            return `Error: ${err.message}`
+          }
+        },
+      }),
+    },
+
     config: async (input) => {
       input.command ??= {}
       input.command.cd = {
@@ -140,7 +187,7 @@ export const OpencodeDir: Plugin = async ({ client }) => {
 
       let exec: ExecResult
       try {
-        exec = execMove(input.sessionID, targetPath, input.command === "mv")
+        exec = applyMove(input.sessionID, targetPath, input.command === "mv")
       } catch (e: unknown) {
         const err = e instanceof Error ? e : new Error(String(e))
         reportError(err)
@@ -160,10 +207,6 @@ export const OpencodeDir: Plugin = async ({ client }) => {
       }
 
       if (exec.oldDir && exec.newDir) {
-        log("storing override", { sessionID: input.sessionID, oldDir: exec.oldDir, newDir: exec.newDir })
-        dirOverrides.set(input.sessionID, { oldDir: exec.oldDir, newDir: exec.newDir })
-        persistOverrides(OVERRIDES_FILE, dirOverrides)
-
         await client.tui.showToast({
           body: {
             title: "Session directory changed",

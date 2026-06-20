@@ -34,6 +34,10 @@ All changes are clearly commented in the source with "REMOVED in this vendored c
 - **`lib.ts` — self-update removed.** `checkForUpdate()` and its `UpdateResult` type (which fetched
   `registry.npmjs.org` and deleted files in opencode's plugin cache) are gone.
 - **`index.ts` — update-check call removed**, and `checkForUpdate` dropped from the imports.
+- **`index.ts` — agent-callable `cd` tool ADDED (not upstream).** A `tool: { cd }` entry in the
+  returned hooks lets the model change the session directory itself (Claude Code `EnterWorktree`
+  parity for `/setup-work`) instead of only the human `/cd` command. It reuses the same
+  `applyMove()`/override mechanism as the command. **Re-apply this when re-vendoring.**
 
 Net result: **the plugin makes zero network calls.** Verify with:
 
@@ -47,8 +51,9 @@ Periodically (e.g. when touching opencode tooling) check whether upstream has so
 
 1. Diff our pin against upstream `main`:
    `gh api repos/adiled/opencode-dir/commits/main --jq .sha` — compare to the commit above.
-2. If you want the new version, re-vendor `index.ts` + `lib.ts`, then **re-apply the three removals
-   above** (search upstream for `SENTRY_DSN`, `checkForUpdate`, and `fetch(`).
+2. If you want the new version, re-vendor `index.ts` + `lib.ts`, then **re-apply the removals and the
+   `cd` tool addition above** (search upstream for `SENTRY_DSN`, `checkForUpdate`, and `fetch(`; and
+   re-add the `tool: { cd }` block + `applyMove` helper).
 3. Re-run the verify grep, bump the version/commit/date in this file, `chezmoi apply`, and restart opencode.
 
 Treat any upstream change that adds a network call or new broad permission as a reason to re-review
