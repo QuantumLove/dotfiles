@@ -1,0 +1,52 @@
+#!/bin/bash
+# PostToolUse hook: when a Bash command fails on missing/expired AWS credentials,
+# remind the agent to run `aws-sso-login` and relay the device URL to the user —
+# instead of asking the user to log in themselves. Non-blocking; exit 2 feeds the
+# tip back so the agent acts on it the same turn.
+#
+# Bypass for one session:  export CLAUDE_SKIP_AWS_SSO_TIP=1
+
+set -euo pipefail
+
+HOOK_NAME="aws-sso-login-tip"
+source "$HOME/.claude/hooks/hook-lib.sh"
+
+if [ "${CLAUDE_SKIP_AWS_SSO_TIP:-}" = "1" ]; then
+    hook_log "Bypassed (CLAUDE_SKIP_AWS_SSO_TIP=1)"
+    exit 0
+fi
+
+payload="$(cat)"
+tool_name="$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null || echo "")"
+[ "$tool_name" = "Bash" ] || exit 0
+
+command="$(jq -r '.tool_input.command // ""' <<<"$payload" 2>/dev/null || echo "")"
+# Don't tip on the login command itself (its own prompts mention "aws sso login").
+case "$command" in
+    *aws-sso-login*|*"aws sso login"*) exit 0 ;;
+esac
+
+# Search the whole tool response (stdout + stderr) for credential-error signatures.
+output="$(jq -r '.tool_response | tostring' <<<"$payload" 2>/dev/null || echo "")"
+
+SIGNATURES='Unable to locate credentials|security token included in the request is expired|ExpiredToken|The SSO session associated with this profile has expired|Error loading SSO Token|Token has expired and refresh failed|Error when retrieving token from sso|SSO access token has either expired|InvalidGrantException|you may need to run .*aws sso login|run .*aws sso login'
+
+grep -qiE "$SIGNATURES" <<<"$output" 2>/dev/null || exit 0
+
+hook_log "AWS credential error detected for: $command"
+
+cat >&2 <<'EOF'
+AWS credentials are missing or expired — that command failed on auth.
+
+Fix it yourself; do NOT ask the user to run the login:
+  1. Run:  aws-sso-login              # staging (default)
+           aws-sso-login production   # production
+  2. In headless/SSH it prints a device-authorization URL with the code pre-filled.
+     GIVE THAT URL TO THE USER and ask them to open it and approve the sign-in —
+     that is the only step they perform.
+  3. After they approve, the active profile is "<env>-device". Re-run the failed
+     command with  --profile <env>-device  (or export AWS_PROFILE=<env>-device).
+
+(Suppress for this session: export CLAUDE_SKIP_AWS_SSO_TIP=1)
+EOF
+exit 2

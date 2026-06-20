@@ -4,5 +4,6 @@
     "oh-my-openagent@latest",
     "file://{env:HOME}/.config/opencode/plugins/session-registry.ts",
     "@warp-dot-dev/opencode-warp"
-  ]
+  ],
+  "instructions": ["{env:HOME}/.config/opencode/AGENTS.md"]
 }

@@ -304,12 +304,18 @@ See `~/mega-container/README.md` for detailed troubleshooting. Common issues:
 
 ### AWS Authentication
 
+**When an AWS command fails with missing or expired credentials, fix it yourself — never ask the user to log in.**
+
+1. Run `aws-sso-login` (staging, default) or `aws-sso-login production`.
+2. In headless environments (mega-container, SSH, CI) it prints a device-authorization URL with the code pre-filled. **Relay that URL to the user** and ask them to open it and approve the sign-in — that is the only step they perform. Locally it just opens a browser.
+3. After approval the active profile is `<env>-device`. Retry the failed command with `--profile <env>-device` (or `export AWS_PROFILE=<env>-device`).
+
 ```bash
-aws-sso-login              # Login with staging (default)
-aws-sso-login production   # Login with production
+aws-sso-login              # staging (default)
+aws-sso-login production   # production
 ```
 
-Auto-detects local vs remote: opens a browser locally, or shows a pre-filled device-code URL in headless environments (mega-container, SSH, CI). On first remote use it auto-creates a `-device` profile variant in `~/.aws/config`.
+A PostToolUse hook (`aws-sso-login-tip.sh`) auto-detects credential errors in Bash output and reminds you of this flow. On first remote use the function auto-creates the `-device` profile variant in `~/.aws/config`.
 
 ### Kubernetes / Minikube
 
