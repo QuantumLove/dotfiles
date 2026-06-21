@@ -19,7 +19,7 @@ Aggregate GitHub PRs, Linear issues, and Toggl time into a standup. **Review it 
 
 ## Core Principles
 
-1. **Slack-first, confirm before posting, file only as fallback.** Build the draft and show it in a fenced code block (so the terminal preserves the literal Slack markup for accurate review — what's confirmed is what gets posted). Iterate, then post to `#ra-lab-notes-rafael` via the Slack MCP **only after the user explicitly confirms**. Never auto-post. If the Slack MCP isn't connected, don't post — write the draft to `.standup-YYYY-MM-DD.txt` for manual paste.
+1. **Slack-first, confirm before posting, file only as fallback.** Build the draft and show it in a fenced code block (so the terminal preserves the literal Slack markup for accurate review — what's confirmed is what gets posted). Iterate, then post to `#ra-lab-notes-rafael` via the Slack MCP **only after the user explicitly confirms**. Never auto-post. If the Slack MCP isn't connected, don't post — write the draft to a deterministic temp path (`/tmp/standup-YYYY-MM-DD.txt`) for manual paste.
 2. **PRs are the unit of work, not commits.** Group everything by PR.
 3. **Short descriptions.** 3-5 words max per item. Colleagues click the link if they want details.
 4. **Link hygiene.** If a work item has a PR → link the PR only, never the Linear ID. If no PR → link the Linear issue URL. Never both.
@@ -34,11 +34,11 @@ Aggregate GitHub PRs, Linear issues, and Toggl time into a standup. **Review it 
 
 - **Channel:** `#ra-lab-notes-rafael` (override with `--channel <name>`).
 - **Primary output:** the Slack MCP — post with its message tool (with this server, `mcp__slack__conversations_add_message`; channel `#ra-lab-notes-rafael`, body = the rendered standup).
-- **Fallback** (Slack MCP unavailable, or `--file-only`): write to `.standup-YYYY-MM-DD.txt` in the repo root.
+- **Fallback** (Slack MCP unavailable, or `--file-only`): write to a deterministic temp path `/tmp/standup-YYYY-MM-DD.txt`, and print a command to read it from any shell.
 
 ```bash
 DATE=$(date -u +%Y-%m-%d)
-STANDUP_FILE=".standup-${DATE}.txt"   # only written on the fallback path
+STANDUP_FILE="/tmp/standup-${DATE}.txt"   # deterministic temp path; only written on the fallback path
 ```
 
 ### Step 1: Gather Open PRs with Deep Analysis
@@ -168,8 +168,12 @@ The format example below is in compose-box (`[text](url)`) form — convert link
 3. **Confirm:** ask explicitly — e.g. "Post this to #ra-lab-notes-rafael?" — and do **not** post until they clearly say yes.
 4. **Deliver:**
    - **Slack MCP available** → post the standup (links in `<url|text>` mrkdwn form) to `#ra-lab-notes-rafael` via `mcp__slack__conversations_add_message`. Report success (link/ts if returned).
-   - **Slack MCP unavailable** (tools missing or it errors), or `--file-only` → write the draft (links in `[text](url)` form) to `.standup-YYYY-MM-DD.txt` and tell the user: "Slack MCP unavailable — standup saved to .standup-….txt; paste it into #ra-lab-notes-rafael manually."
-5. After a successful Slack post, offer to delete any fallback file (`rm .standup-YYYY-MM-DD.txt`).
+   - **Slack MCP unavailable** (tools missing or it errors), or `--file-only` → write the draft (links in `[text](url)` form) to `/tmp/standup-YYYY-MM-DD.txt`, then **print the exact retrieval command** (with the real date filled in) so the user can read it from any other shell:
+     ```
+     cat /tmp/standup-YYYY-MM-DD.txt
+     ```
+     Tell them: "Slack MCP unavailable — standup saved to /tmp/standup-YYYY-MM-DD.txt. Run the `cat` above in another shell to read it, then paste into #ra-lab-notes-rafael."
+5. After a successful Slack post, offer to delete any fallback file (`rm /tmp/standup-YYYY-MM-DD.txt`).
 
 ## Status Detection Logic
 
