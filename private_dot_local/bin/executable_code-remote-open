@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Open a remote folder in local (host) VS Code via Remote-SSH.
+#   code-remote-open <ssh-host> <absolute-remote-path>
+# Uses the vscode:// URL scheme so it works from Raycast's minimal-PATH sandbox.
+set -euo pipefail
+
+host="${1:?usage: code-remote-open <ssh-host> <absolute-path>}"
+path="${2:?usage: code-remote-open <ssh-host> <absolute-path>}"
+
+# Only accept absolute paths — prevents a stray clipboard value injecting into the URL.
+[[ "$path" == /* ]] || { echo "path must be absolute: $path" >&2; exit 1; }
+
+open "vscode://vscode-remote/ssh-remote+${host}${path}"

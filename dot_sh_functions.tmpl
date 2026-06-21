@@ -128,6 +128,15 @@ warp-window() {
     open "warp://action/new_window?path=$target_path"
 }
 
+# Copy the current directory to the Mac clipboard via OSC52 (works over SSH + tmux,
+# which has set-clipboard on). Run in a raf-dev/container session, then trigger the
+# Raycast "Open in VS Code" command (blank arg reads the clipboard) to open it locally.
+cpwd() {
+    local p; p="$(pwd -P)"
+    printf '\033]52;c;%s\007' "$(printf '%s' "$p" | base64 | tr -d '\n')"
+    echo "→ clipboard: $p"
+}
+
 # Open METR development workspace (4 tabs)
 metr-dev() {
     echo "Opening METR development workspace..."
