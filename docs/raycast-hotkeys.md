@@ -8,6 +8,28 @@ the seed for the cheatsheet web app. Update this when you add/change a binding.
 Bilateral & adjacency: **go-to-app = `Hyper` + right-hand letters**, **window-management = `Hyper` + left-hand letters** (disjoint, no collisions).
 On the MacBook (no Hyper key): launch via `Cmd+Space` (Raycast) + type — the Hyper chords are a Glove80 speed-up.
 
+## Recommended thumb placement (U4 — final by feel at flash)
+
+```
+                   LEFT THUMBS                                  RIGHT THUMBS
+           outer     mid      inner                    inner     mid      outer
+         ┌───────┬───────┬───────┐                  ┌───────┬───────┬───────┐
+   upper │ HYPER │ LCtrl │ LOWER │                  │ LGui  │ RCtrl │ Wispr │
+         │ keep  │ spare │ keep  │                  │→RAYCST│→APPACT│ keep  │
+         ├───────┼───────┼───────┤                  ├───────┼───────┼───────┤
+   lower │ Bksp  │ Del   │ LAlt  │                  │ RAlt  │ Enter │ Space │
+         │CURSOR │NUMBER │→HOMROW│                  │→TMUX  │ MOUSE │SYMBOL │
+         └───────┴───────┴───────┘                  └───────┴───────┴───────┘
+
+   keep = unchanged   →WORD = recommended new function   spare = leave (Ctrl+Tab combo)
+```
+
+- **TMUX** → right lower-inner (RAlt): tap = prefix `Ctrl+Space`, hold = tmux layer. Sits with the terminal thumbs.
+- **RAYCAST** → right upper-inner (LGui): emits `Cmd+Space` (one-tap Raycast; `Cmd+Space` stays universal).
+- **APP-ACTIONS** → right upper-mid (RCtrl): hold-layer ("right hand = actions"); contents TBD.
+- **HOMEROW** → left lower-inner (LAlt): activation key (when Homerow is adopted).
+- **spare** → left upper-mid (LCtrl): leave free (it's half of the `Ctrl+Tab` combo, pos 53).
+
 ## Launcher
 | Chord | Action |
 |------|--------|
