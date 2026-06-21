@@ -23,6 +23,7 @@ second laptop). Exact chords live in [raycast-hotkeys.md](raycast-hotkeys.md).
 - Create two profiles: **metr.org** (work) + **Rafael** (personal).
 - In metr.org: `mail.google.com` → ⋮ → Cast/Save & Share → **Install page as app** → the Gmail PWA (named "Gmail").
 - Install **Vimium** (per-site passthrough only if a conflict appears).
+- ⚠️ The Raycast **work scripts** (Cloud Search, Gemini) hardcode the Chrome profile *directory* (`Profile 3` = metr.org on this Mac). Profile dirs are assigned by creation order, so **on a new machine, check `~/Library/Application Support/Google/Chrome/Local State` → `profile.info_cache` and update `PROFILE=` in those scripts to the metr.org directory.** Also remove the legacy `~/raycast-scripts/` folder from Raycast's Script Command directories — the tracked copies live in `~/.config/raycast/scripts/`.
 
 ## 4. VS Code bridge (U5)
 - Install the Remote-SSH extension.
