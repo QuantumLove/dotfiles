@@ -124,13 +124,16 @@ def _start_pane(pane_id: str, pane_data: dict) -> None:
     run_tmux("send-keys", "-t", pane_id, resume_cmd, "Enter")
 
 
-def resume_in_place(snapshot: dict) -> int:
+def resume_in_place(snapshot: dict, type_only: bool = False) -> int:
     """Resume opencode in already-restored shell panes — create no new windows.
 
-    Matches current panes to snapshot panes carrying an ai_session by
-    (window_name, cwd) and sends the resume command to matching shell panes.
-    Used after tmux-continuum restores the layout, so opencode comes back
-    running without re-creating the windows continuum already restored.
+    Matches current panes to snapshot panes carrying an ai_session by cwd and
+    sends the resume command to matching shell panes. Used after tmux-continuum
+    restores the layout, so opencode comes back without re-creating windows.
+
+    With type_only, the command is TYPED but not run (no Enter) — so a boot
+    restore never auto-runs an autonomous agent unattended; you press Enter when
+    you attach.
     """
     # Key by cwd: resurrect restores the cwd reliably, but tmux auto-renames the
     # window (e.g. "opencode" -> "bash") once the restored shell starts, so the
@@ -148,16 +151,28 @@ def resume_in_place(snapshot: dict) -> int:
         return 0
 
     sep = "␟"
-    fmt = sep.join(["#{pane_id}", "#{pane_current_path}", "#{pane_current_command}"])
+    # @oc_resumed marks panes already handled, so retries — and --type-only,
+    # where the pane stays a shell — never send the command twice.
+    fmt = sep.join(
+        ["#{pane_id}", "#{pane_current_path}", "#{pane_current_command}", "#{@oc_resumed}"]
+    )
     shells = {"bash", "zsh", "sh", "-bash", "-zsh", "fish"}
     resumed = 0
     for line in run_tmux("list-panes", "-a", "-F", fmt).splitlines():
         if not line.strip():
             continue
-        pane_id, cwd, cmd = line.split(sep)
+        pane_id, cwd, cmd, done = line.split(sep)
+        if done == "1":
+            wanted.pop(cwd, None)
+            continue
         if cwd in wanted and cmd in shells:
-            run_tmux("send-keys", "-t", pane_id, wanted.pop(cwd), "Enter")
-            eprint(f"resumed opencode in {pane_id} @ {cwd}")
+            keys = wanted.pop(cwd)
+            if type_only:
+                run_tmux("send-keys", "-t", pane_id, keys)        # typed, not run
+            else:
+                run_tmux("send-keys", "-t", pane_id, keys, "Enter")
+            run_tmux("set-option", "-p", "-t", pane_id, "@oc_resumed", "1")
+            eprint(f"{'typed' if type_only else 'resumed'} opencode in {pane_id} @ {cwd}")
             resumed += 1
     eprint(f"resumed {resumed} opencode session(s); {len(wanted)} unmatched")
     return 0
@@ -183,6 +198,11 @@ def main() -> int:
         action="store_true",
         help="resume opencode in existing (already-restored) panes; create no windows",
     )
+    parser.add_argument(
+        "--type-only",
+        action="store_true",
+        help="with --in-place: type the resume command into the pane but don't run it",
+    )
     args = parser.parse_args()
 
     snapshot_path = Path(args.snapshot)
@@ -202,7 +222,7 @@ def main() -> int:
         except (subprocess.CalledProcessError, FileNotFoundError):
             eprint("error: no reachable tmux server to resume into")
             return 1
-        return resume_in_place(snapshot)
+        return resume_in_place(snapshot, type_only=args.type_only)
 
     if not args.dry_run and "TMUX" not in os.environ:
         eprint("error: not running inside tmux (use --dry-run to preview)")
