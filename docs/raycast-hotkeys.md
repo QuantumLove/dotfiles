@@ -8,7 +8,9 @@ the seed for the cheatsheet web app. Update this when you add/change a binding.
 Bilateral & adjacency: **go-to-app = `Hyper` + right-hand letters**, **window-management = `Hyper` + left-hand letters** (disjoint, no collisions).
 On the MacBook (no Hyper key): launch via `Cmd+Space` (Raycast) + type — the Hyper chords are a Glove80 speed-up.
 
-## Recommended thumb placement (U4 — final by feel at flash)
+## Thumb placement (U4) — tmux + Raycast written to firmware; Homerow/app-actions reserved
+
+**Status:** tmux (RAlt) + Raycast (LGui→`Cmd+Space`) are in the keymap on branch `feat-tmux-thumb` in `~/code/glove80` (building; flash pending). Homerow (LAlt) + app-actions (RCtrl) stay as their modifiers for now — wired when those features exist. The map below is the target.
 
 ```
                    LEFT THUMBS                                  RIGHT THUMBS

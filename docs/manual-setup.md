@@ -30,5 +30,9 @@ second laptop). Exact chords live in [raycast-hotkeys.md](raycast-hotkeys.md).
 - `~/.ssh/config` already has `Host raf-dev` (via chezmoi).
 - Test: from a `raf-dev` session run `cpwd`, then trigger Raycast **"Open in VS Code"** → the folder opens in local VS Code.
 
-## 5. Glove80 firmware (U4, later)
-- Flash firmware (confirm version on-device); add the tmux thumb (tap=prefix `Ctrl+Space`, hold=tmux layer); choose thumb placement by feel. See the plan, U4.
+## 5. Glove80 firmware (U4)
+- Keymap changes live on branch `feat-tmux-thumb` in `~/code/glove80` (tmux thumb on RAlt, Raycast thumb on LGui→`Cmd+Space`, `tmux_layer`).
+- Build: `cd ~/code/glove80 && ./build.sh` (Docker; ~5–10 min) → `glove80_lh.uf2` + `glove80_rh.uf2`.
+- Flash each half (bootloader mode → drag-drop its UF2). See the glove80 `README.md` §Flash.
+- `tmux.conf` prefix `Ctrl+Space` is already in chezmoi.
+- After any keymap change: `./bin/draw-keymap.sh` regenerates the diagram.
