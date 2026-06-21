@@ -45,7 +45,7 @@ GitHub: not a hotkey — a Chrome tab (use `Cmd+Shift+A` tab search + Switch Win
 ## Window switching / cycling
 | Chord | Action |
 |------|--------|
-| _(rebind in System Settings)_ | **Cycle current-app windows** — macOS "Move focus to next window" (default `Cmd+`` ` ``). Cycles ONLY the front app's windows (e.g. Chrome). Rebind off the backtick to a comfy chord: System Settings → Keyboard → Keyboard Shortcuts → **Keyboard** → "Move focus to next window". Native → works on the MacBook too. |
+| `Hyper + <comfy key>` | **Cycle current-app windows** — rebind macOS "Move focus to next window" (the awkward default backtick chord) to a Hyper chord: System Settings → Keyboard → Keyboard Shortcuts → **Keyboard** → "Move focus to next window" → record `Hyper+`<key> (e.g. `N`/`M`). Cycles ONLY the front app's windows (e.g. Chrome), system-wide, no backtick, works on the MacBook too. **Not a Chrome setting** — Chrome can't cycle windows. (Hyper already includes Shift → forward-only, fine for a few windows.) |
 | `Hyper + ;` | Raycast "Switch Windows" — fuzzy-pick a *specific* window across all apps (a picker, not a cycler) |
 | `Cmd+Shift+A` | Chrome tab search (within a window) |
 
