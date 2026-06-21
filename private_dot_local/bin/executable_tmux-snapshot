@@ -139,12 +139,35 @@ def read_oc_registry() -> dict[int, dict]:
     return entries
 
 
-def build_snapshot(panes: list[Pane], tmux_session: str) -> dict[str, object]:
+def read_previous_ai_sessions(tmux_session: str) -> dict[str, dict]:
+    """Map cwd -> ai_session from the prior per-session snapshot, so a pane whose
+    opencode isn't running right now (restored-but-not-yet-resumed, or briefly
+    exited) keeps its resumable session id instead of the next tick erasing it.
+    """
+    default_dir = Path.home() / ".local" / "share" / "tmux-snapshots"
+    out_dir = Path(os.environ.get("OC_SNAPSHOT_DIR", str(default_dir)))
+    prev: dict[str, dict] = {}
+    try:
+        data = json.loads((out_dir / f"snapshot-{tmux_session}.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return prev
+    for p in data.get("panes", []):
+        ai = p.get("ai_session")
+        if isinstance(ai, dict) and ai.get("session_id"):
+            prev[p.get("cwd", "")] = ai
+    return prev
+
+
+def build_snapshot(
+    panes: list[Pane], tmux_session: str, prev_ai: dict[str, dict] | None = None
+) -> dict[str, object]:
+    prev_ai = prev_ai or {}
     registry = read_oc_registry()
     eprint(f"OC registry: {len(registry)} live instance(s)")
 
     pane_entries: list[dict[str, object]] = []
     matched = 0
+    carried = 0
     for pane in panes:
         ai_session: dict[str, str] | None = None
         reg_entry = registry.get(pane.pane_pid)
@@ -163,6 +186,12 @@ def build_snapshot(panes: list[Pane], tmux_session: str) -> dict[str, object]:
                     f"warning: OC instance in pane {pane.pane_id} has no session info yet"
                 )
 
+        # Carry forward a prior session id when opencode isn't live in this pane,
+        # so restored-but-not-yet-resumed panes keep their resume command.
+        if ai_session is None and pane.cwd in prev_ai:
+            ai_session = {**prev_ai[pane.cwd], "carried": True}
+            carried += 1
+
         pane_entries.append(
             {
                 "window_index": pane.window_index,
@@ -174,7 +203,10 @@ def build_snapshot(panes: list[Pane], tmux_session: str) -> dict[str, object]:
             }
         )
 
-    eprint(f"Matched {matched}/{len(registry)} OC instance(s) to panes")
+    eprint(
+        f"Matched {matched}/{len(registry)} OC instance(s) to panes"
+        + (f"; carried {carried} prior session(s)" if carried else "")
+    )
 
     captured_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     captured_at = captured_at.replace("+00:00", "Z")
@@ -220,9 +252,10 @@ def main() -> int:
     try:
         tmux_session = get_tmux_session_name()
         panes = list_panes_for_session(tmux_session, own_pane_id)
+        prev_ai = read_previous_ai_sessions(tmux_session)
         eprint(f"Snapshotting tmux session: {tmux_session}")
         eprint(f"Found {len(panes)} pane(s)")
-        snapshot = build_snapshot(panes, tmux_session)
+        snapshot = build_snapshot(panes, tmux_session, prev_ai)
         output_path = write_snapshot(snapshot)
         eprint(f"Saved to {output_path}")
         return 0
