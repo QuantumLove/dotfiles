@@ -23,12 +23,12 @@ Layout logic: **top row (U/I/O) = comms**, **middle row (J/K/L) = daily drivers*
 | `Hyper + U` | Slack | top row = comms |
 | `Hyper + I` | Gmail | the **PWA named "Gmail"** (metr.org profile) |
 | `Hyper + O` | Linear | desktop app |
-| _(unbound)_ | VS Code | reach via `Cmd+Space`+type or the U5 code-host bridge; bind to a free right key (`P`, `/`, `M`) if wanted |
+| (left-hand key) | VS Code | bound on the left hand (kept live) |
 
 GitHub: not a hotkey — a Chrome tab (use `Cmd+Shift+A` tab search + Switch Windows below).
 
 ## Window management — `Hyper` + left hand (Raycast Window Management)
-*(Rafael customized the exact letters — transcribe the final mapping here when ready.)*
+*(Kept live by Rafael — ~10 left-hand bindings, plus the VS Code go-to-app on the left. Not transcribed (intentional); room for more if needed.)*
 | Chord | Command |
 |------|---------|
 | `Hyper + A` | Left half |
@@ -45,9 +45,9 @@ GitHub: not a hotkey — a Chrome tab (use `Cmd+Shift+A` tab search + Switch Win
 ## Window switching / cycling
 | Chord | Action |
 |------|--------|
-| `Hyper + ;` | **Raycast "Switch Windows"** — fuzzy-pick ANY open window by title/app. Best for multiple Chrome windows (see + pick, no awkward reach). Pick any free, comfortable key. |
+| _(rebind in System Settings)_ | **Cycle current-app windows** — macOS "Move focus to next window" (default `Cmd+`` ` ``). Cycles ONLY the front app's windows (e.g. Chrome). Rebind off the backtick to a comfy chord: System Settings → Keyboard → Keyboard Shortcuts → **Keyboard** → "Move focus to next window". Native → works on the MacBook too. |
+| `Hyper + ;` | Raycast "Switch Windows" — fuzzy-pick a *specific* window across all apps (a picker, not a cycler) |
 | `Cmd+Shift+A` | Chrome tab search (within a window) |
-| `Cmd+`` ` `` | native cycle current-app windows (fallback — awkward on the Glove80) |
 
 ## Retired
 - `F1`–`F5` Raycast deeplinks (replaced by the Hyper go-to-app chords above).
