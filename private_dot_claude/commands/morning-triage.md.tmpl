@@ -40,25 +40,23 @@ Exit immediately — do not proceed.
 ### Step 2: Fetch unread emails
 
 ```bash
-gws gmail messages list --params '{"q": "is:unread", "labelIds": ["INBOX"], "maxResults": 30}'
+gws gmail +triage --max 30 --query 'in:inbox is:unread' --format json
 ```
 
-- If no unread emails: show "📭 No unread emails. Inbox zero!" and exit.
-- If count equals 30: show "📬 N unread emails (showing newest 30). Run again for more."
+Returns `{"messages": [...], "resultSizeEstimate": N}`. Each item in `.messages` has `id`, `from`, `subject`, `date` — parse with `jq '.messages[]'`.
 
-### Step 3: Get message details
+- If `.messages` is empty: show "📭 No unread emails. Inbox zero!" and exit.
+- If `.messages | length` equals 30: show "📬 N unread emails (showing newest 30). Run again for more."
 
-For each message ID returned, fetch metadata:
+### Step 3: Get message body
+
+`+triage` already returns `from`/`subject`/`date`. For URL extraction, fetch the body per message ID:
 
 ```bash
-gws gmail messages get --params '{"id": "MSG_ID", "format": "metadata", "metadataHeaders": ["From", "Subject", "Date"]}'
+gws gmail +read --id MSG_ID --format json
 ```
 
-Also fetch body for URL extraction:
-
-```bash
-gws gmail messages get --params '{"id": "MSG_ID", "format": "full"}'
-```
+Returns `from`, `subject`, `date`, `thread_id`, `body_text` (plain text, HTML auto-converted), and `body_html`. Use `.body_text` for URL extraction.
 
 Truncate any displayed snippet/body to 80 characters. **Never write email content to disk.**
 
@@ -214,15 +212,15 @@ If confirmed (Y or Enter), execute:
 
 Mark as read via:
 ```bash
-gws gmail messages modify --params '{"id": "MSG_ID", "removeLabelIds": ["UNREAD"]}'
+gws gmail users messages modify --params '{"userId": "me", "id": "MSG_ID"}' --json '{"removeLabelIds": ["UNREAD"]}'
 ```
 
 Move to trash via:
 ```bash
-gws gmail messages trash --params '{"id": "MSG_ID"}'
+gws gmail users messages trash --params '{"userId": "me", "id": "MSG_ID"}'
 ```
 
-**Do NOT use `messages delete` — only `messages trash`.**
+**Do NOT use `users messages delete` — only `users messages trash`.**
 
 Show result after each action:
 ```
@@ -248,7 +246,7 @@ Re-show the action prompt after each action. Loop until user types "done".
 ## Safety Rules
 
 - **Never** send, reply to, forward, or draft any emails
-- **Never** permanently delete emails (`messages delete`) — only `messages trash`
+- **Never** permanently delete emails (`users messages delete`) — only `users messages trash`
 - **Never** create or update issues in GitHub, Sentry, or Linear (read-only)
 - **Never** write email content to disk files
 - **Never** display more than 80 chars of email body/snippet

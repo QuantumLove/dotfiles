@@ -30,12 +30,15 @@ Do this on a machine with a browser:
    OAuth client ID → Application type **Desktop app** → Create → **Download JSON** → save as
    `~/.config/gws/client_secret.json`.
 
-5. **Install gws and log in** — request **only** `gmail` (the "recommended" preset pulls 85+ scopes and
-   fails for non-production apps):
+5. **Install gws and log in** — request the two gmail scopes explicitly (the `--full`/recommended
+   preset pulls 85+ scopes and fails for non-production apps):
    ```bash
    npm install -g @googleworkspace/cli
-   gws auth login -s gmail        # grant gmail.readonly + gmail.modify in the browser
+   gws auth login --scopes "https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/gmail.modify"
    ```
+   Pick your metr.org account and approve Read + Read/modify. Heads-up: Homebrew ships an unrelated
+   `gws` ("Git WorkSpace") that shadows this one — if `gws --version` isn't `gws 0.22.x`, invoke the
+   npm binary by full path, e.g. `"$(npm prefix -g)/bin/gws"`.
 
 6. **Export the credential** (an `authorized_user` JSON — `client_id` + `client_secret` + `refresh_token`):
    ```bash
@@ -44,7 +47,7 @@ Do this on a machine with a browser:
 
 7. **Smoke-test:**
    ```bash
-   gws gmail messages list --params '{"q":"is:unread","maxResults":3}'
+   gws gmail +triage --max 3        # unread inbox summary (sender, subject, date)
    ```
 
 8. **Store in 1Password** — Vault **Development**, item **GWS Credentials JSON**, type **Secure Note**;
@@ -86,7 +89,7 @@ Re-run steps 5–8 to refresh the credential in 1Password.
 
 `mega-container/entrypoint.sh` reads `op://Development/GWS Credentials JSON/notesPlain`, writes it to
 `~/.config/gws/credentials.json` (chmod 600), and exports `GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE`.
-`private_dot_claude/commands/morning-triage.md.tmpl` then drives `gws gmail messages list/get/modify`.
+`private_dot_claude/commands/morning-triage.md.tmpl` then drives `gws gmail +triage` / `+read` / `users messages modify`.
 Only the exported `authorized_user` JSON is needed at runtime — **not** `client_secret.json` (that's only
 for the initial interactive login on the browser machine).
 
