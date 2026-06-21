@@ -1,6 +1,6 @@
 ---
 name: async-standup
-description: Generate async standup summary from git, Linear, and Toggl
+description: Generate an async standup from git, Linear, and Toggl; review it, then post to Slack (#ra-lab-notes-rafael) on confirmation — falls back to a file if Slack is unavailable
 permissions:
   - Bash(git *)
   - Bash(gh pr list *)
@@ -10,15 +10,16 @@ permissions:
   - mcp__linear__get_my_issues
   - mcp__linear__get_ticket
   - mcp__toggl__toggl_get_time_entries
+  - mcp__slack__*
 ---
 
 # Async Standup - Daily Summary Generator
 
-Generate a standup summary by aggregating data from GitHub PRs, Linear issues, and Toggl time entries. Output to a temp file for copy-paste to Slack.
+Aggregate GitHub PRs, Linear issues, and Toggl time into a standup. **Review it together, and only after the user confirms, post it to Slack `#ra-lab-notes-rafael` via the Slack MCP.** If the Slack MCP isn't available, fall back to writing a file for manual paste.
 
 ## Core Principles
 
-1. **File-based output.** Always write to `.standup-YYYY-MM-DD.txt` in the current repo root. Never output the standup inline — the terminal reformats it and breaks Slack formatting.
+1. **Slack-first, confirm before posting, file only as fallback.** Build the draft and show it in a fenced code block (so the terminal preserves the literal Slack markup for accurate review — what's confirmed is what gets posted). Iterate, then post to `#ra-lab-notes-rafael` via the Slack MCP **only after the user explicitly confirms**. Never auto-post. If the Slack MCP isn't connected, don't post — write the draft to `.standup-YYYY-MM-DD.txt` for manual paste.
 2. **PRs are the unit of work, not commits.** Group everything by PR.
 3. **Short descriptions.** 3-5 words max per item. Colleagues click the link if they want details.
 4. **Link hygiene.** If a work item has a PR → link the PR only, never the Linear ID. If no PR → link the Linear issue URL. Never both.
@@ -29,14 +30,16 @@ Generate a standup summary by aggregating data from GitHub PRs, Linear issues, a
 
 ## Implementation
 
-### Step 0: Create Output File
+### Step 0: Posting target
+
+- **Channel:** `#ra-lab-notes-rafael` (override with `--channel <name>`).
+- **Primary output:** the Slack MCP — post with its message tool (with this server, `mcp__slack__conversations_add_message`; channel `#ra-lab-notes-rafael`, body = the rendered standup).
+- **Fallback** (Slack MCP unavailable, or `--file-only`): write to `.standup-YYYY-MM-DD.txt` in the repo root.
 
 ```bash
 DATE=$(date -u +%Y-%m-%d)
-STANDUP_FILE=".standup-${DATE}.txt"
+STANDUP_FILE=".standup-${DATE}.txt"   # only written on the fallback path
 ```
-
-All output goes into this file. Tell the user the file path at the end so they can copy it.
 
 ### Step 1: Gather Open PRs with Deep Analysis
 
@@ -102,11 +105,13 @@ toggl_get_time_entries with period="today"
 
 Skip if no entries or user passes `--no-toggl`.
 
-### Step 5: Write Standup to File
+### Step 5: Build the draft
 
-Use `[text](url)` for links — Slack's compose box renders these as clickable links.
-Use `*bold*` for section headers — Slack renders this natively.
-Use `:emoji_name:` for status icons.
+Link format depends on where it's going:
+- **Posting via the Slack MCP (primary):** Slack mrkdwn — links as `<https://url|text>`, `*bold*` headers, `:emoji_name:` icons.
+- **Fallback file (pasted into the compose box):** links as `[text](url)` (the compose box renders these; `<url|text>` gets `%7C`-mangled on paste), same `*bold*` and `:emoji:`.
+
+The format example below is in compose-box (`[text](url)`) form — convert links to `<url|text>` when posting via the MCP.
 
 **Format:**
 
@@ -156,13 +161,15 @@ Use `:emoji_name:` for status icons.
 - Linear issues waiting on someone else's input
 - Always link the item (PR or Linear URL)
 
-### Step 6: Report to User
+### Step 6: Review → confirm → post
 
-Tell the user:
-```
-Written to .standup-YYYY-MM-DD.txt — copy and paste to Slack.
-Delete with: rm .standup-YYYY-MM-DD.txt
-```
+1. **Show the draft** in a fenced code block so the user reviews the exact content/formatting.
+2. **Iterate** on any edits they ask for; re-render and show again.
+3. **Confirm:** ask explicitly — e.g. "Post this to #ra-lab-notes-rafael?" — and do **not** post until they clearly say yes.
+4. **Deliver:**
+   - **Slack MCP available** → post the standup (links in `<url|text>` mrkdwn form) to `#ra-lab-notes-rafael` via `mcp__slack__conversations_add_message`. Report success (link/ts if returned).
+   - **Slack MCP unavailable** (tools missing or it errors), or `--file-only` → write the draft (links in `[text](url)` form) to `.standup-YYYY-MM-DD.txt` and tell the user: "Slack MCP unavailable — standup saved to .standup-….txt; paste it into #ra-lab-notes-rafael manually."
+5. After a successful Slack post, offer to delete any fallback file (`rm .standup-YYYY-MM-DD.txt`).
 
 ## Status Detection Logic
 
@@ -178,8 +185,8 @@ Delete with: rm .standup-YYYY-MM-DD.txt
 
 ## Anti-Patterns
 
-1. **Don't output inline** — always write to file, terminal reformats everything
-2. **Don't use `<url|text>` Slack API links** — they get `%7C`-encoded when pasting. Use `[text](url)`
+1. **Never post to Slack without explicit confirmation** — generate, show in a code block, iterate, then post only on a clear yes.
+2. **Match link format to the target** — `<url|text>` for a Slack MCP post (mrkdwn); `[text](url)` only for the fallback file pasted into the compose box (where `<url|text>` gets `%7C`-mangled).
 3. **Don't list raw commits** — group by PR
 4. **Don't include Linear ID when PR exists** — redundant clutter
 5. **Don't write long descriptions** — 3-5 words, link has the details
@@ -195,6 +202,8 @@ Delete with: rm .standup-YYYY-MM-DD.txt
 | `--date YYYY-MM-DD` | Generate for specific date |
 | `--no-toggl` | Skip Toggl time tracking |
 | `--no-linear` | Skip Linear issues |
+| `--channel <name>` | Post to a different channel (default `#ra-lab-notes-rafael`) |
+| `--file-only` | Skip Slack; write the fallback file for manual paste |
 
 ## Related Commands
 
