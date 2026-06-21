@@ -13,21 +13,22 @@ On the MacBook (no Hyper key): launch via `Cmd+Space` (Raycast) + type — the H
 |------|--------|
 | `Cmd+Space` | **Raycast** (Spotlight shortcut disabled; convenience kept, points at Raycast) |
 
-## Go-to-app — `Hyper` + right hand (focus-or-open)
-Home row = most-used; reorder freely (Raycast rebinds instantly, no reflash).
+## Go-to-app — `Hyper` + right hand (focus-or-open) — AS RECORDED
+Layout logic: **top row (U/I/O) = comms**, **middle row (J/K/L) = daily drivers**.
 | Chord | App | Note |
 |------|-----|------|
-| `Hyper + J` | Warp | terminal |
-| `Hyper + K` | VS Code | |
-| `Hyper + L` | Chrome | catch-all browser |
-| `Hyper + ;` | Slack | |
-| `Hyper + U` | Linear | desktop app |
+| `Hyper + J` | Warp | middle row = daily |
+| `Hyper + K` | Chrome | |
+| `Hyper + L` | Notion | |
+| `Hyper + U` | Slack | top row = comms |
 | `Hyper + I` | Gmail | the **PWA named "Gmail"** (metr.org profile) |
-| `Hyper + O` | Notion | |
+| `Hyper + O` | Linear | desktop app |
+| _(unbound)_ | VS Code | reach via `Cmd+Space`+type or the U5 code-host bridge; bind to a free right key (`P`, `/`, `M`) if wanted |
 
-GitHub: not a hotkey — it's a Chrome tab (use `Cmd+Shift+A` tab search + `Cmd+`` ` `` window cycling).
+GitHub: not a hotkey — a Chrome tab (use `Cmd+Shift+A` tab search + Switch Windows below).
 
 ## Window management — `Hyper` + left hand (Raycast Window Management)
+*(Rafael customized the exact letters — transcribe the final mapping here when ready.)*
 | Chord | Command |
 |------|---------|
 | `Hyper + A` | Left half |
@@ -41,11 +42,12 @@ GitHub: not a hotkey — it's a Chrome tab (use `Cmd+Shift+A` tab search + `Cmd+
 | `Hyper + X` | Move to next display |
 | `Hyper + Z` | Restore (undo last placement) |
 
-## Cycling (native — no Raycast)
+## Window switching / cycling
 | Chord | Action |
 |------|--------|
-| `Cmd+`` ` `` | Cycle windows of the current app |
-| `Cmd+Shift+A` | Chrome tab search |
+| `Hyper + ;` | **Raycast "Switch Windows"** — fuzzy-pick ANY open window by title/app. Best for multiple Chrome windows (see + pick, no awkward reach). Pick any free, comfortable key. |
+| `Cmd+Shift+A` | Chrome tab search (within a window) |
+| `Cmd+`` ` `` | native cycle current-app windows (fallback — awkward on the Glove80) |
 
 ## Retired
 - `F1`–`F5` Raycast deeplinks (replaced by the Hyper go-to-app chords above).
