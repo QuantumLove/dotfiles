@@ -11,7 +11,8 @@ On the MacBook (no Hyper key): launch via `Cmd+Space` (Raycast) + type — the H
 ## Launcher
 | Chord | Action |
 |------|--------|
-| `Cmd+Space` | **Raycast** (Spotlight shortcut disabled; convenience kept, points at Raycast) |
+| `Cmd+Space` | **Raycast** (Spotlight shortcut disabled; convenience kept, points at Raycast) — universal, works on the MacBook too |
+| Glove80 Raycast thumb (free thumb #7/#8, set at U4) | emits `Cmd+Space` → one-tap Raycast on the board |
 
 ## Go-to-app — `Hyper` + right hand (focus-or-open) — AS RECORDED
 Layout logic: **top row (U/I/O) = comms**, **middle row (J/K/L) = daily drivers**.
