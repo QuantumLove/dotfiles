@@ -9,3 +9,7 @@
 
 # Prune opencode sessions older than 8 weeks, daily.
 30 4 * * * $HOME/.local/bin/opencode-prune
+
+# Bound logs/saves/data with no built-in rotation, daily (resurrect saves keep
+# 5000, append logs 1 GiB ceiling, tt events keep ~2 months).
+0 4 * * * $HOME/.local/bin/rotate-logs

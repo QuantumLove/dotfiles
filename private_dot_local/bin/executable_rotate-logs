@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+# Bound the growth of durability logs/saves/data that have no built-in rotation.
+# Scheduled daily via supercronic. Ceilings are GENEROUS — meant to cap runaway,
+# not to trim aggressively.
+#
+#   - resurrect saves   : keep newest 5000 (tmux-resurrect never prunes; only
+#                         `last` is ever restored, so older ones are dead history)
+#   - append-only logs  : hard 1 GiB-per-file ceiling (keep the tail). These are
+#                         tiny, so this is a safety net that ~never fires.
+#   - tt events.jsonl   : keep ~2 months (drop events older than 60 days by their
+#                         timestamp); unparseable lines are always kept.
+#
+# Deliberately NOT touched: opencode.db (own 8-week prune), opencode-web.log
+# (truncated on boot), snapshot.json (overwritten each tick).
+set -uo pipefail
+export PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+state="$HOME/.local/state"
+log="$state/rotate-logs.log"
+keep_saves="${RESURRECT_KEEP:-5000}"
+max_bytes="${LOG_MAX_BYTES:-1073741824}"   # 1 GiB
+event_days="${TT_EVENT_DAYS:-60}"
+summary=""
+
+# 1) resurrect saves — keep newest N, drop older (newest is what `last` points to)
+rdir="$HOME/.local/share/tmux-snapshots/resurrect"
+pruned=0
+if [ -d "$rdir" ]; then
+    while IFS= read -r f; do
+        [ -n "$f" ] && rm -f "$f" && pruned=$((pruned + 1))
+    done < <(ls -1t "$rdir"/tmux_resurrect_*.txt 2>/dev/null | tail -n +$((keep_saves + 1)))
+fi
+summary+="resurrect pruned ${pruned} (keep ${keep_saves}); "
+
+# 2) append-only logs — 1 GiB per-file ceiling. Rewrite in place (copytruncate
+#    style) so a writer holding the fd open keeps appending.
+cap_bytes() {
+    local f="$1" sz tmp
+    [ -f "$f" ] || return 0
+    sz=$(stat -c %s "$f" 2>/dev/null || echo 0)
+    if [ "$sz" -gt "$max_bytes" ]; then
+        tmp="$(mktemp)"
+        tail -c "$max_bytes" "$f" > "$tmp" && cat "$tmp" > "$f"
+        rm -f "$tmp"
+        summary+="capped $(basename "$f"); "
+    fi
+}
+cap_bytes "$state/supercronic.log"
+cap_bytes "$state/opencode-prune.log"
+cap_bytes "$state/time-tracker/hook.log"
+cap_bytes "$log"
+
+# 3) tt events.jsonl — keep ~2 months by event timestamp (ISO-8601 w/ millis).
+events="$HOME/.local/share/time-tracker/events.jsonl"
+if [ -f "$events" ] && command -v jq >/dev/null 2>&1; then
+    cutoff=$(date -u -d "${event_days} days ago" +%s 2>/dev/null || echo 0)
+    if [ "$cutoff" -gt 0 ]; then
+        before=$(wc -l < "$events" 2>/dev/null || echo 0)
+        tmp="$(mktemp)"
+        # Keep lines newer than cutoff; keep any line we can't parse (never drop
+        # data we don't understand). Strip ".sssZ" fractional seconds first.
+        if jq -c --argjson c "$cutoff" \
+              'select((try (.timestamp | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) catch 9999999999) >= $c)' \
+              "$events" > "$tmp" 2>/dev/null; then
+            after=$(wc -l < "$tmp" 2>/dev/null || echo 0)
+            cat "$tmp" > "$events"
+            summary+="tt events ${before}->${after} (keep ${event_days}d); "
+        else
+            summary+="tt events SKIPPED (jq parse failed); "
+        fi
+        rm -f "$tmp"
+    fi
+fi
+
+echo "$(date -u +%FT%TZ) ${summary}" >> "$log"
