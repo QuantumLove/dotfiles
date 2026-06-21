@@ -3,7 +3,7 @@ title: "feat: keyboard-driven, mouse-minimized Mac workflow + interactive cheats
 status: in-review
 date: 2026-06-21
 decisions_locked: 2026-06-21
-revised: 2026-06-21 (r3 — CE multi-lens review; build order flipped to config-first; thumb-key claims corrected)
+revised: 2026-06-21 (r4 — cross-device principle; thumb layout settled: keep all 4 layers, 6 free thumbs reserved for tmux/Homerow/app-actions, placement by feel at U4)
 build_order: config-first
 ---
 
@@ -45,7 +45,7 @@ The stack — Slack, Chrome (Gmail + many windows, two profiles), Warp, VS Code,
 - **KTD4 — Two Chrome profiles: Work + Rafael** (G3). PWAs and go-to-app are profile-aware (work PWAs live in the Work profile).
 - **KTD5 — Bilateral Hyper, chords not a nav layer** (G1). Mappings live in Raycast (rebind without reflashing). Hyper is the HOLD side of a hold-tap on the **left** thumb (`&hyper_mt HYPER LSHFT`, pos verified), so app letters go on the **right** hand and window-management letters on the **left** hand. **Letters = pure adjacency.** *Caveat:* chord speed is gated by the hold-tap tapping-term — if go-to-app feels laggy, tune `hyper_mt`, and do a quick on-device head-to-head vs. a nav layer before locking the grid (mappings are cheap to rebind).
 - **KTD6 — Disable the Spotlight shortcut; Raycast on `Cmd+Space`; no Raycast thumb** (G10). Disable *only* the `Cmd+Space` Spotlight shortcut (leave indexing/Finder-search/Look-Up intact). Raycast's hotkey = `Cmd+Space`. **No dedicated Raycast thumb** — `Cmd+Space` is enough, and the thumb cluster is full (see KTD7).
-- **KTD7 — tmux key is a conscious thumb reassignment (the thumbs are NOT free)** (G4). The Glove80 thumb cluster is fully occupied: `&hyper_mt HYPER LSHFT`, `&kp LCTRL`, `&layer_td`, `&kp LGUI`, `&kp RCTRL`, **`&wispr LG(F18) LG(F19)` (Wispr Flow dictation — must NOT be clobbered)**, the outer thumbs (Backspace/Delete/Enter/Space = layer access), and the V4-restored factory RALT. The tmux key therefore **reassigns one HRM-duplicated inner thumb modifier** (LGUI / RCTRL / RALT — all also available on the home-row mods, so losing the thumb copy is acceptable); the exact position is chosen **at U4 against the live keymap**, never from guessed position numbers. It reuses the existing `lt_thumb` hold-tap: tap = prefix, hold = `tmux_layer`. Prefix → `Ctrl+Space`.
+- **KTD7 — Free thumbs reserved for tmux + Homerow + app-actions; positions chosen by feel at U4** (G4). **Locked thumbs:** Hyper, Wispr (`&wispr LG(F18) LG(F19)` — dictation, never clobber), and Backspace/Delete/Enter/Space (whose holds carry the kept Cursor/Number/Mouse/Symbol layers). The **6 free thumbs** — `LCtrl`, the `LOWER`-layer thumb, `LAlt`, `LGui`, `RCtrl`, `RAlt` (all redundant with the home-row mods, or an unused layer) — are reserved for three functions: **tmux** (tap = prefix `Ctrl+Space`, hold = `tmux_layer`, reusing the existing `lt_thumb` hold-tap), **Homerow activation**, and an **app-actions layer** (a right-hand hold layer; contents defined later). Exact thumb→function placement is decided **hands-on by feel when flashing (U4)** against the live keymap — KTD13 (cross-device) makes this low-stakes and fully reversible. **All four V3/V4 layers are kept.**
 - **KTD8 — Window cycling, with a known gap** (G2). `Cmd+`` ` `` cycles windows of the current app, and a Raycast "Switch Windows" hotkey cycles across apps. **Gap:** `Cmd+`` ` `` skips minimized and other-Space windows — U3 includes a falsification test for these cases (see Not Adopting → AeroSpace).
 - **KTD9 — The tmux ZMK layer carries the whole vocabulary** (G4). Holding the tmux thumb maps the home row to: rename session, new window, kill window, next/prev/by-number window, new pane (split right/down), resize panes, pane nav (h/j/k/l), zoom, session tree, copy-mode, detach.
 - **KTD10 — Web app is a local React SPA, content-first, built AFTER the config wins** (G9). Vite + React + TS + Tailwind (+ Fuse.js/cmdk; **no Framer Motion** until a transition needs it). Runs on `localhost`, started manually, never published. Built once the real bindings exist so its content is accurate. Split: **U1a** (searchable workflow tables + setup checklist + learning tracker — ships first, can use the existing `keymap.svg` for the board) and **U1b** (the from-scratch interactive React board + key-tester — later).
@@ -90,7 +90,7 @@ The stack — Slack, Chrome (Gmail + many windows, two profiles), Warp, VS Code,
 **Goal:** tmux thumb (tap=prefix/hold=layer with the full op set), prefix → `Ctrl+Space`. **Goals:** G4.
 **Files:** `~/code/glove80/config/glove80.keymap`; `dot_tmux.conf`.
 **Approach (order matters):**
-1. **Audit live thumb occupancy** by reading the actual keymap + `keymap.svg` — do not trust position numbers. Confirm what each thumb emits; pick the tmux key as a reassignment of an **HRM-duplicated** inner thumb modifier (LGUI/RCTRL/RALT). **Do not touch `&wispr` (dictation), Hyper, or the layer-access outer thumbs.**
+1. **Audit live thumb occupancy** against the actual keymap + `keymap.svg`. Keep all four layers + Backspace/Delete/Enter/Space + Hyper + Wispr. **Place tmux, Homerow activation, and the app-actions layer onto the 6 free thumbs (LCtrl, LOWER, LAlt, LGui, RCtrl, RAlt) — choosing positions by feel during the flash, trying them physically.** Never touch `&wispr`.
 2. **Flash V4 + V5 first** (currently unflashed — board is on V3) and verify on-device, so the tmux change can be bisected from the V4/V5 changes.
 3. Then add: `#define TMUX 11`; a `tmux_key` prefix-then-key macro (modeled on `mod_tab`); the chosen thumb → `&lt_thumb TMUX LC(SPACE)`; a `tmux_layer{}` after `symbol_layer` mapping home-row + neighbors to rename session, new window, kill window, next/prev/by-number window, new pane (`|`/`_`), resize panes, pane nav h/j/k/l, zoom, session tree, copy-mode, detach. Flash as a second step.
 4. `dot_tmux.conf`: `set -g prefix C-Space; bind C-Space send-prefix`; keep the existing custom binds.
@@ -284,7 +284,8 @@ Source legend: native unless **[V]** Vimium / **[H]** needs Homerow (deferred). 
 ## Resolved Decisions
 
 - **Build order → config-first** (r3): U2→U3→U4→U5→U6→U1; web app documents reality after the bindings exist.
-- **Thumb keys are conscious reassignments, not free slots** (r3): the cluster is full (incl. Wispr Flow dictation — protected); the tmux key reassigns an HRM-duplicated inner thumb, chosen at U4 against the live keymap. **Raycast needs no thumb** — `Cmd+Space` (Spotlight shortcut disabled).
+- **Thumb layout (r4): keep all four V3/V4 layers + Bksp/Del/Enter/Space + Hyper + Wispr.** The 6 free thumbs (LCtrl, LOWER, LAlt, LGui, RCtrl, RAlt — redundant modifiers / unused layer) are reserved for tmux, Homerow activation, and an app-actions layer; exact placement chosen **by feel at U4** (KTD13 makes it reversible). **Raycast needs no thumb** — `Cmd+Space`.
+- **Cross-device (r4): every action reachable on the MacBook** — Raycast `Cmd+Space`; Raycast Hyper key (Caps Lock) for go-to-app on the laptop; tmux prefix `Ctrl+Space`; firmware thumbs are conveniences (KTD13/G11).
 - **Spotlight → disable the shortcut only** (r3), not indexing.
 - **U9 practice trainer → deferred + speculative** (r3), gated on observed need; "one card on open" as the cheap default.
 - **`.rayconfig` → sanitized before commit** (r3).
@@ -295,7 +296,7 @@ Source legend: native unless **[V]** Vimium / **[H]** needs Homerow (deferred). 
 ## Open Questions
 
 - **Q1 — Final Hyper letter grid** — drafted in U3 when hotkeys are recorded; validate hold latency first.
-- **Q2 — Thumb layout (under active discussion)** — keep Backspace/Enter/Space + Hyper + Wispr; the 5 HRM-duplicated modifier thumbs + the LOWER thumb (+ possibly Delete/Number) are free to repurpose. Open sub-questions: keep the V3/V4 layers (Cursor/Mouse/Number/Symbol) or simplify toward vanilla; final placement of tmux, Homerow activation, and an app-actions layer. Because of KTD13 the thumbs are conveniences, so this is low-stakes/reversible. Decided at U4 against the live keymap; never touch `&wispr`.
+- **Q2 — App-actions layer contents** — the only thumb question left open: what the app-actions hold-layer does (per-app commands). Defined at U4/later. (Thumb layout itself is resolved: keep all four layers + Bksp/Del/Enter/Space + Hyper + Wispr; the 6 free thumbs reserved for tmux / Homerow / app-actions, placed by feel at U4.)
 
 ## Sources & Research
 
