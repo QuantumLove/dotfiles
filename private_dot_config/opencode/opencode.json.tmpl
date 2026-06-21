@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "oh-my-openagent@latest",
+    "file://{env:HOME}/.config/opencode/plugins/session-registry.ts",
+    "file://{env:HOME}/.config/opencode/plugins/opencode-dir/index.ts",
+    "@warp-dot-dev/opencode-warp"
+  ],
+  "instructions": ["{env:HOME}/.config/opencode/AGENTS.md"],
+  "mcp": {
+    "slack": {
+      "type": "local",
+      "command": ["npx", "-y", "slack-mcp-server"],
+      "enabled": true,
+      "environment": {
+        "SLACK_MCP_XOXP_TOKEN": {{ output "op" "read" "op://Development/Slack API Key/credential" | trim | quote }},
+        "SLACK_MCP_ADD_MESSAGE_TOOL": "true"
+      }
+    }
+  }
+}
