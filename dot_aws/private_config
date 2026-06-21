@@ -1,0 +1,112 @@
+[profile AdministratorAccess-724772072129]
+sso_session = metr
+sso_account_id = 724772072129
+sso_role_name = AdministratorAccess
+region = us-west-2
+
+[sso-session metr]
+sso_start_url = https://d-9067f7db71.awsapps.com/start/#
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+
+[profile staging]
+sso_session = metr
+sso_account_id = 724772072129
+sso_role_name = AdministratorAccess
+region = us-west-2
+
+[profile dev4]
+sso_session = metr
+sso_account_id = 724772072129
+sso_role_name = AdministratorAccess
+region = us-west-2
+
+[profile production_dev]
+sso_session = metr-prod
+sso_account_id = 328726945407
+sso_role_name = PlatformDev
+region = us-west-2
+
+[sso-session metr-prod]
+sso_start_url = https://d-9067f7db71.awsapps.com/start/#
+sso_region = us-east-1
+sso_registration_scopes = sso:account:access
+
+[profile staging-device]
+sso_start_url = https://d-9067f7db71.awsapps.com/start/#
+sso_region = us-east-1
+sso_account_id = 724772072129
+sso_role_name = AdministratorAccess
+region = us-west-2
+
+[profile prd]
+sso_session = metr-prod
+sso_account_id = 328726945407
+sso_role_name = PlatformDev
+region = us-west-2
+
+[profile stg]
+sso_session = metr
+sso_account_id = 724772072129
+sso_role_name = AdministratorAccess
+region = us-west-2
+
+[profile aggregator]
+sso_session = metr
+sso_account_id = 495905914732
+sso_role_name = ProductionAdmin
+region = us-west-2
+
+[profile log-archive]
+sso_session = metr
+sso_account_id = 093359840057
+sso_role_name = ProductionAdmin
+region = us-west-2
+
+[profile production]
+sso_session = metr-prod
+sso_account_id = 328726945407
+sso_role_name = ProductionAdmin
+region = us-west-2
+
+[profile dmz]
+sso_session = metr-prod
+sso_account_id = 446276072850
+sso_role_name = ProductionAdmin
+region = us-west-2
+
+[profile bbox]
+sso_session = metr-prod
+sso_account_id = 148362482653
+sso_role_name = ProductionAdmin
+region = us-west-2
+
+[profile researcher]
+sso_session = metr-prod
+sso_account_id = 328726945407
+sso_role_name = Researcher
+region = us-west-2
+
+[profile auxvm]
+sso_session = metr-prod
+sso_account_id = 016393434256
+sso_role_name = ProductionAdmin
+region = us-west-1
+
+[profile public-production]
+sso_session = metr-prod
+sso_account_id = 908456386752
+sso_role_name = ProductionAdmin
+region = us-west-2
+
+[profile sandbox]
+sso_session = metr-prod
+sso_account_id = 056449379226
+sso_role_name = AdministratorAccess
+region = us-west-2
+
+[profile platform-agents]
+sso_session = metr
+sso_account_id = 783954203694
+sso_role_name = ProductionAdmin
+region = us-west-2
