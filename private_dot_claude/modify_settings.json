@@ -1,0 +1,263 @@
+#!/bin/bash
+# Manage ~/.claude/settings.json without chezmoi prompting on every apply.
+# Claude Code rewrites this file at runtime (reorders keys, re-asserts "model"),
+# which a plain managed template treats as external drift and blocks on with a
+# TTY prompt — fatal in a headless `chezmoi apply`. As a modify_ script we
+# consume the live file on stdin and deep-merge our managed config over it, so
+# apply is always hands-free. "model" is left to the runtime (defaulted only if
+# unset) so /model selections survive an apply.
+set -euo pipefail
+
+current="$(cat)"
+[ -z "$current" ] && current='{}'
+
+desired="$(cat <<'JSON'
+{
+  "permissions": {
+    "allow": [
+      "Read(**/*.{py,ts,js,jsx,tsx,md,yaml,yml,json,toml,tf,sh,bash,zsh})",
+      "Edit(**/*.{py,ts,js,jsx,tsx,md,yaml,yml,json,toml,tf,sh,bash,zsh})",
+      "Write(**/*.{py,ts,js,jsx,tsx,md,yaml,yml,json,toml,tf,sh,bash,zsh})",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git stash *)",
+      "Bash(git worktree *)",
+      "Bash(docker ps *)",
+      "Bash(docker logs *)",
+      "Bash(docker images *)",
+      "Bash(kubectl get *)",
+      "Bash(kubectl describe *)",
+      "Bash(kubectl logs *)",
+      "Bash(kubectl config *)",
+      "Bash(kubectl cluster-info *)",
+      "Bash(aws sts get-caller-identity)",
+      "Bash(aws sso login *)",
+      "Bash(aws ecr describe-repositories *)",
+      "Bash(aws ecr list-images *)",
+      "Bash(aws ecr get-login-password *)",
+      "Bash(aws eks update-kubeconfig *)",
+      "Bash(tofu workspace *)",
+      "Bash(tofu output *)",
+      "Bash(tofu state list)",
+      "Bash(pytest *)",
+      "Bash(uv run pytest *)",
+      "Bash(ruff *)",
+      "Bash(basedpyright *)",
+      "Bash(npm test *)",
+      "Bash(yarn test *)",
+      "Bash(make *)",
+      "Bash(jq *)",
+      "Bash(yq *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue view *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh repo view *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(tree *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "WebSearch",
+      "WebFetch",
+      "mcp__sentry__find_*",
+      "mcp__sentry__get_*",
+      "mcp__sentry__list_*",
+      "mcp__linear__list_*",
+      "mcp__linear__get_*",
+      "mcp__github__list_*",
+      "mcp__github__get_*",
+      "mcp__toggl__*"
+    ],
+    "ask": [
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git merge *)",
+      "Bash(git rebase *)",
+      "Bash(git reset *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)",
+      "Bash(docker build *)",
+      "Bash(docker push *)",
+      "Bash(docker run *)",
+      "Bash(docker exec *)",
+      "Bash(docker-compose up *)",
+      "Bash(docker-compose down *)",
+      "Bash(kubectl apply *)",
+      "Bash(kubectl delete *)",
+      "Bash(kubectl create *)",
+      "Bash(kubectl edit *)",
+      "Bash(kubectl exec *)",
+      "Bash(aws ecr *)",
+      "Bash(aws s3 *)",
+      "Bash(aws ecs *)",
+      "Bash(aws eks *)",
+      "Bash(aws lambda *)",
+      "Bash(tofu plan *)",
+      "Bash(tofu apply *)",
+      "Bash(tofu destroy *)",
+      "Bash(npm install *)",
+      "Bash(npm publish *)",
+      "Bash(yarn install *)",
+      "Bash(pip install *)",
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "mcp__linear__create_*",
+      "mcp__linear__update_*",
+      "mcp__sentry__update_*",
+      "mcp__github__create_*",
+      "mcp__slack__*"
+    ],
+    "deny": [
+      "Bash(git push origin main*)",
+      "Bash(git push origin master*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(gh pr merge*)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~/*)",
+      "Bash(sudo rm -rf *)",
+      "Bash(* > /dev/sd*)",
+      "Bash(* > /dev/nvme*)",
+      "Bash(dd *)",
+      "Bash(mkfs *)",
+      "Bash(wipefs *)",
+      "Bash(fdisk *)",
+      "Bash(parted *)",
+      "Bash(systemctl stop *)",
+      "Bash(systemctl disable *)",
+      "Bash(killall *)",
+      "Bash(pkill *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/guard-no-main-edits.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/no-diff-narration-comments.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/aws-sso-login-tip.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/notify-notification.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/notify-stop.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/notify-permission.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "temperature": 0.7,
+  "maxTokens": 8192,
+  "preferredNotifChannel": "terminal_bell",
+  "enabledPlugins": {
+    "ralph-loop@claude-plugins-official": true,
+    "compound-engineering@compound-engineering-plugin": true,
+    "superpowers@superpowers-marketplace": true,
+    "inspect-ai@metr-claude-code": true,
+    "github@metr-claude-code": true,
+    "metr-security@metr-claude-code": true,
+    "warp@claude-code-warp": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "compound-engineering-plugin": {
+      "source": {
+        "source": "github",
+        "repo": "EveryInc/compound-engineering-plugin"
+      }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
+    },
+    "metr-claude-code": {
+      "source": {
+        "source": "github",
+        "repo": "METR/claude-code"
+      }
+    },
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    }
+  }
+}
+JSON
+)"
+
+jq --argjson d "$desired" '. * $d | (.model //= "opus[1m]")' <<<"$current"

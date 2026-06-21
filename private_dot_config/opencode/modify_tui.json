@@ -1,0 +1,30 @@
+#!/bin/bash
+# opencode rewrites ~/.config/opencode/tui.json at runtime, so a plain managed
+# template drifts on every apply and chezmoi blocks on a no-TTY prompt (fatal in
+# a headless apply / hot-patch). Deep-merge our managed TUI config over the live
+# file instead — same pattern as modify_settings.json / modify_dot_claude.json.
+set -euo pipefail
+
+current="$(cat)"
+[ -z "$current" ] && current='{}'
+
+desired="$(cat <<'JSON'
+{
+  "$schema": "https://opencode.ai/tui.json",
+  "plugin": [
+    "oh-my-openagent/tui"
+  ],
+  "keybinds": {
+    "input_newline": [
+      "shift+return",
+      "ctrl+return",
+      "alt+return",
+      "ctrl+j",
+      "\n"
+    ]
+  }
+}
+JSON
+)"
+
+jq --argjson d "$desired" '. * $d' <<<"$current"
