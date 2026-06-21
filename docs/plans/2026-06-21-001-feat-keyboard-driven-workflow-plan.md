@@ -11,7 +11,7 @@ build_order: config-first
 
 ## Summary
 
-Make the daily Mac dev stack keyboard-driven and mouse-minimized, built on the **Glove80 (ZMK) firmware** as the primary layer plus **Raycast** as the host-side hub, documented in a **local, interactive cheatsheet web app**. **Build order is config-first** (revised after review): land the daily ergonomic wins (Raycast go-to-app + window management, the tmux thumb/layer, Spotlight-shortcut reclaim) and the VS Code bridge first — these take an afternoon each and produce the *real* binding inventory — **then** build the web app to document what you actually run. Go-to-app is bilateral Hyper chords; **Raycast is reached via `Cmd+Space`** (reclaimed by disabling the Spotlight shortcut) — no dedicated Raycast thumb is needed. The tmux key is a *conscious reassignment* of an HRM-duplicated inner thumb (the Glove80's thumbs are already full — Wispr Flow dictation must not be clobbered). Gmail and GitHub become Chrome PWAs across **two profiles (Work + Rafael)**. Proof runs **only locally** (self-hosted; already running via `proof-local`).
+Make the daily Mac dev stack keyboard-driven and mouse-minimized, built on the **Glove80 (ZMK) firmware** as the primary layer plus **Raycast** as the host-side hub, documented in a **local, interactive cheatsheet web app**. **Build order is config-first** (revised after review): land the daily ergonomic wins (Raycast go-to-app + window management, the tmux thumb/layer, Spotlight-shortcut reclaim) and the VS Code bridge first — these take an afternoon each and produce the *real* binding inventory — **then** build the web app to document what you actually run. Go-to-app is bilateral Hyper chords; **Raycast is reached via `Cmd+Space`** (reclaimed by disabling the Spotlight shortcut) — no dedicated Raycast thumb is needed. The tmux key is a *conscious reassignment* of an HRM-duplicated inner thumb (the Glove80's thumbs are already full — Wispr Flow dictation must not be clobbered). Gmail and GitHub become Chrome PWAs across **two profiles (Work + Rafael)**. Proof runs **only locally** (self-hosted; already running via `proof-local`). **Cross-device:** every important action also has a host-level chord that works on the MacBook built-in keyboard (Raycast on `Cmd+Space`; Hyper via Raycast's Caps-Lock Hyper key; tmux prefix `Ctrl+Space`), so the Glove80 thumbs are pure ergonomic conveniences, never the only path.
 
 ---
 
@@ -33,6 +33,7 @@ The stack — Slack, Chrome (Gmail + many windows, two profiles), Warp, VS Code,
 - **G8** — Proof for HITL plan review, **local only**, with a guardrail blocking the hosted service. → U8
 - **G9** — One interactive, local cheatsheet web app documenting workflows **and every manual setup step**; built **after** the config wins so it documents reality. → U1
 - **G10** — Reclaim `Cmd+Space` for Raycast by disabling the Spotlight **shortcut** (not indexing). → U3
+- **G11** — Cross-device: every important action is usable on the MacBook built-in keyboard, not only via the Glove80. → U3, KTD13
 
 ---
 
@@ -50,6 +51,7 @@ The stack — Slack, Chrome (Gmail + many windows, two profiles), Warp, VS Code,
 - **KTD10 — Web app is a local React SPA, content-first, built AFTER the config wins** (G9). Vite + React + TS + Tailwind (+ Fuse.js/cmdk; **no Framer Motion** until a transition needs it). Runs on `localhost`, started manually, never published. Built once the real bindings exist so its content is accurate. Split: **U1a** (searchable workflow tables + setup checklist + learning tracker — ships first, can use the existing `keymap.svg` for the board) and **U1b** (the from-scratch interactive React board + key-tester — later).
 - **KTD11 — Raycast tracking is partial-by-nature, and the export is sanitized** (G7). Script-command files in chezmoi (plain files; feed the web app). The web app's binding list is the canonical human-readable source. A `.rayconfig` export may be committed **only after** grepping it for `token|apiKey|secret|password` (Raycast exports include extension prefs — Linear/GitHub/Slack/1Password keys); redact or keep it in 1Password + `.gitignore`. No Raycast Pro.
 - **KTD12 — Proof is local-only with a guardrail** (G8). The agent talks only to `localhost`; a guardrail (hook + CLAUDE.md/AGENTS.md note) forbids any call to `proofeditor.ai`/Proof AI. The host classifier already blocks such uploads. Verify Proof binds `127.0.0.1` (not `0.0.0.0`) so the local servers aren't exposed on shared WiFi.
+- **KTD13 — Cross-device: every action works on the MacBook built-in keyboard too** (G11). Rafael isn't always on the Glove80, so every important action has a **host-level chord reachable on the MacBook**, and the Glove80 thumbs/layers only *emit* those chords (pure ergonomics, never the only path). Concretely: Raycast = `Cmd+Space` (universal); enable **Raycast's built-in Hyper key (Caps Lock → Hyper)** on the MacBook so all `Hyper+letter` go-to-app/window-mgmt chords work without the Glove80; tmux prefix = `Ctrl+Space` (universal) — the ZMK tmux layer is a convenience and prefix+key is the MacBook fallback; Wispr keeps a MacBook-reachable chord (`Cmd+F18`). This is *why* the thumb layout can stay relaxed — the firmware adds comfort, not capability.
 
 ---
 
@@ -80,7 +82,7 @@ The stack — Slack, Chrome (Gmail + many windows, two profiles), Warp, VS Code,
 
 **Goal:** Bilateral Hyper hotkeys; window placement + cycling in 1–2 keys; `Cmd+Space` → Raycast. **Goals:** G1, G2, G10.
 **Files:** Raycast config (captured in `docs/raycast-hotkeys.md`); macOS System Settings (manual).
-**Approach:** Disable the Spotlight `Cmd+Space` shortcut; set Raycast hotkey = `Cmd+Space`. Delete `F1–F5`. Record Hyper+right-letter app-focus (focus-or-open) for Linear, Slack, Warp, VS Code, Notion, Gmail PWA, GitHub PWA, Chrome. Record Hyper+left-letter Window Management. Bind cycling: `Cmd+`` ` `` + Raycast "Switch Windows". **Falsification test:** spend one heavy day; confirm whether minimized/other-Space window cycling is a real gap → if so, trigger the AeroSpace revisit.
+**Approach:** Disable the Spotlight `Cmd+Space` shortcut; set Raycast hotkey = `Cmd+Space`. Delete `F1–F5`. Record Hyper+right-letter app-focus (focus-or-open) for Linear, Slack, Warp, VS Code, Notion, Gmail PWA, GitHub PWA, Chrome. Record Hyper+left-letter Window Management. Bind cycling: `Cmd+`` ` `` + Raycast "Switch Windows". Enable **Raycast's Hyper key (Caps Lock → Hyper)** so the `Hyper+letter` chords also work on the MacBook built-in keyboard (cross-device, KTD13). **Falsification test:** spend one heavy day; confirm whether minimized/other-Space window cycling is a real gap → if so, trigger the AeroSpace revisit.
 **Verification:** every chord focuses/places/cycles in ≤2 keys; `Cmd+Space` opens Raycast; F1–F5 retired.
 
 ### U4. Glove80 firmware: tmux thumb + tmux layer; tmux.conf
@@ -293,7 +295,7 @@ Source legend: native unless **[V]** Vimium / **[H]** needs Homerow (deferred). 
 ## Open Questions
 
 - **Q1 — Final Hyper letter grid** — drafted in U3 when hotkeys are recorded; validate hold latency first.
-- **Q2 — Exact tmux thumb position** — decided at U4 against the live keymap (an HRM-duplicated inner thumb; never `&wispr`).
+- **Q2 — Thumb layout (under active discussion)** — keep Backspace/Enter/Space + Hyper + Wispr; the 5 HRM-duplicated modifier thumbs + the LOWER thumb (+ possibly Delete/Number) are free to repurpose. Open sub-questions: keep the V3/V4 layers (Cursor/Mouse/Number/Symbol) or simplify toward vanilla; final placement of tmux, Homerow activation, and an app-actions layer. Because of KTD13 the thumbs are conveniences, so this is low-stakes/reversible. Decided at U4 against the live keymap; never touch `&wispr`.
 
 ## Sources & Research
 
