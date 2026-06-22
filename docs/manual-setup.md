@@ -39,12 +39,12 @@ second laptop). Exact chords live in [raycast-hotkeys.md](raycast-hotkeys.md).
 - After any keymap change: `./bin/draw-keymap.sh` regenerates the diagram.
 
 ## 6. Proof — local plan review (U8)
-Proof runs **on the container** (raf-dev); the host reaches it through an SSH tunnel.
-- **Container:** clone the fork (it already carries the loopback bind + self-hosting proxy fix):
+Proof runs **on the container** (raf-dev); the host reaches it over an SSH tunnel. Both ends are **automated** — you shouldn't start either by hand.
+- **Container (one-time):** clone the fork (it carries the loopback bind + self-hosting proxy fix):
   ```
   git clone -b local-run https://github.com/QuantumLove/proof-sdk ~/code/proof-sdk
   (cd ~/code/proof-sdk && npm install)
-  proof-local start    # API 127.0.0.1:4000, editor 127.0.0.1:3000, telemetry off
   ```
-- **Host:** `proof-local tunnel` forwards :3000+:4000 to raf-dev over Tailscale SSH — then `localhost:3000` (browser) and `proof-local open <file>` hit the same Proof.
-- Review with the **`/plan-review <file.md>`** skill (on the host, start the tunnel first). Never use the hosted `proofeditor.ai`.
+  After that, the **supercronic crontab** (`proof-local ensure`, chezmoi-managed) keeps Proof up: it starts within a minute of container boot and restarts it if it dies. API `127.0.0.1:4000`, editor `127.0.0.1:3000`, telemetry off.
+- **Host (one-time):** `launchctl load -w ~/Library/LaunchAgents/com.rafael.proof-tunnel.plist`. The `com.rafael.proof-tunnel` LaunchAgent (chezmoi-managed) then runs the SSH tunnel at login and re-establishes it (`KeepAlive` + `ServerAliveInterval`) whenever the container comes back. Manual fallback: `proof-local tunnel`.
+- Review with the **`/plan-review <file.md>`** skill; `localhost:3000` shows the docs in the browser. Never use the hosted `proofeditor.ai`.

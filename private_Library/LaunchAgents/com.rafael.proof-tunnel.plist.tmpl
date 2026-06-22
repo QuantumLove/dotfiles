@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.rafael.proof-tunnel</string>
+
+    <!-- Persistent SSH tunnel: host localhost:3000/:4000 -> the container's Proof.
+         ServerAliveInterval makes ssh exit on a dead link; KeepAlive relaunches it. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/ssh</string>
+        <string>-N</string>
+        <string>-o</string><string>ServerAliveInterval=30</string>
+        <string>-o</string><string>ServerAliveCountMax=3</string>
+        <string>-o</string><string>ExitOnForwardFailure=yes</string>
+        <string>-o</string><string>ConnectTimeout=10</string>
+        <string>-L</string><string>3000:127.0.0.1:3000</string>
+        <string>-L</string><string>4000:127.0.0.1:4000</string>
+        <string>raf-dev</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>{{ .chezmoi.homeDir }}/.local/state/proof-tunnel.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ .chezmoi.homeDir }}/.local/state/proof-tunnel.log</string>
+</dict>
+</plist>

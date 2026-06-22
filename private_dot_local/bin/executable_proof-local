@@ -10,6 +10,7 @@
 #   proof-local start              # start API (:4000) + editor (:3000) — run where proof-sdk lives (the container)
 #   proof-local open <file.md> [t] # publish a local markdown file, print+open editor URL
 #   proof-local tunnel             # (host) forward :3000+:4000 to the container's Proof so localhost works
+#   proof-local ensure             # start only if down (idempotent; run by supercronic on the container)
 #   proof-local stop               # stop both servers
 #   proof-local status             # show what's running
 set -euo pipefail
@@ -93,11 +94,18 @@ tunnel() {
   exec ssh -N -L 3000:127.0.0.1:3000 -L 4000:127.0.0.1:4000 "$host"
 }
 
+# Idempotent watchdog target (run by supercronic): start Proof only if it isn't up.
+ensure() {
+  _api_up && _editor_up && return 0
+  start >/dev/null 2>&1
+}
+
 case "${1:-start}" in
   start|up)   start ;;
   open)       shift; open_doc "$@" ;;
   tunnel)     tunnel ;;
+  ensure)     ensure ;;
   stop|down)  stop ;;
   status)     status ;;
-  *) echo "usage: proof-local {start|open <file.md> [title]|tunnel|stop|status}" >&2; exit 1 ;;
+  *) echo "usage: proof-local {start|open <file.md> [title]|tunnel|ensure|stop|status}" >&2; exit 1 ;;
 esac
