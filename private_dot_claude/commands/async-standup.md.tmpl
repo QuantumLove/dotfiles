@@ -10,7 +10,7 @@ permissions:
   - mcp__linear__get_my_issues
   - mcp__linear__get_ticket
   - mcp__toggl__toggl_get_time_entries
-  - mcp__slack__*
+  - mcp__slack-write__conversations_add_message
 ---
 
 # Async Standup - Daily Summary Generator
@@ -33,7 +33,7 @@ Aggregate GitHub PRs, Linear issues, and Toggl time into a standup. **Review it 
 ### Step 0: Posting target
 
 - **Channel:** `#ra-lab-notes-rafael` (override with `--channel <name>`).
-- **Primary output:** the Slack MCP — post with its message tool (with this server, `mcp__slack__conversations_add_message`; channel `#ra-lab-notes-rafael`, body = the rendered standup).
+- **Primary output:** the Slack write MCP — post with its message tool (`mcp__slack-write__conversations_add_message`; channel `#ra-lab-notes-rafael`, body = the rendered standup). Writes always go through the bot token.
 - **Fallback** (Slack MCP unavailable, or `--file-only`): write to a deterministic temp path `/tmp/standup-YYYY-MM-DD.txt`, and print a command to read it from any shell.
 
 ```bash
@@ -167,7 +167,7 @@ The format example below is in compose-box (`[text](url)`) form — convert link
 2. **Iterate** on any edits they ask for; re-render and show again.
 3. **Confirm:** ask explicitly — e.g. "Post this to #ra-lab-notes-rafael?" — and do **not** post until they clearly say yes.
 4. **Deliver:**
-   - **Slack MCP available** → post the standup (links in `<url|text>` mrkdwn form) to `#ra-lab-notes-rafael` via `mcp__slack__conversations_add_message`. Report success (link/ts if returned).
+   - **Slack write MCP available** → post the standup (links in `<url|text>` mrkdwn form) to `#ra-lab-notes-rafael` via `mcp__slack-write__conversations_add_message`. Report success (link/ts if returned).
    - **Slack MCP unavailable** (tools missing or it errors), or `--file-only` → write the draft (links in `[text](url)` form) to `/tmp/standup-YYYY-MM-DD.txt`, then **print the exact retrieval command** (with the real date filled in) so the user can read it from any other shell:
      ```
      cat /tmp/standup-YYYY-MM-DD.txt

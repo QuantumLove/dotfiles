@@ -353,6 +353,18 @@ The following MCPs are available:
 - **GitHub** - Repository operations
 - **Toggl** - Time tracking
 - **Datadog** - Monitoring and observability
+- **Slack** - Split into two instances by token:
+  - `mcp__slack-read__*` — **all reading** (history, search, list). User token, acts as rafael.
+  - `mcp__slack-write__*` — **all writing** (posting, reactions). Bot token (`rafaels_personal_ai_a`).
+
+#### Slack posting policy
+Posting is open to all channels (`SLACK_MCP_ADD_MESSAGE_TOOL=true`); the bot can
+only post where it's been invited. These rules are enforced **behaviorally** — honor them:
+- **Reads go through `slack-read`, writes go through `slack-write`.** Never post via the read instance.
+- **Prioritize channels.** Default to posting in a channel, not a person.
+- **Never post to 1:1 DMs.** No exceptions.
+- **Group DMs (mpim) only when rafael (`U09UNMTE763`) is a member.** When opening/posting a group DM, always include rafael's user ID.
+- To post in a new channel, just invite the bot ("Rafael's Personal AI Assistant") to it.
 
 ### Plugin Management
 

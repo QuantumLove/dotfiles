@@ -8,12 +8,20 @@
   ],
   "instructions": ["{env:HOME}/.config/opencode/AGENTS.md"],
   "mcp": {
-    "slack": {
+    "slack-read": {
       "type": "local",
       "command": ["npx", "-y", "slack-mcp-server"],
       "enabled": true,
       "environment": {
-        "SLACK_MCP_XOXP_TOKEN": {{ output "op" "read" "op://Development/Slack API Key/credential" | trim | quote }},
+        "SLACK_MCP_XOXP_TOKEN": {{ output "op" "read" "op://Development/Slack User OAuth Token/credential" | trim | quote }}
+      }
+    },
+    "slack-write": {
+      "type": "local",
+      "command": ["npx", "-y", "slack-mcp-server"],
+      "enabled": true,
+      "environment": {
+        "SLACK_MCP_XOXB_TOKEN": {{ output "op" "read" "op://Development/Slack Bot OAuth Token/credential" | trim | quote }},
         "SLACK_MCP_ADD_MESSAGE_TOOL": "true"
       }
     }

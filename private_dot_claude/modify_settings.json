@@ -77,7 +77,16 @@ desired="$(cat <<'JSON'
       "mcp__linear__get_*",
       "mcp__github__list_*",
       "mcp__github__get_*",
-      "mcp__toggl__*"
+      "mcp__toggl__*",
+      "mcp__slack-read__channels_list",
+      "mcp__slack-read__channels_me",
+      "mcp__slack-read__conversations_history",
+      "mcp__slack-read__conversations_replies",
+      "mcp__slack-read__conversations_search_messages",
+      "mcp__slack-read__conversations_unreads",
+      "mcp__slack-read__usergroups_list",
+      "mcp__slack-read__usergroups_me",
+      "mcp__slack-read__users_search"
     ],
     "ask": [
       "Bash(git commit *)",
@@ -117,9 +126,16 @@ desired="$(cat <<'JSON'
       "mcp__linear__update_*",
       "mcp__sentry__update_*",
       "mcp__github__create_*",
-      "mcp__slack__*"
+      "mcp__slack-write__*",
+      "mcp__slack-read__conversations_join",
+      "mcp__slack-read__conversations_leave",
+      "mcp__slack-read__conversations_mark"
     ],
     "deny": [
+      "mcp__slack-read__conversations_add_message",
+      "mcp__slack-read__usergroups_create",
+      "mcp__slack-read__usergroups_update",
+      "mcp__slack-read__usergroups_users_update",
       "Bash(git push origin main*)",
       "Bash(git push origin master*)",
       "Bash(git push --force*)",

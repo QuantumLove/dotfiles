@@ -60,15 +60,33 @@ servers:
   #     Create integration at https://www.notion.so/my-integrations
   #     Required capabilities: Read content, Insert content, Update content
 
-  slack:
+  # Slack is split into two instances: reading uses the User token (acts as
+  # rafael, can search), writing uses the Bot token (posts as the app, locked to
+  # a channel allowlist, no im:write so DMs are impossible). The server uses a
+  # single token per instance with priority xoxp > xoxb, so one instance cannot
+  # route reads and writes to different tokens — hence two.
+  slack-read:
     command: npx -y slack-mcp-server
-    auth: User Token (xoxp-) from 1Password (op://Development/Slack User Token/credential)
-    env:
-      SLACK_MCP_ADD_MESSAGE_TOOL: "true"
+    auth: User Token (xoxp-) from 1Password (op://Development/Slack User OAuth Token/credential)
     notes: >
-      Create app at https://api.slack.com/apps
-      Use User Token Scopes (NOT Bot):
-        channels:history, channels:read, chat:write, groups:history, groups:read,
-        im:history, im:read, mpim:history, mpim:read, reactions:read, reactions:write,
+      Read-only: posting left disabled (SLACK_MCP_ADD_MESSAGE_TOOL unset).
+      User Token Scopes:
+        channels:history, channels:read, groups:history, groups:read,
+        im:history, im:read, mpim:history, mpim:read, reactions:read,
         search:read, users:read, users:read.email, usergroups:read
       Install to workspace and copy User OAuth Token (xoxp-...)
+
+  slack-write:
+    command: npx -y slack-mcp-server
+    auth: Bot Token (xoxb-) from 1Password (op://Development/Slack Bot OAuth Token/credential)
+    env:
+      SLACK_MCP_ADD_MESSAGE_TOOL: "true"  # post to any channel the bot is a member of
+    notes: >
+      Write-only. Add a Bot User to the app, then Bot Token Scopes:
+        chat:write, channels:read, groups:read, mpim:write, mpim:read,
+        reactions:write, usergroups:read
+      Posting is open to all channels; the bot can only post where it has been
+      invited (Slack requires bot membership for chat:write). The "never DM,
+      channels-only" rule is enforced behaviorally via CLAUDE.md, not by the
+      allowlist. im:write is currently granted, so DMs are technically possible —
+      drop it from the app's scopes if you ever want a hard block.

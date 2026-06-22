@@ -32,7 +32,8 @@ LINEAR_API_KEY="${LINEAR_API_KEY:-$(op read "op://Development/Linear MCP API Key
 SENTRY_ACCESS_TOKEN="${SENTRY_ACCESS_TOKEN:-$(op read "op://Development/Sentry MCP API Key/credential")}"
 GITHUB_PERSONAL_ACCESS_TOKEN="${GITHUB_PERSONAL_ACCESS_TOKEN:-$(op read "op://Development/GitHub Personal Access Token/credential")}"
 TOGGL_API_KEY="${TOGGL_API_KEY:-$(op read "op://Development/Toggl API Key/credential")}"
-SLACK_MCP_XOXP_TOKEN="${SLACK_MCP_XOXP_TOKEN:-$(op read "op://Development/Slack API Key/credential")}"
+SLACK_MCP_XOXP_TOKEN="${SLACK_MCP_XOXP_TOKEN:-$(op read "op://Development/Slack User OAuth Token/credential")}"
+SLACK_MCP_XOXB_TOKEN="${SLACK_MCP_XOXB_TOKEN:-$(op read "op://Development/Slack Bot OAuth Token/credential")}"
 DD_API_KEY="${DD_API_KEY:-$(op read "op://Development/Datadog API Key/credential")}"
 DD_APP_KEY="${DD_APP_KEY:-$(op read "op://Development/Datadog App Key/credential")}"
 
@@ -87,12 +88,20 @@ desired_servers='{
       "TOGGL_API_KEY": "'"${TOGGL_API_KEY}"'"
     }
   },
-  "slack": {
+  "slack-read": {
     "type": "stdio",
     "command": "npx",
     "args": ["-y", "slack-mcp-server"],
     "env": {
-      "SLACK_MCP_XOXP_TOKEN": "'"${SLACK_MCP_XOXP_TOKEN}"'",
+      "SLACK_MCP_XOXP_TOKEN": "'"${SLACK_MCP_XOXP_TOKEN}"'"
+    }
+  },
+  "slack-write": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "slack-mcp-server"],
+    "env": {
+      "SLACK_MCP_XOXB_TOKEN": "'"${SLACK_MCP_XOXB_TOKEN}"'",
       "SLACK_MCP_ADD_MESSAGE_TOOL": "true"
     }
   },
@@ -108,7 +117,8 @@ desired_servers='{
   }
 }'
 
-# Merge our servers into existing mcpServers (preserves any user-added servers)
+# Merge our servers into existing mcpServers (preserves any user-added servers).
+# Drop the legacy single "slack" instance, now split into slack-read / slack-write.
 echo "$current" | jq --argjson servers "$desired_servers" '
-  .mcpServers = ((.mcpServers // {}) * $servers)
+  .mcpServers = (((.mcpServers // {}) | del(.slack)) * $servers)
 '
