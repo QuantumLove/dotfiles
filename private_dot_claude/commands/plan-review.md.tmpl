@@ -34,7 +34,7 @@ If no file is given, ask which one (default: the plan/doc just created or refere
 
 ## Loop
 
-1. **Ensure Proof is up.** `proof-local status`; if down, `proof-local start`.
+1. **Ensure Proof is reachable.** Proof runs on the container (raf-dev). On the **container**: `proof-local status`; if down, `proof-local start`. On the **host**: run `proof-local tunnel` first (forwards :3000+:4000 to raf-dev), then `proof-local status`.
 2. **Publish the doc.** `proof-local open "<file>"` prints + opens the editor URL
    `http://localhost:3000/d/<slug>?token=<token>`. Capture `<slug>` and `<token>` from it.
 3. **Hand off.** Tell the user to read/annotate in the browser, then say when they're done.

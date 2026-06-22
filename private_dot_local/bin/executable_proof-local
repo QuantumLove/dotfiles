@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
-# proof-local — run the self-hosted Proof editor locally on the host.
+# proof-local — run the self-hosted Proof editor (on the container; reach it from the
+# host with `proof-local tunnel`, which forwards :3000+:4000 so localhost is the same Proof).
 #
 # Everything stays on this machine: docs live in ~/code/proof-sdk/proof-share.db
 # (local SQLite), telemetry is hard-off, nothing is published to proofeditor.ai
 # or any external service. Does NOT start automatically — you spin it up when you
 # want it and stop it when done.
 #
-#   proof-local start              # start API (:4000) + editor (:3000)
+#   proof-local start              # start API (:4000) + editor (:3000) — run where proof-sdk lives (the container)
 #   proof-local open <file.md> [t] # publish a local markdown file, print+open editor URL
+#   proof-local tunnel             # (host) forward :3000+:4000 to the container's Proof so localhost works
 #   proof-local stop               # stop both servers
 #   proof-local status             # show what's running
 set -euo pipefail
 
 PROOF_DIR="${PROOF_SDK_DIR:-$HOME/code/proof-sdk}"
 API="http://127.0.0.1:4000"
-EDITOR_BASE="http://localhost:3000"
+EDITOR_BASE="http://127.0.0.1:3000"
 STATE_DIR="$HOME/.local/state/proof-local"
 mkdir -p "$STATE_DIR"
 
@@ -34,7 +36,9 @@ start() {
   if _editor_up; then
     echo "editor already up on :3000"
   else
-    ( cd "$PROOF_DIR" && VITE_ENABLE_TELEMETRY=false nohup npm run dev >"$STATE_DIR/editor.log" 2>&1 & echo $! >"$STATE_DIR/editor.pid" )
+    # --host 127.0.0.1 pins vite to IPv4 loopback (it defaults to [::1]); keeps it
+    # consistent with the API and reachable through `proof-local tunnel` (-L …:127.0.0.1).
+    ( cd "$PROOF_DIR" && VITE_ENABLE_TELEMETRY=false nohup npm run dev -- --host 127.0.0.1 >"$STATE_DIR/editor.log" 2>&1 & echo $! >"$STATE_DIR/editor.pid" )
     echo "starting editor (:3000)…"
   fi
   for _ in $(seq 1 40); do _api_up && break; sleep 0.5; done
@@ -62,11 +66,16 @@ open_doc() {
 }
 
 stop() {
-  local pids
+  local pids pf
+  for pf in "$STATE_DIR"/server.pid "$STATE_DIR"/editor.pid; do
+    [ -f "$pf" ] && kill "$(cat "$pf")" 2>/dev/null || true
+  done
   for port in 4000 3000; do
     pids=$(lsof -ti tcp:"$port" 2>/dev/null || true)
     [ -n "$pids" ] && kill $pids 2>/dev/null || true
   done
+  # lsof is blind inside the container; pkill the node procs by their proof-sdk path.
+  pkill -f "$PROOF_DIR/node_modules" 2>/dev/null || true
   rm -f "$STATE_DIR"/*.pid
   echo "Proof stopped (freed :4000 and :3000)."
 }
@@ -76,10 +85,19 @@ status() {
   _editor_up && echo "editor :3000  UP" || echo "editor :3000  down"
 }
 
+# (host) forward the container's Proof ports so localhost:3000/:4000 reach it.
+# Proof stays loopback-bound on the container; the SSH hop is tailnet-authenticated.
+tunnel() {
+  local host="${PROOF_TUNNEL_HOST:-raf-dev}"
+  echo "Proof tunnel → $host : localhost:3000 (editor) + :4000 (API). Ctrl+C to stop."
+  exec ssh -N -L 3000:127.0.0.1:3000 -L 4000:127.0.0.1:4000 "$host"
+}
+
 case "${1:-start}" in
-  start|up)  start ;;
-  open)      shift; open_doc "$@" ;;
-  stop|down) stop ;;
-  status)    status ;;
-  *) echo "usage: proof-local {start|open <file.md> [title]|stop|status}" >&2; exit 1 ;;
+  start|up)   start ;;
+  open)       shift; open_doc "$@" ;;
+  tunnel)     tunnel ;;
+  stop|down)  stop ;;
+  status)     status ;;
+  *) echo "usage: proof-local {start|open <file.md> [title]|tunnel|stop|status}" >&2; exit 1 ;;
 esac

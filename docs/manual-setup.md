@@ -39,6 +39,12 @@ second laptop). Exact chords live in [raycast-hotkeys.md](raycast-hotkeys.md).
 - After any keymap change: `./bin/draw-keymap.sh` regenerates the diagram.
 
 ## 6. Proof — local plan review (U8)
-- Clone proof-sdk to `~/code/proof-sdk` (or set `PROOF_SDK_DIR`) and `npm install`.
-- **Loopback patch (required):** proof-sdk's `server/index.ts` calls `server.listen(PORT)` with no host, which binds *all* interfaces. Change it to `const HOST = process.env.HOST || '127.0.0.1'; server.listen(PORT, HOST, …)` so the API stays on loopback. `proof-local` passes `HOST=127.0.0.1`, but vanilla proof-sdk ignores it without this patch — **re-apply after any re-clone.**
-- Start with `proof-local start` (API `127.0.0.1:4000`, editor `localhost:3000`, telemetry off). Review docs with the **`/plan-review <file.md>`** skill. Never use the hosted `proofeditor.ai`.
+Proof runs **on the container** (raf-dev); the host reaches it through an SSH tunnel.
+- **Container:** clone the fork (it already carries the loopback bind + self-hosting proxy fix):
+  ```
+  git clone -b local-run https://github.com/QuantumLove/proof-sdk ~/code/proof-sdk
+  (cd ~/code/proof-sdk && npm install)
+  proof-local start    # API 127.0.0.1:4000, editor 127.0.0.1:3000, telemetry off
+  ```
+- **Host:** `proof-local tunnel` forwards :3000+:4000 to raf-dev over Tailscale SSH — then `localhost:3000` (browser) and `proof-local open <file>` hit the same Proof.
+- Review with the **`/plan-review <file.md>`** skill (on the host, start the tunnel first). Never use the hosted `proofeditor.ai`.
