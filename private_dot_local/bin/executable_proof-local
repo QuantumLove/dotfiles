@@ -26,7 +26,9 @@ start() {
   if _api_up; then
     echo "API already up on :4000"
   else
-    ( cd "$PROOF_DIR" && PORT=4000 COLLAB_EMBEDDED_WS=1 VITE_ENABLE_TELEMETRY=false nohup npm run serve >"$STATE_DIR/server.log" 2>&1 & echo $! >"$STATE_DIR/server.pid" )
+    # HOST=127.0.0.1 keeps the API on loopback. proof-sdk's server.listen() binds
+    # all interfaces by default, which would expose local docs on shared WiFi.
+    ( cd "$PROOF_DIR" && HOST=127.0.0.1 PORT=4000 COLLAB_EMBEDDED_WS=1 VITE_ENABLE_TELEMETRY=false nohup npm run serve >"$STATE_DIR/server.log" 2>&1 & echo $! >"$STATE_DIR/server.pid" )
     echo "starting API (:4000)…"
   fi
   if _editor_up; then

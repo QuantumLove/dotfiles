@@ -1,0 +1,61 @@
+---
+name: plan-review
+description: Review a local plan/doc with the human via the self-hosted Proof editor (localhost only, never the hosted service)
+permissions:
+  - Bash(proof-local *)
+  - Bash(~/.local/bin/proof-local *)
+  - Bash(curl -s http://127.0.0.1:4000/*)
+  - Bash(curl -fsS http://127.0.0.1:4000/*)
+  - Bash(jq *)
+  - Bash(uuidgen)
+  - Read
+  - Edit
+  - Write
+---
+
+# /plan-review — HITL plan review on local Proof
+
+Iterate on a local markdown plan/doc with the human using the **self-hosted** Proof
+editor. Everything stays on `127.0.0.1` — **never** call `proofeditor.ai`, Proof AI, or
+any hosted Proof endpoint. That's data exfiltration; it's blocked by a `deny` rule and by
+the `never-publish-docs-externally` memory.
+
+## Usage
+
+`/plan-review <path/to/file.md>`
+
+If no file is given, ask which one (default: the plan/doc just created or referenced).
+
+## Hard rules
+
+- **Local only.** API base is always `http://127.0.0.1:4000`; the editor is `http://localhost:3000`.
+- If any step would touch `proofeditor.ai`, **stop** — wrong tool, against policy.
+- The markdown file **on disk is the source of truth**; sync agreed edits back into it.
+
+## Loop
+
+1. **Ensure Proof is up.** `proof-local status`; if down, `proof-local start`.
+2. **Publish the doc.** `proof-local open "<file>"` prints + opens the editor URL
+   `http://localhost:3000/d/<slug>?token=<token>`. Capture `<slug>` and `<token>` from it.
+3. **Hand off.** Tell the user to read/annotate in the browser, then say when they're done.
+4. **Ingest the round.** Read their comments from the local API:
+   ```bash
+   curl -s "http://127.0.0.1:4000/api/agent/<slug>/state?kinds=comment" -H "x-share-token: <token>"
+   ```
+   For each comment: decide, apply the agreed change to the **local file** (Edit/Write), and
+   reply/resolve via `POST http://127.0.0.1:4000/api/agent/<slug>/ops` (`comment.reply` /
+   `comment.resolve`, carrying a `baseToken` from `/state`).
+5. **Re-publish fresh each round.** Agent writes are refused while a browser holds the doc
+   (`AUTHORITATIVE_BASE_UNAVAILABLE`), so after editing, **re-run `proof-local open`** on the
+   updated file to get a new slug/URL for the next round (see the `proof-local-hitl-loop` memory).
+6. **Repeat** 3–5 until the user is satisfied.
+7. **Finish.** The local file already holds the agreed edits; summarize what changed. Leave Proof
+   running, or `proof-local stop` if asked.
+
+## API mechanics
+
+The local proof-sdk exposes the **same endpoints** as the hosted service, so request shapes
+(`ops` `type`, `baseToken`, `/edit/v2`, idempotency) are identical to the **ce-proof** skill —
+only the base differs (`http://127.0.0.1:4000`) and creation is `POST /documents` (what
+`proof-local open` calls), not `/share/markdown`. Reuse ce-proof's `references/hitl-review.md`
+for the detailed ingest / baseToken / retry discipline, substituting the local base URL.

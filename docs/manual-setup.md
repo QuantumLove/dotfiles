@@ -37,3 +37,8 @@ second laptop). Exact chords live in [raycast-hotkeys.md](raycast-hotkeys.md).
 - Flash each half (bootloader mode → drag-drop its UF2). See the glove80 `README.md` §Flash.
 - `tmux.conf` prefix `Ctrl+Space` is already in chezmoi.
 - After any keymap change: `./bin/draw-keymap.sh` regenerates the diagram.
+
+## 6. Proof — local plan review (U8)
+- Clone proof-sdk to `~/code/proof-sdk` (or set `PROOF_SDK_DIR`) and `npm install`.
+- **Loopback patch (required):** proof-sdk's `server/index.ts` calls `server.listen(PORT)` with no host, which binds *all* interfaces. Change it to `const HOST = process.env.HOST || '127.0.0.1'; server.listen(PORT, HOST, …)` so the API stays on loopback. `proof-local` passes `HOST=127.0.0.1`, but vanilla proof-sdk ignores it without this patch — **re-apply after any re-clone.**
+- Start with `proof-local start` (API `127.0.0.1:4000`, editor `localhost:3000`, telemetry off). Review docs with the **`/plan-review <file.md>`** skill. Never use the hosted `proofeditor.ai`.
