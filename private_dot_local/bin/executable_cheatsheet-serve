@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Serve the local Glove80 cheatsheet (a built Vite app) on a fixed loopback port.
+# Run by the com.rafael.cheatsheet LaunchAgent at login (KeepAlive); also runnable by hand.
+# CHEATSHEET_DIR overrides which app directory is served; CHEATSHEET_PORT overrides the port.
+set -euo pipefail
+
+APP="${CHEATSHEET_DIR:-$HOME/code/cheatsheet-protos/living-glove80}"
+PORT="${CHEATSHEET_PORT:-5180}"
+
+# launchd starts us with a minimal PATH — resolve node (nvm latest, then brew) ourselves.
+NODE_BIN="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)"
+export PATH="${NODE_BIN:-}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+cd "$APP"
+[ -d dist ] || npm run build >/dev/null 2>&1
+# vite preview is a lightweight static server for the built app (SPA-friendly).
+exec "$APP/node_modules/.bin/vite" preview --host 127.0.0.1 --port "$PORT" --strictPort

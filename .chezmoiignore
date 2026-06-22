@@ -1,6 +1,7 @@
 {{ if ne .chezmoi.os "darwin" }}
 Brewfile
 Library/LaunchAgents/com.rafael.proof-tunnel.plist
+Library/LaunchAgents/com.rafael.cheatsheet.plist
 {{ end }}
 tests
 docs
