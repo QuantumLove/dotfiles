@@ -4,7 +4,7 @@
 # CHEATSHEET_DIR overrides which app directory is served; CHEATSHEET_PORT overrides the port.
 set -euo pipefail
 
-APP="${CHEATSHEET_DIR:-$HOME/code/cheatsheet-protos/living-glove80}"
+APP="${CHEATSHEET_DIR:-$HOME/.local/share/chezmoi/cheatsheet}"
 PORT="${CHEATSHEET_PORT:-5180}"
 
 # launchd starts us with a minimal PATH — resolve node (nvm latest, then brew) ourselves.
@@ -12,6 +12,8 @@ NODE_BIN="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail 
 export PATH="${NODE_BIN:-}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 cd "$APP"
+# Self-bootstrap on a fresh clone (deps not installed yet), then build if needed.
+[ -d node_modules ] || npm ci >/dev/null 2>&1 || npm install >/dev/null 2>&1
 [ -d dist ] || npm run build >/dev/null 2>&1
 # vite preview is a lightweight static server for the built app (SPA-friendly).
 exec "$APP/node_modules/.bin/vite" preview --host 127.0.0.1 --port "$PORT" --strictPort

@@ -1,0 +1,22 @@
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Inter', 'Segoe UI', sans-serif;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  background: #02040a;
+  color: #e8eef6;
+  overflow: hidden;
+}

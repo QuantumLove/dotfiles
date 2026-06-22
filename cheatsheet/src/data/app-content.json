@@ -1,0 +1,304 @@
+{
+  "guided": [
+    {
+      "id": "open-folder-vscode",
+      "name": "Open this folder in VS Code",
+      "app": "tmux · Raycast",
+      "blurb": "Copy a remote session's cwd to the Mac clipboard, then open it in local VS Code over SSH.",
+      "steps": [
+        { "key": "Ctrl+Space", "action": "tmux prefix", "detail": "Tap the tmux thumb (prefix = Ctrl+Space) to arm a tmux command.", "codes": ["ControlLeft", "Space"], "layer": "TMUX" },
+        { "key": "o", "action": "copy cwd (OSC52)", "detail": "Prefix → o runs cpwd: copies $PWD to the Mac clipboard over SSH+tmux.", "codes": ["KeyO"], "layer": "TMUX" },
+        { "key": "Cmd+Space", "action": "open Raycast", "detail": "Cmd+Space opens Raycast on the host (universal launcher, works on the MacBook too).", "codes": ["KeyD", "Space"], "layer": "BASE" },
+        { "key": "Open in VS Code", "action": "Raycast command", "detail": "Run the 'Open in VS Code' script command — blank arg pastes the cwd and opens vscode://ssh-remote+raf-dev<path>.", "codes": ["KeyV"], "layer": "BASE" }
+      ]
+    },
+    {
+      "id": "new-tmux-window",
+      "name": "New tmux window",
+      "app": "tmux",
+      "blurb": "Spin up a fresh window in the current tmux session.",
+      "steps": [
+        { "key": "Ctrl+Space", "action": "tmux prefix", "detail": "Tap the tmux thumb to send the prefix (Ctrl+Space).", "codes": ["ControlLeft", "Space"], "layer": "TMUX" },
+        { "key": "c", "action": "create window", "detail": "Prefix → c creates a new window; switch with prefix n / p / 1-9.", "codes": ["KeyC"], "layer": "TMUX" }
+      ]
+    },
+    {
+      "id": "split-navigate-panes",
+      "name": "Split & navigate tmux panes",
+      "app": "tmux",
+      "blurb": "Split the current window, then move between panes vim-style.",
+      "steps": [
+        { "key": "Ctrl+Space", "action": "tmux prefix", "detail": "Tap the tmux thumb to send the prefix.", "codes": ["ControlLeft", "Space"], "layer": "TMUX" },
+        { "key": "v", "action": "split right", "detail": "Prefix → v (custom bind for split-right). Prefix → b splits down.", "codes": ["KeyV"], "layer": "TMUX" },
+        { "key": "b", "action": "split down", "detail": "Prefix → b splits the pane downward.", "codes": ["KeyB"], "layer": "TMUX" },
+        { "key": "h j k l", "action": "navigate panes", "detail": "Prefix → h/j/k/l jumps left/down/up/right between panes (vim directions).", "codes": ["KeyH", "KeyJ", "KeyK", "KeyL"], "layer": "TMUX" }
+      ]
+    },
+    {
+      "id": "copy-cwd",
+      "name": "Copy the current directory",
+      "app": "tmux",
+      "blurb": "Put a remote session's working directory on the Mac clipboard via OSC52.",
+      "steps": [
+        { "key": "Ctrl+Space", "action": "tmux prefix", "detail": "Tap the tmux thumb to arm a tmux command.", "codes": ["ControlLeft", "Space"], "layer": "TMUX" },
+        { "key": "o", "action": "cpwd", "detail": "Prefix → o runs cpwd — copies $PWD to the Mac clipboard over SSH+tmux (OSC52). Paste it anywhere.", "codes": ["KeyO"], "layer": "TMUX" }
+      ]
+    },
+    {
+      "id": "jump-to-app",
+      "name": "Jump to an app",
+      "app": "Hyper · Raycast",
+      "blurb": "Hold the Hyper thumb, pick an app with your right hand — go-to-app in one chord (Glove80 speed-up; Cmd+Space + type on the MacBook).",
+      "steps": [
+        { "key": "Hyper (hold)", "action": "engage Hyper", "detail": "Hold the left Hyper thumb. Right-hand letters become go-to-app chords.", "codes": [], "layer": "BASE" },
+        { "key": "Hyper+J", "action": "Warp", "detail": "Hyper+J focuses (or opens) the terminal.", "codes": ["KeyJ"], "layer": "BASE" },
+        { "key": "Hyper+K", "action": "VS Code", "detail": "Hyper+K jumps to the editor.", "codes": ["KeyK"], "layer": "BASE" },
+        { "key": "Hyper+L", "action": "Linear", "detail": "Hyper+L jumps to Linear.", "codes": ["KeyL"], "layer": "BASE" },
+        { "key": "Hyper+U/I/O", "action": "Slack · Notion · Chrome", "detail": "The rest of the right-hand grid — pure adjacency, no typing.", "codes": ["KeyU", "KeyI", "KeyO"], "layer": "BASE" }
+      ]
+    },
+    {
+      "id": "rebuild-dev-container",
+      "name": "Rebuild the dev container",
+      "app": "Container ops",
+      "blurb": "Rebuild the mega-container image and confirm it's healthy — without wiping Tailscale state.",
+      "steps": [
+        { "key": "ssh raf-dev", "action": "SSH in", "detail": "Connect over Tailscale (hostname may be raf-dev-1, etc.), then ws to attach tmux.", "codes": ["KeyS"], "layer": "BASE" },
+        { "key": "rebuild.sh", "action": "rebuild image", "detail": "~/mega-container/rebuild.sh rebuilds with --pull and force-recreates (volumes preserved). Never docker compose down -v.", "codes": ["KeyR"], "layer": "BASE" },
+        { "key": "mega-doctor", "action": "health check", "detail": "rebuild.sh runs mega-doctor at the end — verifies binaries, secrets, mounts, MCPs, OpenCode web.", "codes": ["KeyD"], "layer": "BASE" }
+      ]
+    },
+    {
+      "id": "task-to-pr",
+      "name": "Start a task → draft PR",
+      "app": "Claude skills",
+      "blurb": "Spin up an isolated worktree from a Linear issue, do the work, and open a draft self-assigned PR.",
+      "steps": [
+        { "key": "/setup-work PLT-456", "action": "isolate a worktree", "detail": "Sets up (or re-enters) a worktree for the issue and cds in. Add --go to run hands-off through to a draft PR.", "codes": ["KeyS"], "layer": "BASE" },
+        { "key": "work", "action": "implement + verify", "detail": "Make the change, run the verification live (KTD14) before moving on.", "codes": ["KeyW"], "layer": "BASE" },
+        { "key": "/pr-create", "action": "open draft PR", "detail": "Creates a draft, self-assigned PR with the Linear tag auto-detected in the title.", "codes": ["KeyP"], "layer": "BASE" }
+      ]
+    },
+    {
+      "id": "morning-triage",
+      "name": "Morning triage",
+      "app": "Claude skills",
+      "blurb": "Start the day: Gmail notifications enriched with GitHub / Sentry / Linear / Slack context.",
+      "steps": [
+        { "key": "/morning-triage", "action": "run the triage", "detail": "Pulls Gmail notifications and enriches each with GitHub, Sentry, Linear, and Slack context.", "codes": ["KeyM"], "layer": "BASE" },
+        { "key": "j / k", "action": "scan the list", "detail": "Move through the triaged items; act on what matters, archive the rest.", "codes": ["KeyJ", "KeyK"], "layer": "BASE" },
+        { "key": "/async-standup", "action": "post standup", "detail": "Generate the standup from git/Linear/Toggl and post to #ra-lab-notes-rafael on confirm.", "codes": ["KeyA"], "layer": "BASE" }
+      ]
+    }
+  ],
+  "services": [
+    {
+      "id": "warp",
+      "name": "Warp",
+      "tag": "Terminal",
+      "note": "tmux prefix is Ctrl+Space. Bold tmux rows live on the ZMK tmux layer.",
+      "bindings": [
+        { "task": "New tab / window", "keys": "Cmd+T / Cmd+N" },
+        { "task": "Close pane / tab", "keys": "Cmd+W" },
+        { "task": "Split right / down", "keys": "Cmd+D / Cmd+Shift+D", "learn": true },
+        { "task": "Cycle pane next / prev", "keys": "Cmd+] / Cmd+[", "learn": true },
+        { "task": "Directional pane nav", "keys": "Cmd+Opt+Arrow" },
+        { "task": "Resize pane", "keys": "Ctrl+Cmd+Arrow", "learn": true },
+        { "task": "Zoom pane", "keys": "Cmd+Shift+Return", "learn": true },
+        { "task": "Command Palette / AI", "keys": "Cmd+P / Ctrl+`", "learn": true },
+        { "task": "Unified command search", "keys": "Ctrl+R", "learn": true }
+      ]
+    },
+    {
+      "id": "tmux",
+      "name": "tmux",
+      "tag": "Multiplexer",
+      "note": "Custom config; prefix = Ctrl+Space. Bold rows are on the ZMK tmux layer.",
+      "bindings": [
+        { "task": "Rename session", "keys": "prefix $", "learn": true },
+        { "task": "New window", "keys": "prefix c", "learn": true },
+        { "task": "Kill / close window", "keys": "prefix &" },
+        { "task": "Next / prev / by-number window", "keys": "prefix n / p / 1-9", "learn": true },
+        { "task": "Session tree (switch)", "keys": "prefix s" },
+        { "task": "Split right / down", "keys": "prefix | / prefix _", "learn": true },
+        { "task": "Resize panes", "keys": "prefix Arrow (repeatable)", "learn": true },
+        { "task": "Pane nav", "keys": "prefix h/j/k/l", "learn": true },
+        { "task": "Zoom pane", "keys": "prefix z", "learn": true },
+        { "task": "Detach", "keys": "prefix d" },
+        { "task": "Copy mode + search", "keys": "prefix [ → / n, v/y" },
+        { "task": "Reload config", "keys": "prefix r" }
+      ]
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "tag": "Desktop",
+      "bindings": [
+        { "task": "Quick switcher", "keys": "Cmd+K", "learn": true },
+        { "task": "Next / prev unread", "keys": "Opt+Shift+Down / Up", "learn": true },
+        { "task": "Mark read / all read", "keys": "Esc / Shift+Esc", "learn": true },
+        { "task": "Unreads / Activity / Threads", "keys": "Cmd+Shift+A / M / T" },
+        { "task": "Message-nav → actions", "keys": "Up → arrows → R/E/T", "learn": true },
+        { "task": "Back / forward", "keys": "Cmd+[ / Cmd+]" }
+      ]
+    },
+    {
+      "id": "linear",
+      "name": "Linear",
+      "tag": "Desktop",
+      "bindings": [
+        { "task": "Command menu / help", "keys": "Cmd+K / ?", "learn": true },
+        { "task": "Create issue", "keys": "C", "learn": true },
+        { "task": "Go-to Inbox/MyIssues/Triage/Active/Backlog", "keys": "G then I/M/T/A/B", "learn": true },
+        { "task": "List nav / open", "keys": "J/K / Enter", "learn": true },
+        { "task": "Status / priority / label / assignee", "keys": "S / P / L / A", "learn": true },
+        { "task": "Comment / search / copy ID", "keys": "Cmd+M→Cmd+Enter / / / Cmd+.", "learn": true }
+      ]
+    },
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "tag": "Chrome PWA",
+      "note": "Settings → Keyboard shortcuts ON. Vimium excluded-keys for mail.google.com/* = ?jknpxercgilsafd#ubm/",
+      "bindings": [
+        { "task": "Compose / send", "keys": "c / Cmd+Enter", "learn": true },
+        { "task": "Reply / reply-all / forward", "keys": "r / a / f", "learn": true },
+        { "task": "List down/up / open / back", "keys": "j/k / o / u", "learn": true },
+        { "task": "Archive / delete / select", "keys": "e / # / x", "learn": true },
+        { "task": "Go-to Inbox/Starred/Sent", "keys": "g then i/s/t", "learn": true },
+        { "task": "Search / undo", "keys": "/ / z", "learn": true },
+        { "task": "Click link/attachment", "keys": "f  [Vimium]" }
+      ]
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "tag": "Chrome tab",
+      "note": "Reach the window with Cmd+Shift+A (tab search) and Cmd+` (cycle windows).",
+      "bindings": [
+        { "task": "File finder / github.dev", "keys": "t / .", "learn": true },
+        { "task": "Go-to Code/Issues/PRs/Notifications", "keys": "g then c/i/p/n", "learn": true },
+        { "task": "Search", "keys": "s or /", "learn": true },
+        { "task": "Notifications: nav/done/read", "keys": "j/k / e / Shift+I", "learn": true },
+        { "task": "PR diff: file nav / whitespace", "keys": "j/k / w", "learn": true },
+        { "task": "Submit review / comment", "keys": "Cmd+Shift+Enter / Cmd+Enter" }
+      ]
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "tag": "Desktop",
+      "bindings": [
+        { "task": "Quick-find / in-page find", "keys": "Cmd+P / Cmd+F", "learn": true },
+        { "task": "Sidebar / back / forward / up", "keys": "Cmd+\\ / Cmd+[ / Cmd+] / Cmd+Shift+U", "learn": true },
+        { "task": "Insert block / turn-into", "keys": "/ / Esc then Cmd+/", "learn": true },
+        { "task": "Select / move block", "keys": "Esc + Shift+Up/Down → Cmd+Shift+Up/Down" },
+        { "task": "Indent / outdent", "keys": "Tab / Shift+Tab", "learn": true },
+        { "task": "Comment / new page", "keys": "Cmd+Shift+M / Cmd+N" }
+      ]
+    },
+    {
+      "id": "vscode",
+      "name": "VS Code",
+      "tag": "Host",
+      "note": "Git review + plan reading. Custom binds in keybindings.json: stageFile→Cmd+K Cmd+A, push→Cmd+K Cmd+P, GitLens changed-file Opt+]/Opt+[.",
+      "bindings": [
+        { "task": "Command Palette / quick-open", "keys": "Shift+Cmd+P / Cmd+P", "learn": true },
+        { "task": "Source Control / open diff", "keys": "Ctrl+Shift+G / Enter on row", "learn": true },
+        { "task": "Next / prev change", "keys": "Opt+F5 / Shift+Opt+F5", "learn": true },
+        { "task": "Stage / unstage / revert hunk", "keys": "Cmd+K Cmd+Opt+S / Cmd+K Cmd+U / Cmd+K Cmd+R", "learn": true },
+        { "task": "Commit staged", "keys": "Cmd+Enter", "learn": true },
+        { "task": "Terminal / Markdown preview", "keys": "Ctrl+` / Cmd+K V", "learn": true }
+      ]
+    },
+    {
+      "id": "chrome",
+      "name": "Chrome",
+      "tag": "Vimium",
+      "bindings": [
+        { "task": "Follow link same / new tab", "keys": "f / F", "learn": true },
+        { "task": "Scroll line / half-page / extremes", "keys": "j/k / d/u / gg/G", "learn": true },
+        { "task": "History back / forward", "keys": "H / L", "learn": true },
+        { "task": "Find in page", "keys": "/ then n/N" },
+        { "task": "Vomnibar (url / history)", "keys": "o / O", "learn": true },
+        { "task": "Fuzzy switch open tab", "keys": "T", "learn": true },
+        { "task": "Cycle windows of current app", "keys": "Cmd+`", "learn": true },
+        { "task": "New / close / restore tab", "keys": "t / x / X", "learn": true }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "shell",
+      "name": "Shell functions",
+      "note": "macOS-only helpers (brew-up, warp-*, metr-*) are gated behind darwin; not in the Linux container.",
+      "items": [
+        { "name": "awstg [env]", "does": "Set AWS_PROFILE=staging and ENVIRONMENT (default 'staging', e.g. awstg dev4)" },
+        { "name": "awspr", "does": "Set AWS_PROFILE and ENVIRONMENT to production" },
+        { "name": "my-chezmoi", "does": "cd into the chezmoi source dir (~/.local/share/chezmoi)" },
+        { "name": "loadenv <file>", "does": "Export all env vars from a file (e.g. loadenv .env)" },
+        { "name": "minikube_reset", "does": "Reset minikube for METR/inspect-action (compose down, delete cluster, re-run start-minikube.sh)" },
+        { "name": "ws [name]", "does": "Create or attach a durable tmux session on the 'work' socket (default 'main'), nesting-safe" },
+        { "name": "wsl", "does": "List tmux sessions on the 'work' socket" },
+        { "name": "brew-up", "does": "macOS: brew update + upgrade + cleanup" },
+        { "name": "warp-tab [path]", "does": "macOS: open a new Warp tab at the given/current directory" },
+        { "name": "warp-window [path]", "does": "macOS: open a new Warp window at the given/current directory" },
+        { "name": "metr-dev", "does": "macOS: open the 4-tab METR dev workspace (inspect-action, mp4-deploy, metr-iam, chezmoi)" },
+        { "name": "metr-deploy", "does": "macOS: open the 2-tab METR deploy workspace (inspect-action, mp4-deploy)" },
+        { "name": "cpwd", "does": "Copy $PWD to the Mac clipboard via OSC52 over SSH+tmux (for Raycast 'Open in VS Code')" },
+        { "name": "oc [args]", "does": "Run OpenCode with auto-assigned port and registry tracking for the session-registry plugin" },
+        { "name": "occ", "does": "OpenCode --continue (resume the last session)" },
+        { "name": "oc ps [--json]", "does": "List running OpenCode instances (PID, port, dir, session, title); prunes dead entries" },
+        { "name": "oc history [HOURS] [--json]", "does": "List recent OpenCode sessions from the local DB (default last 24h)" }
+      ]
+    },
+    {
+      "id": "container",
+      "name": "Container ops",
+      "note": "Mega-container dev environment. NEVER docker compose down -v — it wipes Tailscale state and forces a new hostname.",
+      "items": [
+        { "name": "~/mega-container/start.sh", "does": "Routine start: fetch 1Password token, compose up, wait for bootstrap, check Tailscale (no rebuild)" },
+        { "name": "~/mega-container/rebuild.sh", "does": "Rebuild image with --pull, force-recreate (preserves volumes), run full mega-doctor" },
+        { "name": "mega-doctor [--quick]", "does": "One-shot health check (binaries, secrets, mounts, MCPs, opencode web); --quick skips network probes" },
+        { "name": "/hot-patch [--chezmoi]", "does": "Update a running container without rebuild (chezmoi + mise + plugins); --chezmoi for just dotfiles" },
+        { "name": "ssh raf-dev", "does": "SSH into the container via Tailscale (hostname may be raf-dev-1, etc.); then ws to attach tmux" },
+        { "name": "OpenCode web", "does": "Browser UI at https://raf-dev.koi-moth.ts.net (tailnet-only, works from phone, skips tmux)" },
+        { "name": "docker compose exec mega tailscale up --ssh ...", "does": "One-time Tailscale SSH auth (and to re-enable SSH if connection is refused)" }
+      ]
+    },
+    {
+      "id": "skills",
+      "name": "Claude skills",
+      "note": "Slash-commands from chezmoi commands/. Plugin skills (compound-engineering:*, superpowers:*) come from plugins, not listed here.",
+      "items": [
+        { "name": "/async-standup", "does": "Generate an async standup from git, Linear, and Toggl; review then post to Slack (#ra-lab-notes-rafael), falling back to a file" },
+        { "name": "/aws-preflight", "does": "Pre-flight checks before AWS operations" },
+        { "name": "/aws-switch", "does": "Switch AWS profile and verify credentials" },
+        { "name": "/claude-diagnostics", "does": "Run diagnostics and generate a debug report for Claude Code issues" },
+        { "name": "/claude-update", "does": "Update Claude Code and sync dotfiles from chezmoi" },
+        { "name": "/claude-validate", "does": "Validate Claude Code setup and configuration" },
+        { "name": "/dev-clean", "does": "Clean up merged/stale git worktrees across all repos" },
+        { "name": "/dev-list", "does": "List all git worktrees across all repos" },
+        { "name": "/ecr-login", "does": "Authenticate Docker to AWS ECR for image push/pull" },
+        { "name": "/fill-toggl", "does": "Auto-fill missing Toggl time entries: aggregate data, then classify and create entries (supports --dry-run, --auto)" },
+        { "name": "/hot-patch", "does": "Hot-patch the container without a rebuild (dotfiles, tools, packages)" },
+        { "name": "/k8s-reset", "does": "Reset the Kubernetes cluster to a clean state" },
+        { "name": "/k8s-switch", "does": "Switch Kubernetes context by inferring the target cluster from AWS account/repo/contexts, then update kubeconfig" },
+        { "name": "/linear-triage", "does": "Triage Linear issues - inbox, backlog, update, create" },
+        { "name": "/load-env", "does": "Load environment variables from a .env file" },
+        { "name": "/mcp-setup-1password", "does": "Interactive setup for MCP credentials in 1Password" },
+        { "name": "/morning-triage", "does": "Daily morning triage - Gmail notifications enriched with GitHub/Sentry/Linear/Slack" },
+        { "name": "/plan-review", "does": "Review a local plan/doc with the human via the self-hosted Proof editor (localhost only)" },
+        { "name": "/pr-create", "does": "Create a PR with an auto-detected Linear issue tag in the title (draft + self-assigned)" },
+        { "name": "/sentry-triage", "does": "Triage Sentry issues - investigate, bulk actions, create Linear issues" },
+        { "name": "/setup-work", "does": "Set up or re-enter an isolated worktree for a task and cd in, then STOP (--go works through to a draft self-assigned PR)" }
+      ]
+    }
+  ],
+  "repos": [
+    { "name": "chezmoi / dotfiles", "url": "https://github.com/QuantumLove/dotfiles" },
+    { "name": "glove80", "url": "https://github.com/QuantumLove/glove80" },
+    { "name": "proof-sdk (fork)", "url": "https://github.com/QuantumLove/proof-sdk" },
+    { "name": "proof-sdk (upstream)", "url": "https://github.com/EveryInc/proof-sdk" }
+  ]
+}

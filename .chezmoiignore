@@ -5,6 +5,7 @@ Library/LaunchAgents/com.rafael.cheatsheet.plist
 {{ end }}
 tests
 docs
+cheatsheet
 
 # Python bytecode (e.g. from running py_compile inside the source dir)
 **/__pycache__

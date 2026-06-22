@@ -1,0 +1,1718 @@
+{
+  "default": [
+    {
+      "tap": "F1"
+    },
+    {
+      "tap": "F2"
+    },
+    {
+      "tap": "F3"
+    },
+    {
+      "tap": "F4"
+    },
+    {
+      "tap": "F5"
+    },
+    {
+      "tap": "F6"
+    },
+    {
+      "tap": "F7"
+    },
+    {
+      "tap": "F8"
+    },
+    {
+      "tap": "F9"
+    },
+    {
+      "tap": "F10"
+    },
+    {
+      "tap": "="
+    },
+    {
+      "tap": "1"
+    },
+    {
+      "tap": "2"
+    },
+    {
+      "tap": "3"
+    },
+    {
+      "tap": "4"
+    },
+    {
+      "tap": "5"
+    },
+    {
+      "tap": "6"
+    },
+    {
+      "tap": "7"
+    },
+    {
+      "tap": "8"
+    },
+    {
+      "tap": "9"
+    },
+    {
+      "tap": "0"
+    },
+    {
+      "tap": "-"
+    },
+    {
+      "tap": "TAB"
+    },
+    {
+      "tap": "Q"
+    },
+    {
+      "tap": "W"
+    },
+    {
+      "tap": "E"
+    },
+    {
+      "tap": "R"
+    },
+    {
+      "tap": "T"
+    },
+    {
+      "tap": "Y"
+    },
+    {
+      "tap": "U"
+    },
+    {
+      "tap": "I"
+    },
+    {
+      "tap": "O"
+    },
+    {
+      "tap": "P"
+    },
+    {
+      "tap": "\\"
+    },
+    {
+      "tap": "ESC"
+    },
+    {
+      "tap": "A",
+      "hold": "LCTL"
+    },
+    {
+      "tap": "S",
+      "hold": "LALT"
+    },
+    {
+      "tap": "D",
+      "hold": "LGUI"
+    },
+    {
+      "tap": "F",
+      "hold": "LSFT"
+    },
+    {
+      "tap": "G"
+    },
+    {
+      "tap": "H"
+    },
+    {
+      "tap": "J",
+      "hold": "LSFT"
+    },
+    {
+      "tap": "K",
+      "hold": "LGUI"
+    },
+    {
+      "tap": "L",
+      "hold": "LALT"
+    },
+    {
+      "tap": ";",
+      "hold": "LCTL"
+    },
+    {
+      "tap": "'"
+    },
+    {
+      "tap": "`"
+    },
+    {
+      "tap": "Z"
+    },
+    {
+      "tap": "X"
+    },
+    {
+      "tap": "C"
+    },
+    {
+      "tap": "V"
+    },
+    {
+      "tap": "B"
+    },
+    {
+      "tap": "LSHFT",
+      "hold": "Ctl+Sft+Gui+LALT"
+    },
+    {
+      "tap": "LCTRL"
+    },
+    {
+      "tap": "&layer_td"
+    },
+    {
+      "tap": "Gui+SPACE"
+    },
+    {
+      "tap": "RCTRL"
+    },
+    {
+      "tap": "Gui+F19",
+      "hold": "Gui+F18"
+    },
+    {
+      "tap": "N"
+    },
+    {
+      "tap": "M"
+    },
+    {
+      "tap": ","
+    },
+    {
+      "tap": "."
+    },
+    {
+      "tap": "/"
+    },
+    {
+      "tap": "PG UP"
+    },
+    {
+      "tap": "&rgb_ug_status_macro",
+      "hold": "magic"
+    },
+    {
+      "tap": "HOME"
+    },
+    {
+      "tap": "END"
+    },
+    {
+      "tap": "LEFT"
+    },
+    {
+      "tap": "RIGHT"
+    },
+    {
+      "tap": "BSPC",
+      "hold": "cursor"
+    },
+    {
+      "tap": "DEL",
+      "hold": "number"
+    },
+    {
+      "tap": "LALT"
+    },
+    {
+      "tap": "Ctl+SPACE",
+      "hold": "tmux"
+    },
+    {
+      "tap": "RET",
+      "hold": "mouse"
+    },
+    {
+      "tap": "SPACE",
+      "hold": "symbol"
+    },
+    {
+      "tap": "UP"
+    },
+    {
+      "tap": "DOWN"
+    },
+    {
+      "tap": "["
+    },
+    {
+      "tap": "]"
+    },
+    {
+      "tap": "PG DN"
+    }
+  ],
+  "cursor": [
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "ESC"
+    },
+    {
+      "tap": "INS"
+    },
+    {
+      "tap": "Sft+TAB"
+    },
+    {
+      "tap": "DEL"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "Sft+TAB"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "RET"
+    },
+    {
+      "tap": "SPACE"
+    },
+    {
+      "tap": "TAB"
+    },
+    {
+      "tap": "BSPC"
+    },
+    {
+      "tap": "Gui+X"
+    },
+    {
+      "tap": "Gui+X"
+    },
+    {
+      "tap": "Sft+TAB"
+    },
+    {
+      "tap": "Gui+Z"
+    },
+    {
+      "tap": "Gui+Sft+Z"
+    },
+    {
+      "tap": "TAB"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "LSHFT",
+      "hold": "sticky"
+    },
+    {
+      "tap": "LCTRL"
+    },
+    {
+      "tap": "LALT"
+    },
+    {
+      "tap": "LGUI"
+    },
+    {
+      "tap": "LSHFT"
+    },
+    {
+      "tap": "Gui+C"
+    },
+    {
+      "tap": "Gui+C"
+    },
+    {
+      "tap": "LEFT"
+    },
+    {
+      "tap": "UP"
+    },
+    {
+      "tap": "DOWN"
+    },
+    {
+      "tap": "RIGHT"
+    },
+    {
+      "tap": "LSHFT",
+      "hold": "sticky"
+    },
+    {
+      "tap": "Gui+L"
+    },
+    {
+      "tap": "&select_all"
+    },
+    {
+      "tap": "&select_line"
+    },
+    {
+      "tap": "&select_word"
+    },
+    {
+      "tap": "Gui+F"
+    },
+    {
+      "tap": "Gui+V"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "Gui+V"
+    },
+    {
+      "tap": "Gui+LEFT"
+    },
+    {
+      "tap": "PG UP"
+    },
+    {
+      "tap": "PG DN"
+    },
+    {
+      "tap": "Gui+RIGHT"
+    },
+    {
+      "tap": "Gui+L"
+    },
+    {
+      "tap": "Gui+K"
+    },
+    {
+      "tap": "Gui+Z"
+    },
+    {
+      "tap": "Gui+Sft+Z"
+    },
+    {
+      "tap": "Gui+Sft+G"
+    },
+    {
+      "tap": "Gui+G"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "Gui+F"
+    },
+    {
+      "tap": "Gui+Sft+G"
+    },
+    {
+      "tap": "Gui+G"
+    },
+    {
+      "tap": "Gui+H"
+    },
+    {
+      "tap": "Gui+K"
+    }
+  ],
+  "number": [
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "A"
+    },
+    {
+      "tap": "B"
+    },
+    {
+      "tap": "C"
+    },
+    {
+      "tap": "D"
+    },
+    {
+      "tap": "E"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "ESC"
+    },
+    {
+      "tap": "INS"
+    },
+    {
+      "tap": "Sft+TAB"
+    },
+    {
+      "tap": "DEL"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "Sft+\\"
+    },
+    {
+      "tap": "Sft+3"
+    },
+    {
+      "tap": "Sft+4"
+    },
+    {
+      "tap": "Sft+6"
+    },
+    {
+      "tap": "Sft+`"
+    },
+    {
+      "tap": "Sft+1"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "RET"
+    },
+    {
+      "tap": "SPACE"
+    },
+    {
+      "tap": "TAB"
+    },
+    {
+      "tap": "BSPC"
+    },
+    {
+      "tap": "0"
+    },
+    {
+      "tap": "Sft+G"
+    },
+    {
+      "tap": "7"
+    },
+    {
+      "tap": "8"
+    },
+    {
+      "tap": "9"
+    },
+    {
+      "tap": "Sft+;"
+    },
+    {
+      "tap": "Sft+5"
+    },
+    {
+      "tap": "LSHFT",
+      "hold": "sticky"
+    },
+    {
+      "tap": "LCTL"
+    },
+    {
+      "tap": "LALT"
+    },
+    {
+      "tap": "LGUI"
+    },
+    {
+      "tap": "LSFT"
+    },
+    {
+      "tap": "X"
+    },
+    {
+      "tap": "K"
+    },
+    {
+      "tap": "4"
+    },
+    {
+      "tap": "5"
+    },
+    {
+      "tap": "6"
+    },
+    {
+      "tap": "-"
+    },
+    {
+      "tap": "Sft+="
+    },
+    {
+      "tap": "E"
+    },
+    {
+      "tap": "&select_all"
+    },
+    {
+      "tap": "&select_line"
+    },
+    {
+      "tap": "&select_word"
+    },
+    {
+      "tap": "Gui+F"
+    },
+    {
+      "tap": "F"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "Sft+,"
+    },
+    {
+      "tap": "="
+    },
+    {
+      "tap": ","
+    },
+    {
+      "tap": "J"
+    },
+    {
+      "tap": "1"
+    },
+    {
+      "tap": "2"
+    },
+    {
+      "tap": "3"
+    },
+    {
+      "tap": "/"
+    },
+    {
+      "tap": "Sft+8"
+    },
+    {
+      "tap": "Sft+-"
+    },
+    {
+      "tap": "Gui+Z"
+    },
+    {
+      "tap": "Gui+Sft+Z"
+    },
+    {
+      "tap": "Gui+Sft+G"
+    },
+    {
+      "tap": "Gui+G"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "number",
+      "hold": "toggle"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "Sft+."
+    },
+    {
+      "tap": "."
+    },
+    {
+      "tap": "0"
+    },
+    {
+      "tap": "Sft+9"
+    },
+    {
+      "tap": "["
+    },
+    {
+      "tap": "]"
+    },
+    {
+      "tap": "Sft+0"
+    },
+    {
+      "tap": "Sft+2"
+    }
+  ],
+  "symbol": [
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "`"
+    },
+    {
+      "tap": "Sft+9"
+    },
+    {
+      "tap": "Sft+0"
+    },
+    {
+      "tap": ";"
+    },
+    {
+      "tap": ","
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "Sft+1"
+    },
+    {
+      "tap": "["
+    },
+    {
+      "tap": "Sft+["
+    },
+    {
+      "tap": "Sft+]"
+    },
+    {
+      "tap": "]"
+    },
+    {
+      "tap": "Sft+/"
+    },
+    {
+      "tap": "."
+    },
+    {
+      "tap": "DEL"
+    },
+    {
+      "tap": "Sft+TAB"
+    },
+    {
+      "tap": "INS"
+    },
+    {
+      "tap": "ESC"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "Sft+3"
+    },
+    {
+      "tap": "Sft+6"
+    },
+    {
+      "tap": "="
+    },
+    {
+      "tap": "Sft+-"
+    },
+    {
+      "tap": "Sft+4"
+    },
+    {
+      "tap": "Sft+8"
+    },
+    {
+      "tap": ","
+    },
+    {
+      "tap": "BSPC"
+    },
+    {
+      "tap": "TAB"
+    },
+    {
+      "tap": "SPACE"
+    },
+    {
+      "tap": "RET"
+    },
+    {
+      "tap": "&triple_backtick"
+    },
+    {
+      "tap": "Sft+`"
+    },
+    {
+      "tap": "Sft+,"
+    },
+    {
+      "tap": "Sft+\\"
+    },
+    {
+      "tap": "-"
+    },
+    {
+      "tap": "Sft+."
+    },
+    {
+      "tap": "/"
+    },
+    {
+      "tap": "\\"
+    },
+    {
+      "tap": "."
+    },
+    {
+      "tap": "Sft+8"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ";"
+    },
+    {
+      "tap": "Sft+'"
+    },
+    {
+      "tap": "'"
+    },
+    {
+      "tap": "`"
+    },
+    {
+      "tap": "\\"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&dot_dot"
+    },
+    {
+      "tap": "Sft+7"
+    },
+    {
+      "tap": "'"
+    },
+    {
+      "tap": "Sft+'"
+    },
+    {
+      "tap": "Sft+="
+    },
+    {
+      "tap": "Sft+5"
+    },
+    {
+      "tap": "Sft+;"
+    },
+    {
+      "tap": "Sft+2"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "symbol",
+      "hold": "toggle"
+    },
+    {
+      "tap": "LSFT"
+    },
+    {
+      "tap": "LGUI"
+    },
+    {
+      "tap": "LALT"
+    },
+    {
+      "tap": "LCTL"
+    },
+    {
+      "tap": ""
+    }
+  ],
+  "tmux": [
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&tmux_key O"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&tmux_key S"
+    },
+    {
+      "tap": "&tmux_key D"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&tmux_key H"
+    },
+    {
+      "tap": "&tmux_key J"
+    },
+    {
+      "tap": "&tmux_key K"
+    },
+    {
+      "tap": "&tmux_key L"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&tmux_key Z"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&tmux_key C"
+    },
+    {
+      "tap": "&tmux_key LS(BSLH)"
+    },
+    {
+      "tap": "&tmux_key LS(MINUS)"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&tmux_key N"
+    },
+    {
+      "tap": "&tmux_key P"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    }
+  ],
+  "mouse": [
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&msc SCRL_LEFT"
+    },
+    {
+      "tap": "&mmv MOVE_UP"
+    },
+    {
+      "tap": "&msc SCRL_RIGHT"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&msc SCRL_LEFT"
+    },
+    {
+      "tap": "&mkp LCLK"
+    },
+    {
+      "tap": "&mkp MCLK"
+    },
+    {
+      "tap": "&mkp RCLK"
+    },
+    {
+      "tap": "&msc SCRL_RIGHT"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&msc SCRL_UP"
+    },
+    {
+      "tap": "&mmv MOVE_LEFT"
+    },
+    {
+      "tap": "&mmv MOVE_DOWN"
+    },
+    {
+      "tap": "&mmv MOVE_RIGHT"
+    },
+    {
+      "tap": "&msc SCRL_UP"
+    },
+    {
+      "tap": "&msc SCRL_UP"
+    },
+    {
+      "tap": "mouse_fast"
+    },
+    {
+      "tap": "mouse_warp"
+    },
+    {
+      "tap": "mouse_slow"
+    },
+    {
+      "tap": "APP"
+    },
+    {
+      "tap": "&mkp MB4"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "&msc SCRL_DOWN"
+    },
+    {
+      "tap": "mouse_slow"
+    },
+    {
+      "tap": "mouse_warp"
+    },
+    {
+      "tap": "mouse_fast"
+    },
+    {
+      "tap": "&msc SCRL_DOWN"
+    },
+    {
+      "tap": "&mkp MCLK"
+    },
+    {
+      "tap": "APP"
+    },
+    {
+      "tap": "&mkp MB5"
+    },
+    {
+      "tap": "Gui+X"
+    },
+    {
+      "tap": "Gui+C"
+    },
+    {
+      "tap": "Gui+V"
+    },
+    {
+      "tap": "&msc SCRL_DOWN"
+    },
+    {
+      "tap": "&mmv MOVE_LEFT"
+    },
+    {
+      "tap": "&mmv MOVE_UP"
+    },
+    {
+      "tap": "&mmv MOVE_DOWN"
+    },
+    {
+      "tap": "&mmv MOVE_RIGHT"
+    },
+    {
+      "tap": "&mkp MB5"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "Gui+X"
+    },
+    {
+      "tap": "Gui+C"
+    },
+    {
+      "tap": "Gui+V"
+    },
+    {
+      "tap": "&mkp LCLK"
+    },
+    {
+      "tap": "&mkp RCLK"
+    },
+    {
+      "tap": "&mkp MB4"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    }
+  ],
+  "lower": [
+    {
+      "tap": "BRI DN"
+    },
+    {
+      "tap": "BRI UP"
+    },
+    {
+      "tap": "PREV"
+    },
+    {
+      "tap": "NEXT"
+    },
+    {
+      "tap": "PP"
+    },
+    {
+      "tap": "MUTE"
+    },
+    {
+      "tap": "VOL DN"
+    },
+    {
+      "tap": "VOL UP"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "PAUSE BREAK"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "HOME"
+    },
+    {
+      "tap": "("
+    },
+    {
+      "tap": "KP NUM"
+    },
+    {
+      "tap": "KP EQUAL"
+    },
+    {
+      "tap": "KP DIVIDE"
+    },
+    {
+      "tap": "KP MULTIPLY"
+    },
+    {
+      "tap": "PSCRN"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "UP"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "END"
+    },
+    {
+      "tap": ")"
+    },
+    {
+      "tap": "KP 7"
+    },
+    {
+      "tap": "KP 8"
+    },
+    {
+      "tap": "KP 9"
+    },
+    {
+      "tap": "KP MINUS"
+    },
+    {
+      "tap": "SLCK"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "LEFT"
+    },
+    {
+      "tap": "DOWN"
+    },
+    {
+      "tap": "RIGHT"
+    },
+    {
+      "tap": "PG UP"
+    },
+    {
+      "tap": "%"
+    },
+    {
+      "tap": "KP 4"
+    },
+    {
+      "tap": "KP 5"
+    },
+    {
+      "tap": "KP 6"
+    },
+    {
+      "tap": "KP PLUS"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "CMENU"
+    },
+    {
+      "tap": ""
+    },
+    {
+      "tap": "F11"
+    },
+    {
+      "tap": "F12"
+    },
+    {
+      "tap": "PG DN"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "default",
+      "hold": "toggle"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": ","
+    },
+    {
+      "tap": "KP 1"
+    },
+    {
+      "tap": "KP 2"
+    },
+    {
+      "tap": "KP 3"
+    },
+    {
+      "tap": "KP ENTER"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "CAPS"
+    },
+    {
+      "tap": "INS"
+    },
+    {
+      "tap": "F11"
+    },
+    {
+      "tap": "F12"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "▽"
+    },
+    {
+      "tap": "KP 0"
+    },
+    {
+      "tap": "KP 0"
+    },
+    {
+      "tap": "KP DOT"
+    },
+    {
+      "tap": "KP ENTER"
+    },
+    {
+      "tap": "▽"
+    }
+  ]
+}
