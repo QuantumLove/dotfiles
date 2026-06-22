@@ -28,7 +28,8 @@ second laptop). Exact chords live in [raycast-hotkeys.md](raycast-hotkeys.md).
 ## 4. VS Code bridge (U5)
 - Install the Remote-SSH extension.
 - `~/.ssh/config` already has `Host raf-dev` (via chezmoi).
-- Test: from a `raf-dev` session run `cpwd`, then trigger Raycast **"Open in VS Code"** → the folder opens in local VS Code.
+- **Copy the dir without leaving your work:** in tmux, tap the tmux thumb (= prefix) then **`o`** — tmux copies the focused pane's directory to the Mac clipboard via OSC52, even while opencode/a TUI owns the pane (it reads `pane_current_path` at the multiplexer level; nothing is interrupted). `cpwd` is the manual fallback when you have a free shell.
+- Then trigger Raycast **"Open in VS Code"** (blank arg = clipboard) → the folder opens in local VS Code.
 
 ## 5. Glove80 firmware (U4)
 - Keymap changes live on branch `feat-tmux-thumb` in `~/code/glove80` (tmux thumb on RAlt, Raycast thumb on LGui→`Cmd+Space`, `tmux_layer`).
