@@ -3,7 +3,7 @@ title: "feat: keyboard-driven, mouse-minimized Mac workflow + interactive cheats
 status: in-review
 date: 2026-06-21
 decisions_locked: 2026-06-21
-revised: 2026-06-21 (r7 — U2 underway: profiles metr.org+Rafael, only Gmail PWA (GitHub stays a tab), Caps-Lock→Hyper dropped, Cmd+Space=Raycast clarified, Vimium passthrough optional)
+revised: 2026-06-21 (r8)
 build_order: config-first
 ---
 
@@ -11,7 +11,7 @@ build_order: config-first
 
 ## Summary
 
-Make the daily Mac dev stack keyboard-driven and mouse-minimized, built on the **Glove80 (ZMK) firmware** as the primary layer plus **Raycast** as the host-side hub, documented in a **local, interactive cheatsheet web app**. **Build order is config-first** (revised after review): land the daily ergonomic wins (Raycast go-to-app + window management, the tmux thumb/layer, Spotlight-shortcut reclaim) and the VS Code bridge first — these take an afternoon each and produce the *real* binding inventory — **then** build the web app to document what you actually run. Go-to-app is bilateral Hyper chords; **Raycast is reached via `Cmd+Space`** (reclaimed by disabling the Spotlight shortcut) — no dedicated Raycast thumb is needed. The tmux key is a *conscious reassignment* of an HRM-duplicated inner thumb (the Glove80's thumbs are already full — Wispr Flow dictation must not be clobbered). Gmail becomes a Chrome PWA (the app is named **"Gmail"**); GitHub stays a normal tab (PWAs handle multi-tab poorly). **Two Chrome profiles: metr.org (work) + Rafael (personal).** Proof runs **only locally** (self-hosted; already running via `proof-local`). **Cross-device:** every important action also has a host-level chord that works on the MacBook built-in keyboard (Raycast on `Cmd+Space` — the universal launcher; on the MacBook you type the app name; tmux prefix `Ctrl+Space`), so the Glove80 thumbs are pure ergonomic conveniences, never the only path.
+Make the daily Mac dev stack keyboard-driven and mouse-minimized: the **Glove80 (ZMK) firmware** as the primary remap layer, **Raycast** (`Cmd+Space`) as the host-side hub, and a **local interactive cheatsheet** to document it. **Build order is config-first** — land the daily ergonomic wins (Raycast go-to-app + window management, the tmux thumb/layer, the VS Code bridge) first so the real binding inventory exists, then build the web app to document reality. Decisions and rationale live in the KTDs below; every action is also reachable on the MacBook built-in keyboard (KTD13).
 
 ---
 
@@ -50,7 +50,7 @@ The stack — Slack, Chrome (Gmail + many windows, two profiles), Warp, VS Code,
 - **KTD9 — The tmux ZMK layer carries the whole vocabulary** (G4). Holding the tmux thumb maps the home row to: rename session, new window, kill window, next/prev/by-number window, new pane (split right/down), resize panes, pane nav (h/j/k/l), zoom, session tree, copy-mode, detach.
 - **KTD10 — Web app is a local React SPA, content-first, built AFTER the config wins** (G9). Vite + React + TS + Tailwind (+ Fuse.js/cmdk; **no Framer Motion** until a transition needs it). Runs on `localhost`, started manually, never published. Built once the real bindings exist so its content is accurate. Split: **U1a** (searchable workflow tables + setup checklist + learning tracker — ships first, can use the existing `keymap.svg` for the board) and **U1b** (the from-scratch interactive React board + key-tester — later). **Migration (per Rafael):** when U1 lands, fold the existing Glove80 keymap viewer (`~/code/glove80/docs`) into this same React architecture — ingest the regenerated `keymap.yaml`, retire the hand-maintained `keymap-data.js`, and serve one unified local app.
 - **KTD11 — Raycast tracking is partial-by-nature** (G7). Script-command files in chezmoi (plain files; feed the web app); the web app's binding list + `raycast-hotkeys.md` / `manual-setup.md` are the canonical human-readable source. **No `.rayconfig` export** (decided against — a password-encrypted blob, not diffable; the scripts + inventories already make a new machine reproducible). No Raycast Pro.
-- **KTD12 — Proof is local-only with a guardrail** (G8). The agent talks only to `localhost`; a guardrail (hook + CLAUDE.md/AGENTS.md note) forbids any call to `proofeditor.ai`/Proof AI. The host classifier already blocks such uploads. Verify Proof binds `127.0.0.1` (not `0.0.0.0`) so the local servers aren't exposed on shared WiFi.
+- **KTD12 — Proof is local-only with a guardrail** (G8). Proof runs on the container, reached via the tunnelled `localhost`; a `deny` rule + CLAUDE.md note forbid any call to `proofeditor.ai`/Proof AI (the host classifier also blocks such uploads).
 - **KTD13 — Cross-device: every action works on the MacBook built-in keyboard too** (G11). Rafael isn't always on the Glove80, so every important action has a **host-level chord reachable on the MacBook**, and the Glove80 thumbs/layers only *emit* those chords (pure ergonomics, never the only path). Concretely: Raycast = `Cmd+Space` (universal); on the MacBook, launch apps via Raycast (`Cmd+Space` + type the app name) — the `Hyper+letter` go-to-app chords are a Glove80 speed-up, **not** needed on the laptop (no Caps-Lock remap); tmux prefix = `Ctrl+Space` (universal) — the ZMK tmux layer is a convenience and prefix+key is the MacBook fallback; Wispr's MacBook trigger is its **own app-level hotkey** (already configured in Wispr Flow for laptop use) — *not* `Cmd+F18`, which is only the Glove80 firmware trigger (F13–F19 don't exist on the MacBook function row). This is *why* the thumb layout can stay relaxed — the firmware adds comfort, not capability.
 - **KTD14 — Verify live as you go.** Every unit is implement → **test on the spot, live** (automated where possible; with the user's input where automation isn't) → only then continue. No batching unverified work; breakage is caught at the step that caused it. Each unit's *Verification* runs immediately after its *Approach*, not deferred.
 
@@ -132,12 +132,12 @@ Purchase + install when the catalogued gaps (Slack reactions, Notion DB chrome, 
 ### U8. Proof — local only, with guardrail (already running)
 
 **Goal:** HITL review entirely on `localhost`. **Goals:** G8.
-**Status:** the `proof-local` helper is built + committed; Proof runs locally (SQLite, telemetry off). **Remaining:** add the guardrail hook + CLAUDE.md/AGENTS.md note blocking `proofeditor.ai`; **first step: `lsof -iTCP -nP | grep -i proof` — if it binds `0.0.0.0`, add `--host 127.0.0.1` to the `proof-local` invocation and commit it (structural, not a one-time check)**; the loop is "re-publish a fresh doc per round" (agent writes are refused while a browser holds the doc open). **Make plan-review a one-command skill:** a `/plan-review` skill wrapping `proof-local open` + the publish→comment→ingest→re-publish loop, plus a **CLAUDE.md note — when a plan/doc is ready, review it via the local Proof loop** (never the hosted service).
+**Status (done):** Proof runs **on the container** (loopback-bound via the QuantumLove/proof-sdk fork), kept up by a supercronic watchdog; the host reaches it through `proof-local tunnel` (or the `com.rafael.proof-tunnel` LaunchAgent). Driven by the **`/plan-review`** skill (publish → annotate → ingest → re-publish per round, since agent writes are refused while a browser holds the doc). Guardrail: a `deny` rule blocks `proofeditor.ai` + a CLAUDE.md "local only" note. Full setup in manual-setup.md §6.
 
 ### U9. Practice trainer — speculative, gated on observed need (deferred)
 
 **Goal:** A lightweight recall trainer, **only if** real forgetting is observed. **Goals:** G9.
-**Approach:** Ship U1 without it; use the cheatsheet for a few weeks. **Cheap alternative needing zero discipline:** a "one card on open" — when the localhost app loads, show one not-yet-learned binding. If a full drill is still wanted, first decide three things in one sentence: grade scale (pass/fail vs 3-tier), when the answer is revealed, and what "spaced-repetition-lite" means (next-due timestamp vs. shuffle toward low-confidence).
+**Approach:** Deferred — the U1a "one card on open" hook covers retention for now. If a full drill is later wanted, decide three things first: grade scale (pass/fail vs 3-tier), when the answer is revealed, and what "spaced-repetition-lite" means (next-due vs. shuffle-toward-low-confidence).
 
 ---
 
@@ -286,26 +286,23 @@ Source legend: native unless **[V]** Vimium / **[H]** needs Homerow (deferred). 
 
 ## Resolved Decisions
 
-- **Build order → config-first** (r3): U2→U3→U4→U5→U6→U1; web app documents reality after the bindings exist.
-- **Thumb layout (r4): keep all four V3/V4 layers + Bksp/Del/Enter/Space + Hyper + Wispr.** The **5 free modifier thumbs** (LCtrl, LAlt, LGui, RCtrl, RAlt) cover tmux + Homerow + app-actions (need 3 of 5); **keep LOWER** (sole numpad/media/F-key layer) and avoid `LCtrl`/pos-53 (Ctrl+Tab combo). Placement chosen **by feel at U4** (reversible per KTD13). **Raycast needs no thumb** — `Cmd+Space`.
-- **Cross-device (r4): every action reachable on the MacBook** — Raycast `Cmd+Space`; Raycast Hyper key (Caps Lock) for go-to-app on the laptop; tmux prefix `Ctrl+Space`; firmware thumbs are conveniences (KTD13/G11).
-- **KTD1 corrected (r5):** firmware is the *primary* remap layer (we do edit it); the only host-side remap is Raycast's Caps-Lock→Hyper for MacBook parity. No Karabiner.
-- **Verify-live (r5, KTD14):** implement → test live on the spot (automated where possible, HITL where not) → continue.
-- **Plan-review skill (r5):** wrap the local Proof loop in a `/plan-review` skill + a CLAUDE.md note to use it for plans.
-- **CE review r2 (r6):** keep LOWER (not free — media/numpad/F-keys); avoid pos-53 LCtrl (Ctrl+Tab combo); confirm flashed firmware on-device; Wispr laptop trigger = its own app hotkey; web app gets an open-trigger + "one card on open"; `.chezmoiignore` for `cheatsheet` and `.rayconfig`; Proof binds 127.0.0.1 structurally; AeroSpace test window → ~2 weeks; drop cmdk; guard the `pbpaste` path in `code-remote-open` (`[[ "$path" =~ ^/ ]] || exit 1`).
-- **r7 (U2 underway + clarifications):** profiles = **metr.org** (work) + **Rafael** (personal); **only Gmail is a PWA** (app named "Gmail"), GitHub stays a tab (Chrome tab search `Cmd+Shift+A` + `Cmd+`` ` `` cover multi-tab/window). **Caps-Lock→Hyper dropped** — go-to-app Hyper chords are Glove80-only; the MacBook launches via Raycast `Cmd+Space` + type. `Cmd+Space`=Raycast (Spotlight off) keeps the convenient launcher, just pointed at Raycast — that's the cross-device path. Vimium per-site passthrough is optional/as-needed. Linear installed ✓.
-- **Spotlight → disable the shortcut only** (r3), not indexing.
-- **U9 practice trainer → deferred + speculative** (r3), gated on observed need; "one card on open" as the cheap default.
-- **`.rayconfig` → dropped (r8):** no export; scripts + `raycast-hotkeys.md`/`manual-setup.md` cover reproduction.
-- **Proof guardrail (r8):** a `deny` rule blocks `Bash(*proofeditor.ai*)` + `WebFetch(domain:proofeditor.ai)`, plus a CLAUDE.md "Proof — local only" note. Proof stays local via `proof-local`.
-- **Web app stack → Vite + React + TS + Tailwind**, no Framer Motion yet; localhost only; U1a (tables/checklist/tracker) before U1b (interactive board).
-- **Hyper mapping → pure adjacency** (apps right, window-mgmt left); validate hold-tap latency on-device before locking.
-- **VS Code bridge → parameterized command only.** **Homerow → deferred.** **Proof → local only** via `proof-local`.
+- **Build order: config-first** — U2→U3→U4→U5→U6→U1; the web app documents reality after the bindings exist.
+- **Thumb layout** (full rules in KTD7): keep all four V3/V4 layers + Bksp/Del/Enter/Space + Hyper + Wispr; the 5 free modifier thumbs carry tmux + Raycast (done) and reserve Homerow + app-actions; keep LOWER, avoid `LCtrl`/pos-53; placed by feel.
+- **Cross-device** (KTD13): every action works on the MacBook — Raycast `Cmd+Space`, tmux prefix `Ctrl+Space`. **No Caps-Lock→Hyper remap** — the `Hyper`+letter go-to-app chords are a Glove80-only speed-up.
+- **Firmware is the only remap layer** — no Karabiner.
+- **Verify-live** (KTD14): implement → test on the spot → continue.
+- **Chrome:** two profiles (metr.org work + Rafael personal); only Gmail is a PWA, GitHub stays a tab.
+- **Spotlight:** disable the `Cmd+Space` shortcut only (not indexing); it points at Raycast.
+- **Proof: local only** — runs on the container, reached via `proof-local tunnel`; a `deny` rule blocks `proofeditor.ai`; driven by `/plan-review`.
+- **No `.rayconfig` export** — scripts + `raycast-hotkeys.md`/`manual-setup.md` cover reproduction.
+- **Web app:** Vite + React + TS + Tailwind + Fuse.js, localhost only; U1a (tables/checklist/tracker) before U1b (interactive board).
+- **Hyper mapping: pure adjacency** (apps right, window-mgmt left); validate hold-tap latency on-device first.
+- **Deferred:** Homerow (U7 — buy when gaps bite); practice trainer (U9 — "one card on open" covers retention).
 
 ## Open Questions
 
 - **Q1 — Final Hyper letter grid** — drafted in U3 when hotkeys are recorded; validate hold latency first.
-- **Q2 — App-actions layer contents** — the only thumb question left open: what the app-actions hold-layer does (per-app commands). Defined at U4/later. (Thumb layout itself is resolved: keep all four layers + Bksp/Del/Enter/Space + Hyper + Wispr; the 6 free thumbs reserved for tmux / Homerow / app-actions, placed by feel at U4.)
+- **Q2 — App-actions layer contents** — what the app-actions hold-layer does (per-app commands). Deferred; RCtrl stays a plain modifier until then. Thumb layout otherwise resolved per KTD7.
 
 ## Sources & Research
 

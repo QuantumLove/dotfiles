@@ -10,7 +10,7 @@ On the MacBook (no Hyper key): launch via `Cmd+Space` (Raycast) + type — the H
 
 ## Thumb placement (U4) — tmux + Raycast written to firmware; Homerow/app-actions reserved
 
-**Status:** tmux (RAlt) + Raycast (LGui→`Cmd+Space`) are in the keymap on branch `feat-tmux-thumb` in `~/code/glove80` (building; flash pending). Homerow (LAlt) + app-actions (RCtrl) stay as their modifiers for now — wired when those features exist. The map below is the target.
+**Status:** tmux (RAlt) + Raycast (LGui→`Cmd+Space`) are flashed (glove80 V6). Homerow (LAlt) + app-actions (RCtrl) stay as their modifiers until those features exist.
 
 ```
                    LEFT THUMBS                                  RIGHT THUMBS
@@ -23,7 +23,7 @@ On the MacBook (no Hyper key): launch via `Cmd+Space` (Raycast) + type — the H
          │CURSOR │NUMBER │→HOMROW│                  │→TMUX  │ MOUSE │SYMBOL │
          └───────┴───────┴───────┘                  └───────┴───────┴───────┘
 
-   keep = unchanged   →WORD = recommended new function   spare = leave (Ctrl+Tab combo)
+   keep = unchanged   →NAME = repurposed thumb   spare = leave (Ctrl+Tab combo)
 ```
 
 - **TMUX** → right lower-inner (RAlt): tap = prefix `Ctrl+Space`, hold = tmux layer. Sits with the terminal thumbs.
@@ -36,7 +36,7 @@ On the MacBook (no Hyper key): launch via `Cmd+Space` (Raycast) + type — the H
 | Chord | Action |
 |------|--------|
 | `Cmd+Space` | **Raycast** (Spotlight shortcut disabled; convenience kept, points at Raycast) — universal, works on the MacBook too |
-| Glove80 Raycast thumb (free thumb #7/#8, set at U4) | emits `Cmd+Space` → one-tap Raycast on the board |
+| Glove80 Raycast thumb (RH upper-inner, was LGui) | emits `Cmd+Space` → one-tap Raycast on the board |
 
 ## Go-to-app — `Hyper` + right hand (focus-or-open) — AS RECORDED
 Layout logic: **top row (U/I/O) = comms**, **middle row (J/K/L) = daily drivers**.
