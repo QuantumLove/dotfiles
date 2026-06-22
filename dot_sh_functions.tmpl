@@ -152,8 +152,7 @@ metr-deploy() {
 {{- end }}
 
 # Copies $PWD to the Mac clipboard via OSC52 over SSH+tmux, so the Raycast "Open in
-# VS Code" command (blank arg = clipboard) can open the remote folder locally. Used
-# from inside the Linux container, so it must render on all OSes (not macOS-gated).
+# VS Code" command (blank arg = clipboard) can open the remote folder locally.
 cpwd() {
     local p; p="$(pwd -P)"
     printf '\033]52;c;%s\007' "$(printf '%s' "$p" | base64 | tr -d '\n')"

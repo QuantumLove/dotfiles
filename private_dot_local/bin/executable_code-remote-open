@@ -10,4 +10,10 @@ path="${2:?usage: code-remote-open <ssh-host> <absolute-path>}"
 # Only accept absolute paths — prevents a stray clipboard value injecting into the URL.
 [[ "$path" == /* ]] || { echo "path must be absolute: $path" >&2; exit 1; }
 
-open "vscode://vscode-remote/ssh-remote+${host}${path}"
+# Raycast invokes this with a minimal PATH; add Homebrew so jq is found.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+# Percent-encode each path segment (keeping '/') so a space / # / ? / % in a cwd can't
+# corrupt the URI while the remote path itself stays intact.
+enc=$(jq -rn --arg p "$path" '$p | split("/") | map(@uri) | join("/")')
+open "vscode://vscode-remote/ssh-remote+${host}${enc}"

@@ -23,30 +23,33 @@ mkdir -p "$STATE_DIR"
 
 _api_up() { curl -fsS "$API/health" >/dev/null 2>&1; }
 _editor_up() { curl -fsS "$EDITOR_BASE/" >/dev/null 2>&1; }
+# True the moment something is listening on the port — flips before the app is fully
+# healthy, so the every-minute watchdog can't double-spawn over a slow boot in progress.
+_port_open() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
 start() {
   [ -d "$PROOF_DIR" ] || { echo "proof-sdk not found at $PROOF_DIR (set PROOF_SDK_DIR)" >&2; exit 1; }
-  if _api_up; then
-    echo "API already up on :4000"
+  if _port_open 4000; then
+    echo "API already on :4000"
   else
-    # HOST=127.0.0.1 keeps the API on loopback. proof-sdk's server.listen() binds
-    # all interfaces by default, which would expose local docs on shared WiFi.
+    # Pin the API to loopback explicitly (the fork's server.listen already defaults to
+    # 127.0.0.1) so docs never leak on shared WiFi, even if that default ever changes.
     ( cd "$PROOF_DIR" && HOST=127.0.0.1 PORT=4000 COLLAB_EMBEDDED_WS=1 VITE_ENABLE_TELEMETRY=false nohup npm run serve >"$STATE_DIR/server.log" 2>&1 & echo $! >"$STATE_DIR/server.pid" )
     echo "starting API (:4000)…"
   fi
-  if _editor_up; then
-    echo "editor already up on :3000"
+  if _port_open 3000; then
+    echo "editor already on :3000"
   else
-    # --host 127.0.0.1 pins vite to IPv4 loopback (it defaults to [::1]); keeps it
-    # consistent with the API and reachable through `proof-local tunnel` (-L …:127.0.0.1).
+    # --host 127.0.0.1 pins vite to IPv4 loopback (it defaults to [::1]) so it matches
+    # the API and is reachable through `proof-local tunnel` (-L …:127.0.0.1).
     ( cd "$PROOF_DIR" && VITE_ENABLE_TELEMETRY=false nohup npm run dev -- --host 127.0.0.1 >"$STATE_DIR/editor.log" 2>&1 & echo $! >"$STATE_DIR/editor.pid" )
     echo "starting editor (:3000)…"
   fi
-  for _ in $(seq 1 40); do _api_up && break; sleep 0.5; done
-  if _api_up; then
+  for _ in $(seq 1 40); do _api_up && _editor_up && break; sleep 0.5; done
+  if _api_up && _editor_up; then
     echo "Proof is up — API $API · editor $EDITOR_BASE"
   else
-    echo "API did not come up; see $STATE_DIR/server.log" >&2; exit 1
+    echo "Proof did not fully come up; see $STATE_DIR/server.log and editor.log" >&2; exit 1
   fi
 }
 
@@ -60,7 +63,7 @@ open_doc() {
     | curl -fsS -X POST "$API/documents" -H "Content-Type: application/json" -d @-)
   slug=$(printf '%s' "$resp" | jq -r '.slug')
   token=$(printf '%s' "$resp" | jq -r '.accessToken')
-  [ -n "$slug" ] && [ "$slug" != "null" ] || { echo "create failed: $resp" >&2; exit 1; }
+  { [ -n "$slug" ] && [ "$slug" != "null" ] && [ -n "$token" ] && [ "$token" != "null" ]; } || { echo "create failed: $resp" >&2; exit 1; }
   url="$EDITOR_BASE/d/$slug?token=$token"
   echo "$url"
   command -v open >/dev/null 2>&1 && open "$url" >/dev/null 2>&1 || true
@@ -75,8 +78,9 @@ stop() {
     pids=$(lsof -ti tcp:"$port" 2>/dev/null || true)
     [ -n "$pids" ] && kill $pids 2>/dev/null || true
   done
-  # lsof is blind inside the container; pkill the node procs by their proof-sdk path.
-  pkill -f "$PROOF_DIR/node_modules" 2>/dev/null || true
+  # lsof is blind inside the container; pkill the two server procs by their entrypoints
+  # (scoped to .bin/tsx|vite so an editor/LSP opened from proof-sdk isn't caught).
+  pkill -f "$PROOF_DIR/node_modules/.bin/(tsx|vite)" 2>/dev/null || true
   rm -f "$STATE_DIR"/*.pid
   echo "Proof stopped (freed :4000 and :3000)."
 }
@@ -91,7 +95,8 @@ status() {
 tunnel() {
   local host="${PROOF_TUNNEL_HOST:-raf-dev}"
   echo "Proof tunnel → $host : localhost:3000 (editor) + :4000 (API). Ctrl+C to stop."
-  exec ssh -N -L 3000:127.0.0.1:3000 -L 4000:127.0.0.1:4000 "$host"
+  exec ssh -N -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ExitOnForwardFailure=yes \
+    -L 3000:127.0.0.1:3000 -L 4000:127.0.0.1:4000 "$host"
 }
 
 # Idempotent watchdog target (run by supercronic): start Proof only if it isn't up.

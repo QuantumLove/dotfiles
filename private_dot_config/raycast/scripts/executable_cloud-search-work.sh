@@ -18,7 +18,7 @@ BASE_URL="https://cloudsearch.google.com/cloudsearch/search"
 PROFILE_NAME="metr.org"
 LOCAL_STATE="$HOME/Library/Application Support/Google/Chrome/Local State"
 PROFILE="$(jq -r --arg n "$PROFILE_NAME" '.profile.info_cache | to_entries[] | select(.value.name==$n) | .key' "$LOCAL_STATE" 2>/dev/null | head -n1)"
-PROFILE="${PROFILE:-Default}"
+[ -z "$PROFILE" ] && { echo "Chrome profile '$PROFILE_NAME' not found; falling back to Default" >&2; PROFILE="Default"; }
 
 URL="$BASE_URL"
 [[ -n "$1" ]] && URL="${BASE_URL}?q=$1"
