@@ -413,10 +413,6 @@ chezmoi apply
 cd ~/.local/share/chezmoi && git add -A && git commit -m "feat: add my-skill"
 ```
 
-## Proof — Local Only (never the hosted service)
+## Proof — local only
 
-Proof (collaborative doc/plan review) runs **only** on the self-hosted local instance, started via the `proof-local` helper (`localhost:4000` API / `:3000` editor, local SQLite, telemetry off).
-
-- **Never** send documents to `proofeditor.ai` / Proof AI / any hosted Proof endpoint — that's data exfiltration. A `deny` rule in settings blocks `proofeditor.ai`; the memory `never-publish-docs-externally` records why.
-- For plan/doc review use the local loop: `proof-local open <file.md>` → review in the browser → ingest comments from `localhost`.
-- Publishing to my **own private git remote** (e.g. `QuantumLove/dotfiles`) is fine and expected; only third-party SaaS doc tools are off-limits.
+Plan/doc review runs **only** on self-hosted Proof: it lives on the container (reach it from the host with `proof-local tunnel`), driven by the **`/plan-review <file.md>`** skill. **Never** use the hosted `proofeditor.ai` — a `deny` rule blocks it (the installed `ce-proof` skill defaults to it). Own private git remotes are fine; only third-party SaaS doc tools are off-limits.
