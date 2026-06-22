@@ -1,0 +1,39 @@
+#!/bin/bash
+# PreToolUse hook: re-allows `git push` in the chezmoi dotfiles repo, overriding
+# the global deny on `git push origin main`/`master`. Per CLAUDE.md, direct
+# pushes to main are expected there. Every other repo falls through to the deny.
+#
+# A PreToolUse permissionDecision of "allow" bypasses the permission rules, so
+# this is the only way to scope the deny per-repo (rule patterns can't see cwd).
+# Force-pushes are never re-allowed — they fall through to their own deny rule,
+# which stays the fail-safe if this hook ever misfires.
+set -euo pipefail
+
+HOOK_NAME="allow-chezmoi-push"
+source "$HOME/.claude/hooks/hook-lib.sh"
+
+payload="$(cat)"
+[ "$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null || echo "")" = "Bash" ] || exit 0
+
+cmd="$(jq -r '.tool_input.command // ""' <<<"$payload" 2>/dev/null || echo "")"
+case "$cmd" in
+    *"git push"*) ;;
+    *) exit 0 ;;
+esac
+case "$cmd" in
+    *--force*|*--force-with-lease*|*" -f"*) exit 0 ;;
+esac
+
+cwd="$(jq -r '.cwd // ""' <<<"$payload" 2>/dev/null || echo "")"
+[ -n "$cwd" ] || cwd="$PWD"
+repo_root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || echo "")"
+
+case "$repo_root" in
+    "$HOME/.local/share/chezmoi"|"$HOME/.local/share/chezmoi"/*)
+        hook_log "allowing push in chezmoi: $cmd"
+        printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"chezmoi dotfiles repo: pushes to main are expected per CLAUDE.md"}}'
+        exit 0
+        ;;
+esac
+
+exit 0
