@@ -42,9 +42,11 @@ Current worktrees (for the reuse check below):
    Then `/cd <abs-path-of-worktree>` to move the session in.
 5. **Default: report and STOP.** Print the worktree path, branch, and linked issue, confirm you've
    cd'd in (or print the `/cd` line for the user), and stop. The user continues from inside the worktree.
-6. **`--go` only:** after the cd, do the work end-to-end and stop at a **draft, self-assigned PR**
-   (implement, verify, commit on the feature branch, push, open the draft PR with `--assignee @me`).
-   Never merge. If you lack context or hit a real decision point, stop and ask.
+6. **`--go` only:** after the cd, do the work end-to-end (implement, verify, commit on the feature
+   branch, push), then **open the PR by running the `/pr-create` command** — do not hand-roll
+   `gh pr create`. `/pr-create` is the single source of truth and opens a **draft, self-assigned**
+   PR by default (it runs `gh pr create … --assignee @me ${READY:---draft}`). Never merge. If you
+   lack context or hit a real decision point, stop and ask.
 
 ## Hard rules
 
