@@ -354,7 +354,10 @@ fi
 
 # 12. Verify mise tools (already pre-installed in image)
 # Note: mise activation is handled by chezmoi-managed .bash_profile
+# Regenerate shims before doctor: a missing shim (e.g. jp.py) makes doctor
+# fail. reshim runs under `set -e`, so a genuine reshim failure still aborts.
 echo "Verifying mise tools..."
+mise reshim
 if ! mise doctor; then
   echo "ERROR: mise doctor failed - tools may not work correctly"
   exit 1
