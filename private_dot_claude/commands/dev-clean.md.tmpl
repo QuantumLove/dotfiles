@@ -1,25 +1,37 @@
 ---
 name: dev-clean
-description: Clean up merged/stale git worktrees across all repos
+description: Clean up merged/stale git worktrees and orphaned Docker/buildx state across all repos
 permissions:
   - Bash(git worktree *)
   - Bash(git branch *)
   - Bash(find *)
+  - Bash(docker volume *)
+  - Bash(docker buildx *)
+  - Bash(docker builder *)
+  - Bash(docker image *)
+  - Bash(docker system df*)
+  - Bash(docker info*)
 ---
 
-# Dev Clean - Clean Up Worktrees
+# Dev Clean - Clean Up Worktrees + Docker
 
-Remove merged or stale git worktrees across all repos under your code root. Location-agnostic — it
-operates on whatever `git worktree list` reports, so it cleans up worktrees wherever they live
-(including the `.worktrees/<name>` layout that `/setup-work` and superpowers `using-git-worktrees`
-create). Pairs with `/dev-list`.
+Remove merged or stale git worktrees across all repos under your code root, then reclaim orphaned
+Docker/buildx storage. Location-agnostic — it operates on whatever `git worktree list` reports, so it
+cleans up worktrees wherever they live (including the `.worktrees/<name>` layout that `/setup-work`
+and superpowers `using-git-worktrees` create). Pairs with `/dev-list`.
+
+The Docker pass targets the two things that silently eat tens of GB: **orphaned buildx builder state
+volumes** (`buildx_buildkit_*_state` left behind when a builder is removed/recreated — 0-link volumes
+that can grow to 40+ GB each and, when the disk fills, crash the Docker/OrbStack engine) and dangling
+build cache + images.
 
 ## Usage
 
 ```bash
-/dev-clean              # Interactive cleanup
+/dev-clean              # Interactive cleanup (worktrees + docker)
 /dev-clean --merged     # Only remove worktrees whose branches are merged
-/dev-clean --dry-run    # Show what would be removed
+/dev-clean --dry-run    # Show what would be removed (nothing deleted)
+/dev-clean --no-docker  # Worktrees only, skip the Docker pass
 
 # Scan a different root (default: ~/code)
 DEV_CODE_DIR=~/work /dev-clean
@@ -34,11 +46,13 @@ set -euo pipefail
 CODE_DIR="${DEV_CODE_DIR:-$HOME/code}"
 DRY_RUN=false
 MERGED_ONLY=false
+DO_DOCKER=true
 
 for arg in "$@"; do
   case $arg in
     --dry-run) DRY_RUN=true ;;
     --merged) MERGED_ONLY=true ;;
+    --no-docker) DO_DOCKER=false ;;
   esac
 done
 
@@ -108,12 +122,72 @@ find "$CODE_DIR" -maxdepth 3 -name ".git" -type d 2>/dev/null | while read gitdi
   done
 done
 
+# ── Docker / buildx: orphaned builder volumes + dangling cache/images ──
+if [[ "$DO_DOCKER" == "true" ]] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "🐳 Docker / buildx cleanup"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  # Orphaned buildx state volumes: buildx_buildkit_<builder>N_state with no
+  # matching builder in `docker buildx ls`. Left behind by removed builders;
+  # not in use, safe to delete. (case-match avoids grep tripping set -e.)
+  active=$(docker buildx ls 2>/dev/null | awk 'NR>1{gsub(/\*/,"",$1); if($1!="")print $1}')
+  for vol in $(docker volume ls -q 2>/dev/null); do
+    case "$vol" in
+      buildx_buildkit_*_state) : ;;
+      *) continue ;;
+    esac
+    b=$(echo "$vol" | sed -E 's/^buildx_buildkit_(.*)[0-9]+_state$/\1/')
+    if printf '%s\n' "$active" | grep -qx "$b"; then continue; fi   # live builder
+    echo "🧱 orphaned buildx volume: $vol"
+    if [[ "$DRY_RUN" == "true" ]]; then
+      echo "   Would remove: docker volume rm $vol"
+    else
+      read -p "   Remove? (yes/no): " c
+      [[ "$c" == "yes" ]] && docker volume rm "$vol" >/dev/null && echo "   ✅ Removed"
+    fi
+  done
+
+  # Dangling build cache + images (never touches tagged images or live cache).
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "Would run: docker builder prune -f && docker image prune -f"
+    docker system df
+  else
+    read -p "Prune dangling build cache + images? (yes/no): " c
+    if [[ "$c" == "yes" ]]; then docker builder prune -f; docker image prune -f; fi
+  fi
+fi
+
+# ── Safe caches: each tool's own pruner, so anything in use is skipped ──
+# Only regenerable caches here. uv's cache can be locked by running `uvx`
+# MCP servers — `uv cache prune` removes only stale entries and no-ops on
+# what's in use, so it never breaks a live process (unlike `uv cache clean`).
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🧽 Safe cache prune"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+run_cache() {  # name, command...
+  local name=$1; shift
+  command -v "$1" >/dev/null 2>&1 || return 0
+  if [[ "$DRY_RUN" == "true" ]]; then echo "Would run ($name): $*"; else
+    read -p "Prune $name cache? (yes/no): " c
+    [[ "$c" == "yes" ]] && { echo "→ $*"; "$@" || echo "   (skipped/in-use)"; }
+  fi
+}
+run_cache uv       uv cache prune
+run_cache homebrew brew cleanup -s
+run_cache yarn     yarn cache clean
+run_cache pip      pip cache purge
+run_cache npm      npm cache clean --force
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Done!"
 ```
 
 ## Safety
 
-- Never removes worktrees with uncommitted changes
-- Always confirms before removing (unless --dry-run)
-- Use --merged to only clean up branches already merged to main
+- **Never deletes anything in use.** Worktrees with uncommitted changes are skipped; buildx volumes are
+  removed only when no live builder claims them; caches go through each tool's own pruner, which no-ops
+  on in-use entries (e.g. `uv cache prune`, not `clean`, so running `uvx` MCP servers keep working).
+- Always confirms before removing (unless `--dry-run`, which deletes nothing).
+- `--merged` restricts worktrees to branches already merged to the default branch.
+- Everything the cache pass removes is regenerable (re-downloaded/rebuilt on next use).
