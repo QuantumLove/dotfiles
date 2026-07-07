@@ -1,8 +1,8 @@
 [tools]
-node = "22.22.3"
+node = "24.18.0"
 bun = "latest"
 "npm:pnpm" = "latest"
-python = "3.12"
+python = "3.13"
 go = "latest"
 age = "latest"
 sops = "latest"
@@ -14,7 +14,9 @@ tflint = "latest"
 "asdf:asdf-community/asdf-uv" = "latest"
 "asdf:looztra/asdf-k9s" = "latest"
 "asdf:MetricMike/asdf-awscli" = "latest"
-"github:sjawhar/time-tracker" = { version = "latest", exe = "tt" }
+# matching=musl: the repo also ships a `tt-watcher` GUI build (needs libxkbcommon);
+# without this filter mise picks that instead of the headless `tt` CLI.
+"github:sjawhar/time-tracker" = { version = "latest", exe = "tt", matching = "musl" }
 # NB: opencode-ai, @anthropic-ai/claude-code, oh-my-openagent, @googleworkspace/cli,
 # yarn are installed via npm-global in the Dockerfile rather than here, because
 # mise's npm backend doesn't run postinstall scripts (needed for platform binaries).

@@ -56,13 +56,14 @@ font_size = 15.0
 notebook_font_size = 14.0
 
 [appearance.window]
-zoom_level = 90
+zoom_level = 80
 
 [appearance.full_screen_apps]
 alt_screen_padding = { custom = { uniform_padding = 0.0 } }
 
 [appearance.themes]
 theme = "dark"
+system_theme = false
 
 [agents]
 cloud_conversation_storage_enabled = true
@@ -72,10 +73,18 @@ agent_mode_coding_permissions = "always_allow_reading"
 agent_mode_execute_readonly_commands = true
 
 [agents.warp_agent]
+is_any_ai_enabled = false
 
 [agents.warp_agent.input]
 nld_in_terminal_enabled = true
 ai_auto_detection_enabled = true
+
+[agents.warp_agent.other]
+show_agent_notifications = true
+show_conversation_history = false
+
+[agents.third_party]
+should_render_cli_agent_toolbar = true
 
 [terminal]
 osc52_clipboard_access = "read_write"
@@ -92,4 +101,14 @@ right_alt = false
 [warpify.ssh]
 ssh_extension_install_mode = "always_install"
 use_ssh_tmux_wrapper = false
+
+[code]
+
+[code.editor]
+show_code_review_button = false
+show_project_explorer = true
+show_global_search = false
+
+[warp_drive]
+enabled = false
 {{- end }}

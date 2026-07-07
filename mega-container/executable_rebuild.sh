@@ -41,12 +41,27 @@ echo
 echo "Recreating container..."
 docker compose up -d --force-recreate
 
-# 4. Wait for bootstrap (entrypoint prints "=== Bootstrap Complete ===")
+# 4. Wait for bootstrap (entrypoint prints "=== Bootstrap Complete ===").
+# On first boot the entrypoint blocks on an interactive Tailscale login — surface that
+# URL prominently and keep waiting (up to 10 min) so mega-doctor doesn't run prematurely.
 echo
 echo "Waiting for container bootstrap..."
-for _ in $(seq 1 90); do
-  if docker compose logs mega 2>/dev/null | grep -q "=== Bootstrap Complete ==="; then
+auth_shown=false
+for _ in $(seq 1 300); do
+  logs=$(docker compose logs mega 2>/dev/null)
+  if echo "$logs" | grep -q "=== Bootstrap Complete ==="; then
     break
+  fi
+  if [ "$auth_shown" = false ]; then
+    url=$(echo "$logs" | grep -oE 'https://login\.tailscale\.com/[A-Za-z0-9/]+' | tail -1)
+    if [ -n "$url" ]; then
+      echo ""
+      echo "🔑 First-boot Tailscale login required — open this URL to authenticate:"
+      echo "   $url"
+      echo "   Bootstrap continues automatically once you're connected."
+      echo ""
+      auth_shown=true
+    fi
   fi
   sleep 2
 done

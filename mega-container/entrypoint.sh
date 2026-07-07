@@ -19,21 +19,22 @@ for i in {1..10}; do
   sleep 1
 done
 
-# Check if already authenticated or needs login
-if tailscale status &>/dev/null; then
-  TS_STATUS=$(tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"')
-  if [ "$TS_STATUS" = "Running" ]; then
-    echo "✓ Tailscale connected"
-    tailscale status | head -5
-  else
-    echo "⚠️  Tailscale not authenticated. Run one-time setup:"
-    echo "   docker exec -it mega-container-mega-1 tailscale up --ssh --hostname=raf-dev --accept-routes"
-    echo ""
-    echo "   Then follow the login URL and authenticate."
-    echo "   After that, Tailscale will persist across restarts."
-  fi
+# Authenticate if needed. Interactive login persists in the tailscale-state volume,
+# so this only runs on first boot (fresh volume). We log in and BLOCK here rather
+# than continue unauthenticated — the container must come up fully healthy, never
+# in a degraded state. `tailscale up` prints an auth URL to the logs and waits until
+# the login completes, after which bootstrap continues on its own.
+if [ "$(tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"')" = "Running" ]; then
+  echo "✓ Tailscale connected"
+  tailscale status | head -5
 else
-  echo "⚠️  Tailscale daemon not responding. Check logs with: docker logs mega-container-mega-1"
+  echo "──────────────────────────────────────────────────────────────────────"
+  echo "  Tailscale needs a one-time login. Open the URL printed below and"
+  echo "  authenticate — bootstrap continues automatically once connected."
+  echo "  (Identity persists in the tailscale-state volume; first boot only.)"
+  echo "──────────────────────────────────────────────────────────────────────"
+  sudo tailscale up --ssh --hostname=raf-dev --accept-routes
+  echo "✓ Tailscale connected"
 fi
 
 # 2. Fix user-owned volume permissions (Docker creates named volumes as root)
@@ -45,7 +46,7 @@ USER_VOLUMES=(
 for vol_dir in "${USER_VOLUMES[@]}"; do
   if [ -d "$vol_dir" ] && [ "$(stat -c '%U' "$vol_dir" 2>/dev/null)" = "root" ]; then
     echo "Fixing $vol_dir permissions..."
-    sudo chown -R "$USER:$USER" "$vol_dir"
+    sudo chown -R "$(id -un):$(id -gn)" "$vol_dir"
   fi
 done
 echo "✓ Volume permissions ready"
