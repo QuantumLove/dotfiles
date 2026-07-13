@@ -10,3 +10,24 @@
 
 [push]
 	autoSetupRemote = true
+
+# --- Commit signing (SSH, via the 1Password SSH agent) ---------------------
+# Signs every commit/tag with the "Base key" ed25519 key. The private half never
+# leaves 1Password; git signs through the agent (SSH_AUTH_SOCK), so this works
+# identically on the macOS host and inside the mega-container. The public key is
+# registered on GitHub as a *signing* key, which is what makes commits show as
+# "Verified". allowedSignersFile lets `git log --show-signature` verify locally.
+[gpg]
+	format = ssh
+
+[user]
+	signingkey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGv+Lz/wLKB1r8mbjMeE/L081ftbI7P5w534FrhSnUkv"
+
+[commit]
+	gpgsign = true
+
+[tag]
+	gpgsign = true
+
+[gpg "ssh"]
+	allowedSignersFile = ~/.ssh/allowed_signers
