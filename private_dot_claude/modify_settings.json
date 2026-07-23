@@ -178,6 +178,11 @@ desired="$(cat <<'JSON'
         "hooks": [
           {
             "type": "command",
+            "command": "$HOME/.claude/hooks/guard-no-main-checkout.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/allow-chezmoi-push.sh",
             "if": "Bash(git push*)",
             "timeout": 5
