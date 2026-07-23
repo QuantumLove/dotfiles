@@ -1,0 +1,38 @@
+#!/bin/bash
+# PreToolUse hook: blocks `git checkout`/`git switch` that would move the
+# PRIMARY (main) checkout off main. The main checkout must always stay on main;
+# feature work belongs in a linked worktree (see /setup-work). File-restore
+# forms (`git checkout -- <path>`, `git checkout .`) and linked worktrees are
+# allowed, as are the allowlisted personal repos (chezmoi, QuantumLove/glove80).
+#
+# Thin adapter: all logic lives in ~/.local/bin/git-main-guard (shared with the
+# opencode guard-main plugin). Bypass for one session: CLAUDE_ALLOW_MAIN_EDITS=1
+
+set -euo pipefail
+
+HOOK_NAME="guard-no-main-checkout"
+source "$HOME/.claude/hooks/hook-lib.sh"
+
+payload="$(cat)"
+tool_name="$(jq -r '.tool_name // ""' <<<"$payload" 2>/dev/null || echo "")"
+if [ "$tool_name" != "Bash" ]; then
+    exit 0
+fi
+
+command="$(jq -r '.tool_input.command // ""' <<<"$payload" 2>/dev/null || echo "")"
+if [ -z "$command" ] || [ "$command" = "null" ]; then
+    exit 0
+fi
+
+# Prefer an explicit per-command workdir (bash tool arg) over the session cwd.
+cwd="$(jq -r '.tool_input.workdir // .cwd // ""' <<<"$payload" 2>/dev/null || echo "")"
+[ -n "$cwd" ] || cwd="$PWD"
+hook_log "cwd=$cwd cmd=$command"
+
+guard="$HOME/.local/bin/git-main-guard"
+if [ ! -x "$guard" ]; then
+    hook_log "core guard not installed at $guard — allowing (run chezmoi apply)"
+    exit 0
+fi
+
+exec "$guard" checkout --command "$command" --cwd "$cwd"

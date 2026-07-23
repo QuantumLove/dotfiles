@@ -1,0 +1,249 @@
+#!/usr/bin/env bash
+# git-main-guard — enforce two invariants for AI agents (and humans):
+#
+#   1. The PRIMARY worktree stays on main. Never edit files there (it must stay
+#      pristine), and never switch it off main. Feature work goes in a linked
+#      worktree (see /setup-work).
+#   2. Scratch / gitignored paths (e.g. .omo/ plans, drafts, evidence) are
+#      always writable, even in the main checkout — they never enter a commit.
+#
+# Shared core called by both the Claude Code hooks (guard-no-main-edits.sh,
+# guard-no-main-checkout.sh) and the opencode claude-code-hooks bridge, so the
+# git logic lives in exactly one place.
+#
+# Usage:
+#   git-main-guard edit     --path <file>
+#   git-main-guard checkout --command <cmd> [--cwd <dir>]
+#
+# Exit 0 = allow (silent).  Exit 2 = block (human-readable reason on stderr).
+#
+# Session bypass:  export ALLOW_MAIN_EDITS=1   (CLAUDE_ALLOW_MAIN_EDITS=1 also honored)
+#
+# Known scope (by design, not bugs): file protection covers the Edit/Write
+# tools, not arbitrary shell writes (sed -i, redirection). The checkout guard
+# is best-effort string analysis of common forms; it does not chase deliberate
+# evasion (git -C <other>, GIT_DIR=, subshells). It is a guardrail against
+# accidental agent behavior, not a security boundary.
+
+set -uo pipefail
+
+# Personal repos where committing straight to main is expected. Matched by the
+# origin remote's owner/repo slug (case-insensitive), so it works regardless of
+# clone path or remote URL form.
+ALLOW_REMOTES=(
+    "QuantumLove/dotfiles"
+    "QuantumLove/glove80"
+)
+
+MODE="${1:-}"
+shift || true
+
+PATH_ARG=""
+CMD_ARG=""
+CWD_ARG="$PWD"
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --path)    PATH_ARG="${2:-}"; shift 2 || shift ;;
+        --command) CMD_ARG="${2:-}";  shift 2 || shift ;;
+        --cwd)     CWD_ARG="${2:-}";  shift 2 || shift ;;
+        *)         shift ;;
+    esac
+done
+
+# Session-level bypass.
+if [ "${ALLOW_MAIN_EDITS:-}" = "1" ] || [ "${CLAUDE_ALLOW_MAIN_EDITS:-}" = "1" ]; then
+    exit 0
+fi
+
+# --- helpers ----------------------------------------------------------------
+
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+# Canonicalize an existing directory to an absolute, symlink-resolved path.
+abspath_dir() { # <dir>
+    ( cd "$1" 2>/dev/null && pwd -P ) || printf '%s' "$1"
+}
+
+normalize_remote() { # <url> -> owner/repo (lowercased); host-agnostic
+    local url="$1" owner repo rest
+    url="${url%.git}"
+    url="${url%/}"
+    repo="${url##*/}"          # last path segment
+    rest="${url%/*}"           # everything before the last '/'
+    owner="${rest##*[:/]}"     # segment after the last ':' or '/'
+    lower "$owner/$repo"
+}
+
+repo_is_allowlisted() { # <repo_root>
+    local root="$1"
+    case "$root" in
+        "$HOME/.local/share/chezmoi"|"$HOME/.local/share/chezmoi"/*) return 0 ;;
+    esac
+    local url slug a
+    url="$(git -C "$root" remote get-url origin 2>/dev/null || echo "")"
+    [ -z "$url" ] && return 1
+    slug="$(normalize_remote "$url")"
+    for a in "${ALLOW_REMOTES[@]}"; do
+        [ "$slug" = "$(lower "$a")" ] && return 0
+    done
+    return 1
+}
+
+is_primary_worktree() { # <dir> — true iff dir belongs to the main checkout
+    # --absolute-git-dir (git 2.13+) avoids the git-2.31-only --path-format flag.
+    local gd cd_
+    gd="$(git -C "$1" rev-parse --absolute-git-dir 2>/dev/null || echo "")"
+    cd_="$(git -C "$1" rev-parse --git-common-dir 2>/dev/null || echo "")"
+    [ -n "$gd" ] && [ -n "$cd_" ] || return 1
+    case "$cd_" in /*) ;; *) cd_="$1/$cd_" ;; esac   # common-dir may be relative
+    [ "$(abspath_dir "$gd")" = "$(abspath_dir "$cd_")" ]
+}
+
+current_branch() { # <dir> — empty on detached HEAD; portable (no --show-current)
+    git -C "$1" symbolic-ref --short -q HEAD 2>/dev/null || echo ""
+}
+
+# Does a `git checkout`/`git switch` command move HEAD (branch/ref switch) as
+# opposed to restoring files (`git checkout -- <path>`, `git checkout .`)?
+# Scans EVERY git invocation in the command (compound `a && b`), returning 0 if
+# any one moves HEAD.
+command_moves_head() { # <command> <repo_root>
+    local cmd="$1" root="$2"
+    local -a toks
+    read -ra toks <<<"$cmd"
+    local n=${#toks[@]} i j
+
+    for ((i = 0; i < n; i++)); do
+        [ "${toks[i]}" = "git" ] || continue
+
+        # Find this invocation's subcommand, skipping global options.
+        local verb="" gi=-1
+        j=$((i + 1))
+        while [ $j -lt $n ]; do
+            case "${toks[j]}" in
+                -C|-c|--git-dir|--work-tree|--namespace|--super-prefix|--config-env)
+                    j=$((j + 2)); continue ;;                    # space-form opt + value
+                --git-dir=*|--work-tree=*|--namespace=*|-*)
+                    j=$((j + 1)); continue ;;                    # attached-value / other opts
+                checkout|switch) verb="${toks[j]}"; gi=$j; break ;;
+                *) break ;;                                      # a different subcommand
+            esac
+        done
+        [ -n "$verb" ] || continue
+
+        # switch always moves HEAD (there is no file-restore form).
+        [ "$verb" = "switch" ] && return 0
+
+        # checkout: inspect args up to the next shell separator.
+        local -a positional=()
+        local k has_ddash=0
+        for ((k = gi + 1; k < n; k++)); do
+            case "${toks[k]}" in
+                "&&"|"||"|";"|"|"|"&") break ;;                  # end of this invocation
+                --) has_ddash=1; break ;;
+                -b|-B|--detach|--orphan) return 0 ;;             # creates/detaches -> moves HEAD
+                -) return 0 ;;                                   # `checkout -` -> previous branch
+                -*) ;;                                           # other flags: ignore
+                *) positional+=("${toks[k]}") ;;
+            esac
+        done
+
+        [ $has_ddash -eq 1 ] && continue                        # `checkout -- <path>` -> restore
+        [ ${#positional[@]} -eq 0 ] && continue                 # bare `checkout` -> no move
+
+        # If any positional resolves to a ref, this invocation switches HEAD.
+        local a
+        for a in "${positional[@]}"; do
+            if git -C "$root" rev-parse --verify --quiet "${a}^{commit}" >/dev/null 2>&1; then
+                return 0
+            fi
+        done
+        # positional args are paths (restore) -> safe; keep scanning other invocations
+    done
+    return 1
+}
+
+# --- modes ------------------------------------------------------------------
+
+case "$MODE" in
+    edit)
+        { [ -z "$PATH_ARG" ] || [ "$PATH_ARG" = "null" ]; } && exit 0
+
+        # Resolve the repo from the nearest EXISTING ancestor dir, so a new file
+        # in a not-yet-created subdir still resolves its repo (no fail-open gap).
+        dir="$(dirname "$PATH_ARG")"
+        while [ -n "$dir" ] && [ "$dir" != "/" ] && [ ! -d "$dir" ]; do
+            dir="$(dirname "$dir")"
+        done
+        [ -d "$dir" ] || dir="."
+        root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || echo "")"
+        [ -z "$root" ] && exit 0                       # not in a git repo -> allow
+        repo_is_allowlisted "$root" && exit 0
+
+        # (A) scratch / gitignored paths are always writable — never committed.
+        case "$PATH_ARG" in
+            */.omo/*|*/.omo|.omo/*|.omo) exit 0 ;;
+        esac
+        if git -C "$root" check-ignore -q "$PATH_ARG" 2>/dev/null; then
+            exit 0
+        fi
+
+        # (B) block edits to non-ignored files in the PRIMARY worktree, whatever
+        #     branch it is on (a feature branch there is itself the bug).
+        if is_primary_worktree "$root"; then
+            br="$(current_branch "$root")"
+            cat >&2 <<EOF
+Blocked: refusing to edit files in the primary (main) checkout.
+  Repo:   $root
+  File:   $PATH_ARG
+  Branch: ${br:-<detached>}
+
+The primary checkout must stay on main and stay clean. Use a worktree:
+  /setup-work <linear-id-or-description>
+
+Scratch/gitignored paths (e.g. .omo/) are exempt. Bypass for this session:
+  export ALLOW_MAIN_EDITS=1
+EOF
+            exit 2
+        fi
+        exit 0                                         # linked worktree -> allow
+        ;;
+
+    checkout)
+        { [ -z "$CMD_ARG" ] || [ "$CMD_ARG" = "null" ]; } && exit 0
+        case "$CMD_ARG" in
+            *git*checkout*|*git*switch*) ;;
+            *) exit 0 ;;
+        esac
+        [ -z "$CWD_ARG" ] && CWD_ARG="$PWD"
+        root="$(git -C "$CWD_ARG" rev-parse --show-toplevel 2>/dev/null || echo "")"
+        [ -z "$root" ] && exit 0
+        repo_is_allowlisted "$root" && exit 0
+        is_primary_worktree "$root" || exit 0          # only guard the main checkout
+        br="$(current_branch "$root")"
+        case "$br" in
+            main|master) ;;
+            *) exit 0 ;;                               # off main (or detached) -> allow recovery
+        esac
+
+        if command_moves_head "$CMD_ARG" "$root"; then
+            cat >&2 <<EOF
+Blocked: refusing to switch the primary (main) checkout off '$br'.
+  Repo:    $root
+  Command: $CMD_ARG
+
+The primary checkout must always stay on main — feature work goes in a worktree:
+  /setup-work <branch-or-linear-id>
+
+Bypass for this session:
+  export ALLOW_MAIN_EDITS=1
+EOF
+            exit 2
+        fi
+        exit 0
+        ;;
+
+    *)
+        exit 0
+        ;;
+esac
