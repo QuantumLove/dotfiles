@@ -40,7 +40,7 @@ main() {
 
         # Read sso_session name from the base profile
         local sso_session
-        sso_session=$(awk "/\[profile ${base_profile}\]/,/\[/" "$aws_config" | grep 'sso_session' | head -1 | awk '{print $3}')
+        sso_session=$(awk "/^\[profile ${base_profile}\]/{f=1;next} /^\[/{f=0} f" "$aws_config" | grep 'sso_session' | head -1 | awk '{print $3}')
         if [ -z "$sso_session" ]; then
             echo "Error: Profile '${base_profile}' not found or has no sso_session"
             return 1
@@ -48,14 +48,14 @@ main() {
 
         # Read values from the sso-session block
         local sso_start_url sso_region
-        sso_start_url=$(awk "/\[sso-session ${sso_session}\]/,/\[/" "$aws_config" | grep 'sso_start_url' | head -1 | awk '{print $3}')
-        sso_region=$(awk "/\[sso-session ${sso_session}\]/,/\[/" "$aws_config" | grep 'sso_region' | head -1 | awk '{print $3}')
+        sso_start_url=$(awk "/^\[sso-session ${sso_session}\]/{f=1;next} /^\[/{f=0} f" "$aws_config" | grep 'sso_start_url' | head -1 | awk '{print $3}')
+        sso_region=$(awk "/^\[sso-session ${sso_session}\]/{f=1;next} /^\[/{f=0} f" "$aws_config" | grep 'sso_region' | head -1 | awk '{print $3}')
 
         # Read account/role/region from the base profile
         local sso_account_id sso_role_name region
-        sso_account_id=$(awk "/\[profile ${base_profile}\]/,/\[/" "$aws_config" | grep 'sso_account_id' | head -1 | awk '{print $3}')
-        sso_role_name=$(awk "/\[profile ${base_profile}\]/,/\[/" "$aws_config" | grep 'sso_role_name' | head -1 | awk '{print $3}')
-        region=$(awk "/\[profile ${base_profile}\]/,/\[/" "$aws_config" | grep '^region' | head -1 | awk '{print $3}')
+        sso_account_id=$(awk "/^\[profile ${base_profile}\]/{f=1;next} /^\[/{f=0} f" "$aws_config" | grep 'sso_account_id' | head -1 | awk '{print $3}')
+        sso_role_name=$(awk "/^\[profile ${base_profile}\]/{f=1;next} /^\[/{f=0} f" "$aws_config" | grep 'sso_role_name' | head -1 | awk '{print $3}')
+        region=$(awk "/^\[profile ${base_profile}\]/{f=1;next} /^\[/{f=0} f" "$aws_config" | grep '^region' | head -1 | awk '{print $3}')
 
         if [ -z "$sso_start_url" ] || [ -z "$sso_account_id" ]; then
             echo "Error: Could not read SSO config from profile '${base_profile}'"
