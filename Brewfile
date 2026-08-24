@@ -23,6 +23,12 @@ cask "1password-cli"
 cask "claude"
 cask "claude-code"
 cask "displaylink"
+# Chrome auto-updates itself, so brew's recorded version drifts behind the live
+# app and `brew bundle` then fails trying to "upgrade" it (harmless — it's the
+# last step and blocks nothing). To resync brew's record when it annoys you, run
+# in a real terminal (needs sudo; the CLI `!` prefix has no TTY for the prompt):
+#   brew upgrade --cask google-chrome
+# Chrome resumes self-updating afterward; just rerun occasionally if drift returns.
 cask "google-chrome"
 cask "linear"
 cask "logi-options+"
