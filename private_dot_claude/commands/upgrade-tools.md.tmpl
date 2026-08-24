@@ -1,0 +1,45 @@
+---
+name: upgrade-tools
+description: Upgrade the mega-container toolchain to latest (Dockerfile ARGs + mise runtimes), commit, rebuild, and run doctor checks. Use for a post-vacation or periodic refresh of all baked tools.
+---
+
+# Upgrade Tools
+
+Refresh every pinned tool in the mega-container to its latest release, rebuild
+the image, and verify health. Wraps the `upgrade-tools` script (`~/.local/bin/upgrade-tools`).
+
+## Usage
+
+```bash
+/upgrade-tools              # discover latest -> bump -> commit -> rebuild -> doctor
+/upgrade-tools --check      # print the current->latest table only (no writes)
+/upgrade-tools --no-rebuild # bump + commit, but don't rebuild yet
+```
+
+## What it does
+
+1. **Discover** latest versions: GitHub releases for helm, gh, lazygit, pulumi,
+   compose, buildx, supercronic, tmux; `download.docker.com` for the docker CLI;
+   `mise latest` for node/python. Prints a `current -> latest` table and flags
+   runtime major bumps.
+2. **Bump** the `ARG <TOOL>_VERSION=` lines in `mega-container/Dockerfile` and
+   `node`/`python` in `mega-container/dot_config/mise/config.toml`.
+   The ARGs are the **single source of truth** — each is consumed by exactly one
+   `RUN`, so a one-line edit is all it takes.
+3. **Commit** the diff to the chezmoi repo (`main` is fine here — personal repo).
+4. **Rebuild** via `~/mega-container/rebuild.sh` (build `--pull`, recreate,
+   full `mega-doctor`; volumes preserved).
+5. **Validate**: `claude-validate --quiet` on the host afterward.
+
+## Notes
+
+- The `"latest"`-pinned mise tools (bun, go, kubectl, opentofu, awscli, uv, k9s,
+  yq, gitleaks, sops, age, tflint), apt packages, and npm globals already float —
+  the rebuild refreshes them automatically; this script only moves the *pinned*
+  ones.
+- Runtime major bumps (node, python) carry the most breakage risk. Review the
+  table before a `/upgrade-tools` run, or start with `--check`.
+- Prereqs: `OP_SERVICE_ACCOUNT_TOKEN` in the macOS keychain and OrbStack/Docker
+  running (the same prereqs as `rebuild.sh`).
+- Rollback: `git revert` the bump commit in chezmoi and re-run `rebuild.sh`
+  (volumes preserved, so no data loss). Never `docker compose down -v`.

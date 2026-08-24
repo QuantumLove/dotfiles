@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# upgrade-tools — refresh the mega-container toolchain to latest, then rebuild.
+#
+# Usage:
+#   upgrade-tools            # discover latest, bump ARGs + mise, commit, rebuild, doctor
+#   upgrade-tools --check    # only print the current->latest table (no writes)
+#   upgrade-tools --no-rebuild  # bump + commit, but skip the rebuild/doctor
+#
+# The Dockerfile pins each baked binary via an `ARG <TOOL>_VERSION=` line
+# (single source of truth); this script rewrites those lines and the node/python
+# pins in mise config.toml. Exit code: 0 on success, non-zero on failure.
+
+set -uo pipefail
+
+CHECK=0; NO_REBUILD=0
+for a in "$@"; do
+  case "$a" in
+    --check) CHECK=1 ;;
+    --no-rebuild) NO_REBUILD=1 ;;
+    -h|--help) sed -n '2,12p' "$0"; exit 0 ;;
+  esac
+done
+
+CHEZMOI_SRC="${CHEZMOI_SRC:-$HOME/.local/share/chezmoi}"
+DOCKERFILE="$CHEZMOI_SRC/mega-container/Dockerfile"
+MISE_CFG="$CHEZMOI_SRC/mega-container/dot_config/mise/config.toml"
+
+if [ -t 1 ]; then G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; Z=$'\033[0m'
+else G=""; Y=""; R=""; D=""; Z=""; fi
+
+for f in "$DOCKERFILE" "$MISE_CFG"; do
+  [ -f "$f" ] || { echo "${R}✗ missing $f${Z}"; exit 1; }
+done
+
+# ARG name -> GitHub repo. supercronic keeps its leading "v"; everything else
+# stores the bare version and the Dockerfile RUN re-adds "v" where the URL needs it.
+declare -A REPO=(
+  [HELM_VERSION]=helm/helm
+  [GH_VERSION]=cli/cli
+  [LAZYGIT_VERSION]=jesseduffield/lazygit
+  [PULUMI_VERSION]=pulumi/pulumi
+  [COMPOSE_VERSION]=docker/compose
+  [BUILDX_VERSION]=docker/buildx
+  [SUPERCRONIC_VERSION]=aptible/supercronic
+  [TMUX_VERSION]=tmux/tmux
+)
+KEEPS_V="SUPERCRONIC_VERSION"   # ARGs whose stored value includes the leading v
+
+latest_gh() {  # repo -> newest release tag (e.g. v4.2.4)
+  gh release view --repo "$1" --json tagName -q .tagName 2>/dev/null \
+    || curl -fsSL "https://api.github.com/repos/$1/releases/latest" | jq -r .tag_name
+}
+latest_docker() {  # newest docker static CLI for this arch
+  local arch; arch=$(uname -m)
+  curl -fsSL "https://download.docker.com/linux/static/stable/${arch}/" \
+    | grep -oE 'docker-[0-9]+\.[0-9]+\.[0-9]+\.tgz' | sed -E 's/docker-(.*)\.tgz/\1/' | sort -V | uniq | tail -1
+}
+cur_arg() { grep -E "^ARG $1=" "$DOCKERFILE" | head -1 | cut -d= -f2; }
+
+declare -A CUR NEW
+CHANGED=0
+printf "\n%-20s %-14s %-14s\n" "TOOL" "CURRENT" "LATEST"
+printf "%-20s %-14s %-14s\n" "----" "-------" "------"
+
+for arg in TMUX_VERSION SUPERCRONIC_VERSION HELM_VERSION GH_VERSION LAZYGIT_VERSION PULUMI_VERSION DOCKER_VERSION COMPOSE_VERSION BUILDX_VERSION; do
+  cur=$(cur_arg "$arg")
+  if [ "$arg" = "DOCKER_VERSION" ]; then
+    new=$(latest_docker)
+  else
+    tag=$(latest_gh "${REPO[$arg]}")
+    if [[ " $KEEPS_V " == *" $arg "* ]]; then new="$tag"; else new="${tag#v}"; fi
+  fi
+  CUR[$arg]=$cur; NEW[$arg]=$new
+  mark=""; [ "$cur" != "$new" ] && { mark=" ${Y}<-- bump${Z}"; CHANGED=$((CHANGED+1)); }
+  printf "%-20s %-14s %-14s%b\n" "${arg%_VERSION}" "$cur" "$new" "$mark"
+done
+
+# Runtimes (mise): node full version, python major.minor
+NODE_CUR=$(grep -E '^node = ' "$MISE_CFG" | sed -E 's/.*"(.*)".*/\1/')
+PY_CUR=$(grep -E '^python = ' "$MISE_CFG" | sed -E 's/.*"(.*)".*/\1/')
+NODE_NEW=$(mise latest node 2>/dev/null || echo "$NODE_CUR")
+PY_FULL=$(mise latest python 2>/dev/null || echo "$PY_CUR")
+PY_NEW=$(echo "$PY_FULL" | cut -d. -f1,2)
+for pair in "node|$NODE_CUR|$NODE_NEW" "python|$PY_CUR|$PY_NEW"; do
+  IFS='|' read -r name c n <<<"$pair"
+  mark=""; [ "$c" != "$n" ] && { mark=" ${Y}<-- bump (runtime major?)${Z}"; CHANGED=$((CHANGED+1)); }
+  printf "%-20s %-14s %-14s%b\n" "$name" "$c" "$n" "$mark"
+done
+
+echo
+if [ "$CHANGED" -eq 0 ]; then echo "${G}✓ everything already at latest${Z}"; exit 0; fi
+if [ "$CHECK" -eq 1 ]; then echo "${D}--check: no files modified ($CHANGED update(s) available)${Z}"; exit 0; fi
+
+# Apply bumps
+for arg in "${!NEW[@]}"; do
+  [ "${CUR[$arg]}" = "${NEW[$arg]}" ] && continue
+  sed -i.bak -E "s|^ARG $arg=.*|ARG $arg=${NEW[$arg]}|" "$DOCKERFILE"
+done
+[ "$NODE_CUR" != "$NODE_NEW" ] && sed -i.bak -E "s|^node = .*|node = \"$NODE_NEW\"|" "$MISE_CFG"
+[ "$PY_CUR" != "$PY_NEW" ] && sed -i.bak -E "s|^python = .*|python = \"$PY_NEW\"|" "$MISE_CFG"
+rm -f "$DOCKERFILE.bak" "$MISE_CFG.bak"
+
+echo "${G}✓ bumped $CHANGED tool(s)${Z}. Diff:"
+git -C "$CHEZMOI_SRC" --no-pager diff -- mega-container/Dockerfile mega-container/dot_config/mise/config.toml
+git -C "$CHEZMOI_SRC" add mega-container/Dockerfile mega-container/dot_config/mise/config.toml
+git -C "$CHEZMOI_SRC" commit -q -m "chore(mega-container): bump toolchain to latest ($CHANGED tools)" \
+  -m "Automated by upgrade-tools." && echo "${G}✓ committed${Z}"
+
+if [ "$NO_REBUILD" -eq 1 ]; then echo "${D}--no-rebuild: stopping before rebuild${Z}"; exit 0; fi
+
+echo; echo "── Rebuilding container ──"
+"$HOME/mega-container/rebuild.sh"   # builds, recreates, runs full mega-doctor
+
+echo; echo "── Host validation ──"
+command -v claude-validate >/dev/null 2>&1 && claude-validate --quiet || true
+echo "${G}✓ upgrade-tools complete${Z}"
