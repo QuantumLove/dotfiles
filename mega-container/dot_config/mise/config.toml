@@ -1,8 +1,8 @@
 [tools]
-node = "24.18.0"
+node = "26.7.0"
 bun = "latest"
 "npm:pnpm" = "latest"
-python = "3.13"
+python = "3.14"
 go = "latest"
 age = "latest"
 sops = "latest"

@@ -12,16 +12,19 @@ FROM debian:trixie-slim
 ENV LANG=C.UTF-8
 
 # =============================================================================
-# VERSIONS - Update these when upgrading tools
-# (mise-managed tools live in dot_config/mise/config.toml)
+# VERSIONS — single source of truth. Bump these ARGs to upgrade a tool; each is
+# consumed by exactly one RUN below. (mise-managed tools live in
+# dot_config/mise/config.toml.) The /upgrade-tools skill edits these lines.
 # =============================================================================
-# helm:      4.2.2
-# gh:        2.96.0
-# lazygit:   0.63.0
-# pulumi:    3.250.0
-# docker:    29.6.1
-# compose:   5.3.0
-# buildx:    0.35.0
+ARG TMUX_VERSION=3.7c
+ARG SUPERCRONIC_VERSION=v0.2.49
+ARG HELM_VERSION=4.2.4
+ARG GH_VERSION=2.98.0
+ARG LAZYGIT_VERSION=0.64.1
+ARG PULUMI_VERSION=3.259.0
+ARG DOCKER_VERSION=29.7.2
+ARG COMPOSE_VERSION=5.5.0
+ARG BUILDX_VERSION=0.36.1
 # =============================================================================
 
 # =============================================================================
@@ -72,15 +75,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo "AcceptEnv WARP_CLI_AGENT_PROTOCOL_VERSION" >> /etc/ssh/sshd_config
 
 # tmux from source — Debian's 3.3a has a restore race that crashes tmux-resurrect
-RUN TMUX_VERSION=3.7b \
-    && curl -fsSL "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" -o /tmp/tmux.tar.gz \
+RUN curl -fsSL "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" -o /tmp/tmux.tar.gz \
     && tar xzf /tmp/tmux.tar.gz -C /tmp \
     && cd "/tmp/tmux-${TMUX_VERSION}" && ./configure && make -j"$(nproc)" && make install \
     && cd / && rm -rf /tmp/tmux*
 
 # supercronic — container-native cron (reads a crontab file, runs in foreground)
 RUN ARCH=$(dpkg --print-architecture) \
-    && SUPERCRONIC_VERSION=v0.2.47 \
     && curl -fsSL "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-${ARCH}" -o /usr/local/bin/supercronic \
     && chmod +x /usr/local/bin/supercronic
 
@@ -102,27 +103,27 @@ RUN sh -c "$(curl -fsLS get.chezmoi.io)" -- -b /usr/local/bin && \
 
 # helm and gh - direct install (asdf plugins broken, aqua needs GitHub token)
 RUN ARCH=$(dpkg --print-architecture) && \
-    curl -fsSL https://get.helm.sh/helm-v4.2.2-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
+    curl -fsSL https://get.helm.sh/helm-v${HELM_VERSION}-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
     mv /tmp/linux-${ARCH}/helm /usr/local/bin/helm && \
     rm -rf /tmp/linux-${ARCH}
 
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi && \
-    curl -fsSL https://github.com/cli/cli/releases/download/v2.96.0/gh_2.96.0_linux_${ARCH}.tar.gz | tar xz -C /tmp && \
-    mv /tmp/gh_2.96.0_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
+    curl -fsSL https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz | tar xz -C /tmp && \
+    mv /tmp/gh_${GH_VERSION}_linux_${ARCH}/bin/gh /usr/local/bin/gh && \
     rm -rf /tmp/gh_*
 
 # Lazygit
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="x86_64"; fi && \
-    curl -fsSL https://github.com/jesseduffield/lazygit/releases/download/v0.63.0/lazygit_0.63.0_Linux_${ARCH}.tar.gz | tar xz -C /tmp && \
+    curl -fsSL https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_Linux_${ARCH}.tar.gz | tar xz -C /tmp && \
     mv /tmp/lazygit /usr/local/bin/lazygit && \
     rm -rf /tmp/lazygit*
 
 # Pulumi CLI
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; else ARCH="x64"; fi && \
-    curl -fsSL https://get.pulumi.com/releases/sdk/pulumi-v3.250.0-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
+    curl -fsSL https://get.pulumi.com/releases/sdk/pulumi-v${PULUMI_VERSION}-linux-${ARCH}.tar.gz | tar xz -C /tmp && \
     mv /tmp/pulumi/* /usr/local/bin/ && \
     rm -rf /tmp/pulumi
 
@@ -135,21 +136,21 @@ RUN ARCH=$(uname -m) && \
 
 # Docker CLI (for building images via Pulumi docker-build provider)
 RUN ARCH=$(uname -m) && \
-    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-29.6.1.tgz" | tar xz -C /tmp && \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${ARCH}/docker-${DOCKER_VERSION}.tgz" | tar xz -C /tmp && \
     mv /tmp/docker/docker /usr/local/bin/ && \
     rm -rf /tmp/docker
 
 # Docker Compose plugin
 RUN ARCH=$(uname -m) && \
     mkdir -p /usr/local/lib/docker/cli-plugins && \
-    curl -fsSL "https://github.com/docker/compose/releases/download/v5.3.0/docker-compose-linux-${ARCH}" \
+    curl -fsSL "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-${ARCH}" \
       -o /usr/local/lib/docker/cli-plugins/docker-compose && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
 # Docker Buildx plugin (uses arm64/amd64 naming, NOT aarch64/x86_64)
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; elif [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi && \
-    curl -fsSL "https://github.com/docker/buildx/releases/download/v0.35.0/buildx-v0.35.0.linux-${ARCH}" \
+    curl -fsSL "https://github.com/docker/buildx/releases/download/v${BUILDX_VERSION}/buildx-v${BUILDX_VERSION}.linux-${ARCH}" \
       -o /usr/local/lib/docker/cli-plugins/docker-buildx && \
     chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
 
