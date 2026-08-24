@@ -50,8 +50,14 @@ latest_gh() {  # repo -> newest release tag (e.g. v4.2.4)
   gh release view --repo "$1" --json tagName -q .tagName 2>/dev/null \
     || curl -fsSL "https://api.github.com/repos/$1/releases/latest" | jq -r .tag_name
 }
-latest_docker() {  # newest docker static CLI for this arch
-  local arch; arch=$(uname -m)
+latest_docker() {  # newest docker static CLI — always the Linux/container arch,
+                   # NOT the host's (macOS `uname -m` says arm64; the dir needs aarch64)
+  local arch
+  case "$(uname -m)" in
+    arm64|aarch64) arch=aarch64 ;;
+    x86_64|amd64)  arch=x86_64 ;;
+    *) arch=$(uname -m) ;;
+  esac
   curl -fsSL "https://download.docker.com/linux/static/stable/${arch}/" \
     | grep -oE 'docker-[0-9]+\.[0-9]+\.[0-9]+\.tgz' | sed -E 's/docker-(.*)\.tgz/\1/' | sort -V | uniq | tail -1
 }
@@ -69,6 +75,13 @@ for arg in TMUX_VERSION SUPERCRONIC_VERSION HELM_VERSION GH_VERSION LAZYGIT_VERS
   else
     tag=$(latest_gh "${REPO[$arg]}")
     if [[ " $KEEPS_V " == *" $arg "* ]]; then new="$tag"; else new="${tag#v}"; fi
+  fi
+  # A failed lookup (404, network, rate-limit) must never be written — an empty
+  # version would sed the ARG to blank and break the build. Treat it as no-change.
+  if [ -z "$new" ]; then
+    printf "%-20s %-14s %-14s%b\n" "${arg%_VERSION}" "$cur" "?" " ${R}lookup failed — keeping current${Z}"
+    CUR[$arg]=$cur; NEW[$arg]=$cur
+    continue
   fi
   CUR[$arg]=$cur; NEW[$arg]=$new
   mark=""; [ "$cur" != "$new" ] && { mark=" ${Y}<-- bump${Z}"; CHANGED=$((CHANGED+1)); }

@@ -31,3 +31,13 @@
 
 [gpg "ssh"]
 	allowedSignersFile = ~/.ssh/allowed_signers
+
+# gh manages HTTPS credentials for github.com (added by `gh auth setup-git`).
+# Bare `gh` (not an absolute path) keeps this portable between the macOS host
+# and the Linux container. The empty first `helper =` resets any inherited value.
+[credential "https://github.com"]
+	helper =
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !gh auth git-credential
