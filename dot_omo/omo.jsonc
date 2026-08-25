@@ -1,0 +1,95 @@
+// OMO configuration
+{
+  "[opencode]": {
+    "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/omo.schema.json",
+    "agents": {
+      "sisyphus": {
+        "model": "anthropic/claude-opus-5",
+        "reasoning": "max"
+      },
+      "oracle": {
+        "model": "anthropic/claude-opus-5",
+        "reasoning": "max"
+      },
+      "librarian": {
+        "model": "anthropic/claude-haiku-4-5",
+        "reasoning": "xhigh"
+      },
+      "explore": {
+        "model": "anthropic/claude-haiku-4-5",
+        "reasoning": "xhigh"
+      },
+      "multimodal-looker": {
+        "model": "opencode/gpt-5-nano",
+        "reasoning": "xhigh"
+      },
+      "prometheus": {
+        "model": "anthropic/claude-fable-5",
+        "reasoning": "high"
+      },
+      "metis": {
+        "model": "anthropic/claude-opus-5",
+        "reasoning": "high"
+      },
+      "momus": {
+        "model": "anthropic/claude-opus-5",
+        "reasoning": "max"
+      },
+      "atlas": {
+        "model": "anthropic/claude-opus-5-fast",
+        "reasoning": "xhigh"
+      },
+      "sisyphus-junior": {
+        "model": "anthropic/claude-opus-5-fast",
+        "reasoning": "xhigh"
+      }
+    },
+    "categories": {
+      "visual-engineering": {
+        "model": "anthropic/claude-opus-5",
+        "reasoning": "max"
+      },
+      "ultrabrain": {
+        "model": "anthropic/claude-opus-5-fast",
+        "reasoning": "xhigh"
+      },
+      "deep": {
+        "model": "anthropic/claude-opus-5-fast",
+        "reasoning": "xhigh"
+      },
+      "artistry": {
+        "models": [
+          {
+            "model": "anthropic/claude-fable-5",
+            "reasoning": "high"
+          },
+          {
+            "model": "anthropic/claude-opus-5",
+            "reasoning": "high"
+          }
+        ]
+      },
+      "quick": {
+        "model": "anthropic/claude-haiku-4-5",
+        "reasoning": "xhigh"
+      },
+      "unspecified-low": {
+        "model": "anthropic/claude-opus-5-fast",
+        "reasoning": "low"
+      },
+      "unspecified-high": {
+        "model": "anthropic/claude-opus-5-fast",
+        "reasoning": "low"
+      },
+      "writing": {
+        "model": "anthropic/claude-opus-5",
+        "reasoning": "low"
+      }
+    }
+  },
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/omo.schema.json",
+  "_migrations": [
+    "2026-07-opencode-config-unification",
+    "2026-08-reasoning-unification"
+  ]
+}
