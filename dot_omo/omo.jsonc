@@ -4,11 +4,11 @@
     "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/omo.schema.json",
     "agents": {
       "sisyphus": {
-        "model": "anthropic/claude-opus-5",
+        "model": "anthropic/claude-opus-5-fast",
         "reasoning": "max"
       },
       "oracle": {
-        "model": "anthropic/claude-opus-5",
+        "model": "anthropic/claude-opus-5-fast",
         "reasoning": "max"
       },
       "librarian": {
@@ -28,11 +28,11 @@
         "reasoning": "high"
       },
       "metis": {
-        "model": "anthropic/claude-opus-5",
+        "model": "anthropic/claude-opus-5-fast",
         "reasoning": "high"
       },
       "momus": {
-        "model": "anthropic/claude-opus-5",
+        "model": "anthropic/claude-opus-5-fast",
         "reasoning": "max"
       },
       "atlas": {
@@ -46,7 +46,7 @@
     },
     "categories": {
       "visual-engineering": {
-        "model": "anthropic/claude-opus-5",
+        "model": "anthropic/claude-opus-5-fast",
         "reasoning": "max"
       },
       "ultrabrain": {
@@ -64,7 +64,7 @@
             "reasoning": "high"
           },
           {
-            "model": "anthropic/claude-opus-5",
+            "model": "anthropic/claude-opus-5-fast",
             "reasoning": "high"
           }
         ]
@@ -82,7 +82,7 @@
         "reasoning": "low"
       },
       "writing": {
-        "model": "anthropic/claude-opus-5",
+        "model": "anthropic/claude-opus-5-fast",
         "reasoning": "low"
       }
     }
