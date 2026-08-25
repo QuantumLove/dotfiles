@@ -64,24 +64,33 @@ fi
 hdr "OpenCode"
 if command -v opencode >/dev/null 2>&1; then
   ok "version: $(opencode --version 2>/dev/null)"
-  OC_CONFIG="$HOME/.config/opencode/oh-my-openagent.json"
+  OC_CONFIG="$HOME/.omo/omo.jsonc"
   if [ -f "$OC_CONFIG" ]; then
     ok "active config: $OC_CONFIG"
     if command -v jq >/dev/null 2>&1; then
-      OPUS_MODEL=$(jq -r '.agents.sisyphus.model // "?"' "$OC_CONFIG")
-      if [[ "$OPUS_MODEL" == *"opus-4-8"* ]]; then
+      # omo.jsonc is JSON-with-comments; strip // lines before jq
+      OPUS_MODEL=$(sed 's|^[[:space:]]*//.*$||' "$OC_CONFIG" \
+        | jq -r '."[opencode]".agents.sisyphus.model // "?"')
+      if [[ "$OPUS_MODEL" == *"opus-5-fast"* ]]; then
         ok "Opus model: $OPUS_MODEL"
       else
-        warn "Opus model: $OPUS_MODEL" "expected claude-opus-4-8"
+        warn "Opus model: $OPUS_MODEL" "expected claude-opus-5-fast"
       fi
+      STRAY=$(sed 's|^[[:space:]]*//.*$||' "$OC_CONFIG" \
+        | jq -r '[."[opencode]" | .. | .model? // empty]
+                 | map(select(test("sonnet|opus-5$"))) | length' 2>/dev/null || echo 0)
+      [ "${STRAY:-0}" -eq 0 ] && ok "no sonnet/non-fast opus entries" \
+        || warn "$STRAY agent(s) on sonnet or non-fast opus"
     fi
   else
     bad "OpenCode config missing" "$OC_CONFIG"
   fi
-  # Stale legacy file
-  if [ -f "$HOME/.config/opencode/oh-my-opencode.json" ]; then
-    warn "legacy oh-my-opencode.json present" "remove to avoid confusion"
-  fi
+  # Deprecated configs — presence re-triggers omo migration on every boot
+  for legacy in oh-my-opencode.json oh-my-openagent.json; do
+    if [ -f "$HOME/.config/opencode/$legacy" ]; then
+      warn "legacy $legacy present" "remove to avoid confusion"
+    fi
+  done
 fi
 
 if [ $IN_CONTAINER -eq 1 ]; then
