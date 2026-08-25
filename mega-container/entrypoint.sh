@@ -275,30 +275,11 @@ echo "✓ OpenSSH server running"
 # get cross-origin-blocked SSE — symptom: session list intermittently empty / stale.
 TS_HOST=$(tailscale status --json | jq -r '.Self.DNSName // .Self.HostName' | sed 's/\.$//')
 
-# 10d. Start OpenCode web (UI + API on one port, behind tailscale serve)
-echo "Starting opencode web..."
-mkdir -p "$HOME/.local/state"
-nohup opencode web --hostname 127.0.0.1 --port 4096 --log-level INFO \
-  --cors "https://$TS_HOST" \
-  > "$HOME/.local/state/opencode-web.log" 2>&1 &
-for _ in $(seq 1 30); do
-  if curl -sf http://127.0.0.1:4096/ >/dev/null 2>&1; then break; fi
-  sleep 1
-done
-if ! curl -sf http://127.0.0.1:4096/ >/dev/null 2>&1; then
-  echo "ERROR: opencode web failed to start (see ~/.local/state/opencode-web.log)"
-  exit 1
-fi
-echo "✓ opencode web on :4096 (CORS allows https://$TS_HOST)"
-
-# 10e. Expose opencode web via Tailscale HTTPS (idempotent — persisted in tailscale-state volume)
-if ! sudo tailscale serve --bg http://127.0.0.1:4096; then
-  echo "ERROR: tailscale serve failed"
-  exit 1
-fi
-echo "✓ opencode web reachable at https://$TS_HOST"
-
-# 11. Apply chezmoi (secrets injected via onepasswordRead templates)
+# 10d. Apply chezmoi (secrets injected via onepasswordRead templates).
+# Must run BEFORE opencode web: opencode and omo read their config
+# (~/.config/opencode/opencode.json, ~/.omo/omo.jsonc) once at process start, and on a
+# fresh rebuild neither file exists until chezmoi writes it. Starting the server first
+# pins it to built-in default models for the container's lifetime.
 echo "Applying chezmoi configuration..."
 # Source may be bind-mounted (local, no-push dev loop) or absent (fresh clone).
 # Ensure the chezmoi config exists either way before applying.
@@ -330,6 +311,29 @@ if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
   echo "✓ Claude Code configured with API key"
 fi
 echo "✓ chezmoi applied"
+
+# 10e. Start OpenCode web (UI + API on one port, behind tailscale serve)
+echo "Starting opencode web..."
+mkdir -p "$HOME/.local/state"
+nohup opencode web --hostname 127.0.0.1 --port 4096 --log-level INFO \
+  --cors "https://$TS_HOST" \
+  > "$HOME/.local/state/opencode-web.log" 2>&1 &
+for _ in $(seq 1 30); do
+  if curl -sf http://127.0.0.1:4096/ >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+if ! curl -sf http://127.0.0.1:4096/ >/dev/null 2>&1; then
+  echo "ERROR: opencode web failed to start (see ~/.local/state/opencode-web.log)"
+  exit 1
+fi
+echo "✓ opencode web on :4096 (CORS allows https://$TS_HOST)"
+
+# 10f. Expose opencode web via Tailscale HTTPS (idempotent — persisted in tailscale-state volume)
+if ! sudo tailscale serve --bg http://127.0.0.1:4096; then
+  echo "ERROR: tailscale serve failed"
+  exit 1
+fi
+echo "✓ opencode web reachable at https://$TS_HOST"
 
 # 11b. Start supercronic for durability saves (supervised — tini reaps but won't restart)
 mkdir -p "$HOME/.local/state"
