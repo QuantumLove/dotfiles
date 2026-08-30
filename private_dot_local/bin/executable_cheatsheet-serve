@@ -7,13 +7,41 @@ set -euo pipefail
 APP="${CHEATSHEET_DIR:-$HOME/.local/share/chezmoi/cheatsheet}"
 PORT="${CHEATSHEET_PORT:-5180}"
 
-# launchd starts us with a minimal PATH — resolve node (nvm latest, then brew) ourselves.
-NODE_BIN="$(ls -d "$HOME"/.nvm/versions/node/*/bin 2>/dev/null | sort -V | tail -1)"
-export PATH="${NODE_BIN:-}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+# Everything goes to stderr so the LaunchAgent's log file captures it. Under KeepAlive a
+# silent failure is indistinguishable from a service that never started.
+log() { printf '%s cheatsheet: %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >&2; }
+die() { log "FATAL: $*"; exit 1; }
 
+# launchd starts us with a minimal PATH — resolve node (nvm latest, then brew) ourselves.
+# nullglob makes a missing ~/.nvm yield an empty array instead of a literal unexpanded
+# path; globbing rather than parsing `ls` also keeps a no-match from tripping `set -e`.
+shopt -s nullglob
+nvm_bins=("$HOME"/.nvm/versions/node/*/bin)
+shopt -u nullglob
+NODE_BIN=""
+if (( ${#nvm_bins[@]} )); then
+    NODE_BIN="$(printf '%s\n' "${nvm_bins[@]}" | sort -V | tail -1)"
+fi
+# The :+ form avoids a leading empty PATH entry, which would put cwd on PATH.
+export PATH="${NODE_BIN:+$NODE_BIN:}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+command -v node >/dev/null || die "no node on PATH: $PATH"
+[ -d "$APP" ] || die "app directory not found: $APP"
 cd "$APP"
+
 # Self-bootstrap on a fresh clone (deps not installed yet), then build if needed.
-[ -d node_modules ] || npm ci >/dev/null 2>&1 || npm install >/dev/null 2>&1
-[ -d dist ] || npm run build >/dev/null 2>&1
+if [ ! -d node_modules ]; then
+    log "installing dependencies"
+    npm ci >&2 || npm install >&2 || die "dependency install failed"
+fi
+if [ ! -d dist ]; then
+    log "building"
+    npm run build >&2 || die "build failed"
+fi
+
+VITE="$APP/node_modules/.bin/vite"
+[ -x "$VITE" ] || die "vite missing at $VITE"
+
+log "serving $APP on http://127.0.0.1:$PORT (node $(node --version))"
 # vite preview is a lightweight static server for the built app (SPA-friendly).
-exec "$APP/node_modules/.bin/vite" preview --host 127.0.0.1 --port "$PORT" --strictPort
+exec "$VITE" preview --host 127.0.0.1 --port "$PORT" --strictPort
