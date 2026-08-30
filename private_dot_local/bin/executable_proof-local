@@ -102,7 +102,11 @@ tunnel() {
 # Idempotent watchdog target (run by supercronic): start Proof only if it isn't up.
 ensure() {
   _api_up && _editor_up && return 0
-  start >/dev/null 2>&1
+  # Runs every minute. Discarding output here hides a persistent failure (missing
+  # proof-sdk, broken deps) forever; overwrite rather than append so a per-minute
+  # failure can't grow the log without bound.
+  { date -u '+%Y-%m-%dT%H:%M:%SZ ensure: Proof down, starting'; start; } \
+    >"$STATE_DIR/ensure.log" 2>&1
 }
 
 case "${1:-start}" in
