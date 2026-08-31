@@ -134,6 +134,7 @@ land in the pass bucket. A skip without a reason is an `error`.
 ```mermaid
 flowchart LR
   U1["U1 runner"] --> U2["U2 migrate doctor"]
+  U1 --> U22["U22 omo model check"]
   U1 --> U3["U3 drift"]
   U1 --> U4["U4 stderr"]
   U1 --> U9["U9 guard controls"]
@@ -209,10 +210,18 @@ fires after HEAD has moved. The Claude Code adapter exists; the OpenCode and omp
 **Force-push handling is deleted, not redesigned.** Removing the rule removes the requirement to
 detect something `pre-push` cannot see.
 
-**`omp`'s config file is a live write target.** `omp config set`, `/settings`, and `/model` all
-write to `~/.omp/agent/config.yml`, and the docs describe no read-only mode. Rather than fight it,
-this is the first real subject for the drift assertion: chezmoi owns the file, and the check
-reports when omp has rewritten it.
+**`--no-verify` is now a whole-repo bypass, not a guard bypass.** Once the guard hook chains the
+repo's own hooks, `-n` skips those too — so retiring `ALLOW_MAIN_EDITS` traded a narrow escape for
+a broad one. That matters most in work repos running lint or secret scanning on commit, and the
+historical reflex for a failing commit here was already `-n`.
+
+**Runtime-owned config is its own category, not drift.** `omp config set`, `/settings`, and
+`/model` write to `~/.omp/agent/config.yml`; `omo` regenerates `omo.jsonc` defaults the same way.
+Treating either as drift would fail the check every time a model is switched, and alarm fatigue is
+how the previous assertion layer died. Both are delivered as `modify_` targets so `chezmoi apply`
+does not clobber a runtime write, both sit on the known-divergence list, and the check asserts
+key-level invariants — declared model values, `disabledProviders` — rather than file equality.
+Classified `liveness`, so it never gates boot.
 
 **`omp` discovery providers are disabled by default.** omp auto-imports MCP servers from
 `~/.config/opencode/opencode.json`, slash commands from `~/.claude/commands/**`, and custom tools
@@ -314,8 +323,12 @@ and per-check self-test.
 **Approach:** Each check is a file exposing `run` and `selftest`. The manifest is the registry:
 `id`, `path`, `severity` (`invariant`|`liveness`), `scope` (`host`|`container`|`both`). The runner
 cross-checks manifest against implementations in both directions and fails on either mismatch.
-Corpus-scanning checks declare `min_corpus` and report `scanned N (min M)`. Follow the house style
-in `tests/` — `set -uo pipefail`, `REPO_ROOT` derivation, `pass`/`fail` counters, `Result:` line.
+Corpus-scanning checks declare `min_corpus` and report `scanned N (min M)`. Resolve the check corpus via `chezmoi source-path` with a
+`MEGA_ASSERT_CHECKS_DIR` override, never a hardcoded `$HOME` path — `$HOME` differs between host
+and container, and a baked absolute path is the identity mistake R9 exists to remove. The runner's
+own corpus is a checked invariant: an unreadable manifest, or a registered count below a declared
+floor, is `error` rather than a clean run of zero checks. Follow the house style in `tests/` —
+`set -uo pipefail`, `REPO_ROOT` derivation, `pass`/`fail` counters, `Result:` line.
 **Patterns to follow:** `tests/hooks/test_no-diff-narration-comments.sh` for hermetic setup,
 `private_dot_local/bin/executable_opencode-prune:10-12` for the `~/.local/state/<name>.log`
 logging convention.
@@ -335,6 +348,8 @@ logging convention.
   does.
 - Scope filtering: running with `--scope host` reports container-only checks as skipped with
   reason, not as absent.
+- With the checks directory unavailable, the runner exits non-zero and names the reason rather than
+  reporting zero checks passed.
 **Verification:** `mega-assert --list` prints every registered check with severity and scope;
 `mega-assert` on a clean machine reports a nonzero registered count and zero errors.
 
@@ -344,7 +359,7 @@ preserves its flags and exit contract.
 **Requirements:** R1, R2, R3
 **Dependencies:** U1
 **Files:** `private_dot_local/bin/executable_mega-doctor`, `tests/checks/*.sh`,
-`tests/checks/manifest.tsv`
+`tests/checks/manifest.tsv`, `.chezmoiscripts/run_onchange_after_validate-claude-config.sh.tmpl`
 **Approach:** Port each existing check to a registered check, assigning severity deliberately —
 binaries and config invariants block, network probes and MCP connectivity warn. Fix the three known
 defects while porting rather than carrying them: the `2>/dev/null || echo 0` fallback, the
@@ -365,6 +380,8 @@ keep the `hdr` section grouping in the wrapper's rendering.
   from passes.
 - `mega-doctor` exit code is still nonzero when any invariant check fails, so
   `executable_rebuild.sh:104` and `entrypoint.sh:399` behave unchanged.
+- An empty `~/.claude/agents/` makes the config validator fail rather than report zero invalid
+  agents, closing the same fail-open shape at the third surface.
 **Verification:** The check count before and after migration is accounted for — every former
 `ok`/`warn`/`bad` line maps to a registered id or is explicitly retired in the commit body.
 
@@ -376,10 +393,14 @@ templating.
 **Files:** `tests/checks/check_chezmoi_drift.sh`, `tests/checks/manifest.tsv`
 **Approach:** Base the check on `chezmoi verify` for exit status and `chezmoi diff` for the report,
 rather than a hand-rolled walk — chezmoi already handles per-machine ignore rules and template
-rendering. Carve out `modify_` targets, whose applied content is deliberately a function of prior
-content: for those, assert specific invariant keys survive rather than whole-file equality. Start
-the known-divergence list with `.bash_profile`, which `mega-container/entrypoint.sh:302-305`
-re-patches after every apply.
+rendering. Carve out `modify_` targets and runtime-owned config, whose applied content is deliberately a
+function of prior content or of the tool's own writes: for those, assert specific invariant keys
+survive rather than whole-file equality. Start the known-divergence list with `.bash_profile`, which
+`mega-container/entrypoint.sh:302-305` re-patches after every apply, plus the two runtime-owned
+agent configs. Rendering templates requires live 1Password (`opencode.json.tmpl` shells `op read`),
+so preflight with `op account get` and report `skip` with reason when the vault is unavailable —
+the one sanctioned skip-not-error case, because a locked vault is not drift. Declare this check's
+manifest row explicitly rather than leaving severity and scope implicit.
 **Patterns to follow:** `tests/bin/test_session_helpers.sh:19` for `chezmoi execute-template` use.
 **Test scenarios:**
 - Covers R6, AE3. Appending a line to an applied managed file makes the check fail and name the
@@ -413,6 +434,23 @@ stderr to a log and records restarts.
 - Covers R4. The check reports how many supervised entry points it scanned and fails if that count
   is below the declared minimum.
 **Verification:** Reverting either 2026-08-29 fix locally makes the check fail.
+
+### U22. Agent-model enumeration check for `omo`
+**Goal:** The regression guard for the most-evidenced failure, independent of omp adoption.
+**Requirements:** R1, R23, R24
+**Dependencies:** U1
+**Files:** `tests/checks/check_agent_models_omo.sh`, `tests/checks/manifest.tsv`
+**Approach:** Enumerate agents from `omo.jsonc` rather than spot-checking named keys, and assert
+exact model strings. Spot-checking individual keys is what let the original bug survive three
+rounds of fixes. This is deliberately split from U16 so the omo half does not wait on omp being
+installed and two forks existing — if Phase 4 slips, the guard for the evidenced pain still ships.
+**Test scenarios:**
+- An agent present in config without a declared model fails the check.
+- A model value of `claude-opus-5-fast-nano` fails, proving exact rather than substring matching.
+- Covers R2. A malformed or absent `omo.jsonc` reports `error`, not `pass`.
+- Reproducing the original misconfiguration — one agent left on a Google model — fails the check.
+**Verification:** The check fails against the config state that produced commits `4a2e090`
+through `2f07e7c`.
 
 ### Phase 2 — Guard collapse
 
@@ -465,7 +503,7 @@ guard logic: `core.hooksPath` replaces the whole directory, so an unshipped `com
 `post-checkout` stops firing everywhere with no error. Ensure the installed hooks are executable, since a
 non-executable hook is skipped without warning.
 **Test scenarios:**
-- Covers R13, AE9. `git commit` on the default branch of a non-exempt repo is denied.
+- Covers R13, R15, AE9. `git commit` on the default branch of a non-exempt repo is denied.
 - Covers R11, AE7. `git push`, `git push origin HEAD`, and `git -C <path> push` are each denied
   against a protected branch.
 - `git push origin feat:main` is denied; `git push origin main:feat` is allowed.
@@ -536,7 +574,8 @@ the one repo exempt from all seven rules.
 **Requirements:** R10, R16
 **Dependencies:** U1, U6
 **Files:** `tests/checks/check_guard_controls.sh`, `tests/checks/check_hooks_reachable.sh`,
-`tests/checks/manifest.tsv`
+`tests/checks/check_guard_coverage.sh`, `tests/checks/check_adapters_live.sh`,
+`tests/checks/check_branch_ahead.sh`, `tests/checks/manifest.tsv`
 **Approach:** Build throwaway repos in `$TMPDIR` with synthetic remotes and run a control triple:
 a non-exempt repo must deny a commit on its default branch (positive), the same repo must allow a
 commit on a feature branch (negative — this catches a hook that errors and blocks everything), and
@@ -545,8 +584,21 @@ a repo with an exempt slug must allow it (exception). Invoke git with
 the 1Password agent, and a signing failure would otherwise be indistinguishable from a guard
 verdict. Separately, walk known checkouts and assert
 each one's *effective* `core.hooksPath` resolves to the guard directory and that the hook files are
-executable. Both checks are scoped `both` so they run in the container, since the chezmoi repo is
+executable. Scope them `both` so they run in the container, since the chezmoi repo is
 read-only there and cannot itself exercise AE10.
+
+Three further checks close the gaps the control triple cannot see. **Coverage:** walk known
+checkouts and ask the engine which path it would take for each; a repo that would be allowed
+because its identity or default branch is underivable is a failure, not a log line — fail-open is
+defensible only while it is monitored, and a `git init` repo with a manually added remote has no
+`origin/HEAD` and would otherwise sit unguarded forever. This subsumes the `git remote set-head -a`
+staleness walk, extending it from staleness to absence. **Adapter liveness:** start each harness
+non-interactively and require a block verdict for a tracked-file write in a synthetic primary
+worktree — a guard extension that stops loading after an agent upgrade is the assertion-decay shape
+reproduced on the enforcement side. **Ahead-of-remote:** flag any primary worktree whose default
+branch has local commits its remote-tracking ref lacks. That single check is the backstop for every
+hole the hooks cannot cover — `merge`, `rebase`, `cherry-pick`, `--no-verify`, and API writes — so
+those exclusions rest on detection rather than on agents reading prose.
 **Test scenarios:**
 - Covers R16. The control triple passes on a correctly installed machine.
 - Unsetting `core.hooksPath` makes the positive control fail.
@@ -554,6 +606,10 @@ read-only there and cannot itself exercise AE10.
 - A repo with a repo-local `core.hooksPath` is reported by the reachability walk.
 - The negative control fails if the hook denies unconditionally.
 - Covers R2. If the throwaway repo cannot be created, the check reports `error`, not `pass`.
+- A repo with a remote but no `origin/HEAD` is reported as uncovered rather than silently allowed.
+- A harness whose guard extension fails to load is reported, even though the hook layer is intact.
+- A primary worktree whose default branch is ahead of its remote is reported, whatever created the
+  commits.
 **Verification:** The suite fails within one run of any mechanism that disarms the guard.
 
 ### Phase 3 — Container boot
@@ -603,7 +659,8 @@ hot-patch's hardcoded path.
 **Goal:** A failing invariant stops the boot instead of printing and continuing.
 **Requirements:** R3, R5
 **Dependencies:** U2, U9, U10
-**Files:** `mega-container/entrypoint.sh`, `mega-container/executable_rebuild.sh`
+**Files:** `mega-container/entrypoint.sh`, `mega-container/executable_rebuild.sh`,
+`private_dot_config/supercronic/crontab`, `private_Library/LaunchAgents/`
 **Approach:** Change `entrypoint.sh:399` from `mega-doctor --quick || echo` to a hard failure, and
 move the gate *before* the `=== Bootstrap Complete ===` marker at line 393 —
 `executable_rebuild.sh` greps for that marker to decide the container is up, so gating after it
@@ -614,12 +671,23 @@ boot-blocking by accident. An explicit `MEGA_ASSERT_BYPASS=1` escape is honoured
 and logged loudly, documented in `mega-container/TROUBLESHOOTING.md` — without it,
 `restart: "on-failure:5"` plus an entrypoint that exits before `exec "$@"` means sshd never starts
 and the box is unreachable. Liveness checks are excluded by severity.
+
+Boot is not a frequent enough trigger on its own. Rebuilds can be weeks apart, and the two things
+most likely to drift between them — a tool rewriting its own config, and a mechanism disarming the
+guard — are exactly what the suite exists to catch. Add a scheduled invariant-only run: a
+supercronic entry in the container and a LaunchAgent on the host, both logging to
+`~/.local/state/mega-assert.log` per the existing convention. That scheduled runner is itself a
+supervised process and so is subject to U4's no-silenced-output check.
 **Test scenarios:**
 - Covers R3. A deliberately broken invariant makes the container fail to start, with the check id
   in the log.
 - A failing liveness check does not prevent boot and is reported.
 - `rebuild.sh` still surfaces the full doctor output and exits non-zero on invariant failure.
 - The failure message names the check id, so recovery does not require reading the runner.
+- With `MEGA_ASSERT_BYPASS=1`, a container with a deliberately broken invariant boots and reports
+  the failure rather than exiting.
+- The scheduled run fires on its interval and records results to the log on both host and
+  container.
 **Verification:** Boot fails and recovers cleanly with a single invariant toggled.
 
 ### Phase 4 — Agent harness
@@ -648,14 +716,15 @@ standalone binary, but extensions are evaluated by Bun in-process.
 silent inheritance.
 **Requirements:** R23, R35
 **Dependencies:** U13
-**Files:** `private_dot_omp/agent/config.yml`, `private_dot_omp/agent/mcp.json`,
+**Files:** `private_dot_omp/agent/config.yml`, `private_dot_omp/agent/mcp.json.tmpl`,
 `private_dot_omp/agent/agents/`
 **Approach:** Declare `modelRoles` with concrete selectors and put role aliases in
 `task.agentModelOverrides`. Coverage means the seven bundled agents — `scout`, `designer`,
 `reviewer`, `security-reviewer`, `librarian`, `task`, `sonic` — plus the `tiny` role, which drives
-session titles and memory on every turn and is easy to miss. Set `disabledProviders` to stop omp
-auto-importing OpenCode MCP servers, Claude commands, and Claude tools, and port the wanted MCP
-servers and skills across explicitly instead.
+session titles and memory on every turn and is easy to miss. Set `disabledProviders` to stop omp auto-importing OpenCode MCP
+servers, Claude commands, and Claude tools, and port the wanted MCP servers and skills across
+explicitly instead. Any MCP server needing a credential is delivered through a template that reads
+1Password at apply time, matching `modify_dot_claude.json.tmpl` — no literal secret is committed.
 **Patterns to follow:** `sjawhar/dotfiles:omp/config.yml` for the role and override split;
 `private_dot_claude/mcp-servers.yaml` for the current MCP server set.
 **Test scenarios:**
@@ -673,11 +742,17 @@ servers and skills across explicitly instead.
 **Requirements:** R22
 **Dependencies:** none
 **Files:** `docs/vendored/oh-my-pi.md`, `docs/vendored/oh-my-openagent.md`,
-`mega-container/dot_config/mise/config.toml`
+`mega-container/dot_config/mise/config.toml`, `mega-container/Dockerfile`
 **Approach:** Follow the existing `VENDORED.md` pattern — pinned source repo, licence, version,
 commit, vendored date, enumerated local changes, a verify command, and a numbered upgrade
-procedure. Pin both forks in mise. Keep the fork's own release build minimal; the maintenance cost
-here is the standing cost accepted in the origin document.
+procedure. The pinning mechanism differs per agent: the oh-my-pi fork pins via the mise
+`github:` backend, but `oh-my-openagent` is installed by `npm install -g` at
+`mega-container/Dockerfile:194` because mise's npm backend skips the postinstall scripts these
+packages need — so that fork pins to an exact version on the Dockerfile line instead. State how
+each fork's release artifact is produced and verified before install (built from the pinned commit,
+checksum recorded) and who can push to the fork repos; provenance without verification is a pin,
+not a control. Keep the release build minimal; the maintenance cost is the standing cost accepted
+in the origin document.
 **Patterns to follow:**
 `private_dot_config/opencode/plugins/opencode-dir/VENDORED.md`.
 **Test scenarios:**
@@ -693,11 +768,11 @@ here is the standing cost accepted in the origin document.
 **Dependencies:** U14, U15
 **Files:** `tests/checks/check_agent_models.sh`, `tests/checks/check_fork_pins.sh`,
 `tests/checks/manifest.tsv`
-**Approach:** Enumerate agents from configuration rather than hardcoding a list, so a newly added
-agent without a declared model fails. Assert exact model strings, not substrings. Cover both `omo`
-and `omp`. This is the check that the origin's four-commit chase needed.
+**Approach:** Extend U22's enumeration to `omp`'s agents, including the seven bundled ones, and add
+fork-pin drift: the mise pin and the Dockerfile npm pin must each match the commit recorded in their
+`docs/vendored/` entry. U22 already covers `omo`.
 **Test scenarios:**
-- Covers R24, AE1. Deleting the config file makes the check report `error`.
+- Covers R2, R24. Deleting the config file makes the check report `error`.
 - An agent added without a model declaration fails the check.
 - A model value that is a superstring of the intended one fails.
 - Covers R6. The check detects when omp has rewritten its own config at runtime.
@@ -751,8 +826,12 @@ fixes to this file both produced silently non-functional bindings.
 **Dependencies:** none
 **Files:** `private_dot_local/bin/executable_mega-expose`
 **Approach:** For a service already on `0.0.0.0`, print the `raf-dev:PORT` URL — Tailscale runs
-inside the container, so it is directly reachable with no forwarding. For a loopback-bound service,
-wrap `tailscale serve` and return the HTTPS URL. Support teardown. No SSH forwarding is involved.
+inside the container, so it is directly reachable with no forwarding. For a loopback-bound service, wrap `tailscale serve` on a distinct target — a
+`--https=<port>` listener or a `--set-path` mount, never the bare root form, which would replace
+the existing mapping for opencode web at `entrypoint.sh:332` and break phone access with no signal
+(the healthcheck only probes loopback). Support teardown. Report that the resulting URL is
+reachable by every tailnet device, not only the Mac, so exposing an unauthenticated dev server is
+an explicit choice. No SSH forwarding is involved.
 **Patterns to follow:** `mega-container/entrypoint.sh:315-336` for the existing `tailscale serve`
 invocation.
 **Test scenarios:**
@@ -760,6 +839,7 @@ invocation.
 - A service on `0.0.0.0` returns the direct URL without invoking `tailscale serve`.
 - Exposing a port with nothing listening reports the problem rather than returning a dead URL.
 - Teardown removes the serve entry.
+- `https://$TS_HOST/` still reaches opencode web after an expose and after a teardown.
 **Verification:** A dev server started in the container opens from the Mac using only the returned
 URL.
 
@@ -825,6 +905,9 @@ Added during planning:
 - **Commits created by `merge`, `cherry-pick`, `revert`, and `rebase`.** These fire no `pre-commit`
   hook, so the default branch can advance locally in a work repo. The push is still blocked, so
   nothing reaches the remote.
+- **Shell-mediated writes to tracked files in the primary worktree.** Rule 1 intercepts tool
+  calls, not `sed -i` or shell redirection. Rule 2 still blocks the resulting commit, so the
+  exposure is a dirty primary worktree rather than a bad commit.
 - **Adopting sjawhar's no-absolute-paths rule.** This repo's scripts locate tooling by absolute
   `$HOME` paths throughout and every consumer depends on it. R9 targets repo identity specifically.
 
@@ -850,6 +933,32 @@ Added during planning:
 ---
 
 ## Open Questions
+
+**Raised in review — decide before the affected unit starts**
+
+- Force-push is now unrestricted in the exempt repos. The rule was removed because pushes to
+  protected branches are denied anyway, but `dotfiles` and `glove80` are exempt from that denial
+  and have no GitHub branch protection, so an agent force-pushing chezmoi `main` has nothing
+  stopping it. Retaining the agent-layer force deny for those two repos is the narrow fix; the cost
+  is that "exactly one definition" becomes "one definition for rules 1-3, force-push agent-layer
+  only". Affects U8.
+- Whether the self-test rule survives, given its justification changed. An alternative that catches
+  the same defect: each check declares the paths and commands it reads, and the runner reports
+  `error` when a declared input is missing. That works for checks which cannot be perturbed without
+  mutating live state — `chezmoi verify`, `tmux list-keys`, tailnet reachability — where a blanket
+  self-test requirement has no clean answer. Affects U1.
+- Whether either fork carries a patch yet. Neither is named, and a fork with no local changes is a
+  pin with a merge chore attached, against upstreams releasing roughly daily. Pinning upstream tags
+  and writing the `docs/vendored/` entries against upstream commits gets the reproducibility
+  benefit now; the fork branch can wait until the first patch upstream will not take actually
+  exists. Affects U15.
+- Whether omp's MCP servers are hand-copied or derived. Explicit beats inherited, but a third
+  hand-maintained MCP declaration means adding a server edits three files, and the failure mode is
+  one harness silently missing a tool. Templating omp's from the existing source, or asserting the
+  three agree, avoids it. Affects U14 and sits against R20's single-source principle.
+- Whether U2 is one approval gate or several. It migrates roughly forty checks, each needing a
+  severity call and a self-test, behind a single approve/reject — coarser than every other unit,
+  and in tension with R32.
 
 **Deferred to implementation**
 
