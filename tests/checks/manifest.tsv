@@ -4,7 +4,7 @@
 # here with no implementation fails, and an implementation not listed here fails.
 # Neither a deleted check nor an unregistered one can pass quietly.
 #
-# @min_checks 12
+# @min_checks 23
 #
 # The floor rises as checks migrate, so a run that registers fewer than expected
 # stops being a clean run.
@@ -22,3 +22,15 @@ tmux-resurrect-installed
 code-volume-mounted
 claude-plugins-match-declaration
 mise-tools-match-pins
+ssh-agent-keys-loaded
+tmux-version-min
+supercronic-running
+supercronic-crontab-declares-jobs
+sh-functions-ws-helpers
+tmux-restore-in-place
+tmux-save-tmpdir-pinned
+tmux-save-recent
+opencode-snapshot-recent
+secrets-required-present
+secrets-optional-present
+resurrect-roundtrips

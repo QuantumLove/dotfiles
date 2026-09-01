@@ -5,6 +5,7 @@
 #   mega-assert                 # every check applicable to this host
 #   mega-assert --list          # registry only, run nothing
 #   mega-assert --boot-gate     # only checks that should stop a boot
+#   mega-assert --deep          # include tier-3 behavioural checks
 #   mega-assert --scope host    # force a scope instead of detecting
 #   mega-assert --severity invariant
 #   mega-assert -h
@@ -20,11 +21,12 @@ export PATH
 if [ -t 1 ]; then G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; Z=$'\033[0m'
 else G=""; Y=""; R=""; D=""; Z=""; fi
 
-LIST_ONLY=0; BOOT_GATE=0; WANT_SCOPE=""; WANT_SEVERITY=""
+LIST_ONLY=0; BOOT_GATE=0; DEEP=0; WANT_SCOPE=""; WANT_SEVERITY=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --list)      LIST_ONLY=1 ;;
         --boot-gate) BOOT_GATE=1 ;;
+        --deep)      DEEP=1 ;;
         --scope)     WANT_SCOPE="${2:-}"; shift ;;
         --severity)  WANT_SEVERITY="${2:-}"; shift ;;
         -h|--help)   sed -n '2,14p' "$0"; exit 0 ;;
@@ -154,6 +156,11 @@ for i in "${!REG_IDS[@]}"; do
     min_corpus="$(hdr "$f" min_corpus)"
 
     [ "$BOOT_GATE" -eq 1 ] && [ "$bg" != "yes" ] && continue
+    # Tier 3 exercises behaviour end to end — slow, and some of it mutates live
+    # state. Opt in rather than paying for it on every boot.
+    if [ "$(hdr "$f" tier)" = "3" ] && [ "$DEEP" -eq 0 ]; then
+        SKIP=$((SKIP+1)); SKIPPED_NOTES+=("$id — tier 3, needs --deep"); continue
+    fi
     if [ -n "$WANT_SEVERITY" ] && [ "$sev" != "$WANT_SEVERITY" ]; then continue; fi
     if [ "$scp" != "both" ] && [ "$scp" != "$SCOPE" ]; then
         SKIP=$((SKIP+1)); SKIPPED_NOTES+=("$id — ${scp}-only, running on $SCOPE"); continue
