@@ -286,11 +286,6 @@ chezmoi apply --force || {
   echo "ERROR: chezmoi apply failed — dotfiles were not applied" >&2
   exit 1
 }
-# Ensure secrets env file is sourced by login shells (after chezmoi may have overwritten .bash_profile)
-if [ -f "$HOME/.secrets_env" ] && ! grep -q "secrets_env" "$HOME/.bash_profile" 2>/dev/null; then
-  echo '[ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"' >> "$HOME/.bash_profile"
-fi
-
 # Inject API key into Claude Code config to skip login prompt
 if [ -f "$HOME/.claude.json" ] && [ -n "$ANTHROPIC_API_KEY" ]; then
   tmp=$(mktemp)

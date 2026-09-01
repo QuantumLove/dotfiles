@@ -32,13 +32,12 @@ set -uo pipefail
 #   .claude.json            Claude Code rewrites it continuously
 #   .claude/settings.json   a modify_ target for exactly this reason
 #   .aws/config             aws-sso-login adds the -device profile variants
-#   .bash_profile           the entrypoint re-patches the secrets sourcing line
 #
 # The invariants that matter inside them are asserted separately and by key —
 # omo-agent-models is the model-value case. Listing a file here says "do not ask
 # whether it is byte-identical", not "do not check it".
 RUNTIME_OWNED=(".omo/omo.jsonc" ".omp/agent/config.yml" ".claude.json"
-               ".claude/settings.json" ".aws/config" ".bash_profile")
+               ".claude/settings.json" ".aws/config")
 
 run() {
     command -v op >/dev/null 2>&1 && ! op account get >/dev/null 2>&1 \
@@ -68,7 +67,10 @@ run() {
         [ "$owned" -eq 1 ] || drift+=("$f")
     done <<< "$out"
 
-    check_scanned "$(printf '%s\n' "$out" | grep -c .)"
+    # The corpus is every file chezmoi compared, not the few that differ — a
+    # clean tree legitimately reports zero status lines, and counting those
+    # would trip the declared minimum precisely when nothing is wrong.
+    check_scanned "$(chezmoi managed 2>/dev/null | grep -c .)"
     [ ${#drift[@]} -eq 0 ] \
         && check_pass "no unexplained drift${pending:+ ($pending source edit(s) not yet applied)}"
     check_fail "applied files changed outside chezmoi: ${drift[*]}"

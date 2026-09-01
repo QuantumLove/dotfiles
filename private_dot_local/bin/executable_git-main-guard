@@ -203,6 +203,14 @@ case "$MODE" in
     edit)
         { [ -z "$PATH_ARG" ] || [ "$PATH_ARG" = "null" ]; } && exit 0
 
+        # Make the path absolute up front. The git queries below run with -C
+        # "$root", which would otherwise resolve a relative path against the repo
+        # root instead of the caller's directory and inspect the wrong file.
+        case "$PATH_ARG" in
+            /*) ;;
+            *)  PATH_ARG="$PWD/$PATH_ARG" ;;
+        esac
+
         # Resolve the repo from the nearest EXISTING ancestor dir, so a new file
         # in a not-yet-created subdir still resolves its repo (no fail-open gap).
         dir="$(dirname "$PATH_ARG")"
@@ -222,7 +230,13 @@ case "$MODE" in
             exit 0
         fi
 
-        # (B) block edits to non-ignored files in the PRIMARY worktree, whatever
+        # (A2) only TRACKED files block. An untracked path cannot be in a commit
+        # without someone first adding it, and the commit hook covers that. This
+        # also keeps agent tool-call pseudo-paths (omp addresses its tools as
+        # xd://<tool>, which is not a file at all) from reading as a repo write.
+        git -C "$root" ls-files --error-unmatch -- "$PATH_ARG" >/dev/null 2>&1 || exit 0
+
+        # (B) block edits to tracked files in the PRIMARY worktree, whatever
         #     branch it is on (a feature branch there is itself the bug).
         if is_primary_worktree "$root"; then
             br="$(current_branch "$root")"

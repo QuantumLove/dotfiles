@@ -62,7 +62,41 @@ run() {
     "$GUARD" commit --cwd "$tmp/exempt" >/dev/null 2>&1 \
         || check_fail "exception control: an exempt repo was denied"
 
-    check_scanned 3
-    check_pass "deny, allow and except all behave"
+    # --- edit mode -------------------------------------------------------
+    # Commit mode passing says nothing about edit mode: they share a policy file
+    # but not a code path, and the agent adapters only ever call edit.
+    local repo="$tmp/plain"
+    git -C "$repo" checkout -q main
+    printf 'x\n' > "$repo/tracked.txt"
+    printf 'ignored/\n' > "$repo/.gitignore"
+    mkdir -p "$repo/ignored"
+    git -C "$repo" add tracked.txt .gitignore
+    git -C "$repo" -c user.email=a@b -c user.name=t -c commit.gpgsign=false \
+        commit -q -m tracked
+
+    "$GUARD" edit --path "$repo/tracked.txt" >/dev/null 2>&1 \
+        && check_fail "edit positive control: a tracked file in the primary checkout was allowed"
+
+    # Untracked and ignored paths must stay writable. Blocking them buys nothing
+    # — they cannot reach a commit unless someone adds them, which the commit
+    # hook covers — and it makes the guard something to route around.
+    "$GUARD" edit --path "$repo/untracked.txt" >/dev/null 2>&1 \
+        || check_fail "edit negative control: an untracked scratch file was denied"
+    "$GUARD" edit --path "$repo/ignored/x.txt" >/dev/null 2>&1 \
+        || check_fail "edit negative control: a gitignored path was denied"
+
+    # Agents address their own tools with pseudo-paths (omp uses xd://<tool>).
+    # Those are not files, and treating them as repo writes breaks tool calls.
+    ( cd "$repo" && "$GUARD" edit --path "xd://cd" >/dev/null 2>&1 ) \
+        || check_fail "edit negative control: a non-filesystem tool pseudo-path was denied"
+
+    # A relative path must resolve against the caller's directory, not the repo
+    # root, or the guard inspects the wrong file from any subdirectory.
+    mkdir -p "$repo/sub"
+    ( cd "$repo/sub" && "$GUARD" edit --path "../tracked.txt" >/dev/null 2>&1 ) \
+        && check_fail "edit control: a relative path to a tracked file was allowed"
+
+    check_scanned 8
+    check_pass "deny, allow and except all behave, in commit and edit mode"
 }
 run

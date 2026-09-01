@@ -67,6 +67,10 @@ fi
 
 # Define our MCP servers (source of truth)
 mcp_servers='{{ include "private_dot_claude/mcp-servers.yaml" | sha256sum }}'
+# datadog pins its mcp SDK: datadog-mcp calls Server.list_tools(), which the SDK
+# dropped after 1.25, so an unpinned uvx resolve installs a version that crashes
+# the server at import. It also needs python >=3.13, which the pin makes explicit
+# rather than leaving to whatever uv picks.
 desired_servers='{
   "linear": {
     "type": "stdio",
@@ -136,7 +140,7 @@ desired_servers='{
   "datadog": {
     "type": "stdio",
     "command": "uvx",
-    "args": ["--from", "git+https://github.com/shelfio/datadog-mcp.git", "datadog-mcp"],
+    "args": ["--python", "3.13", "--with", "mcp<1.26", "--from", "git+https://github.com/shelfio/datadog-mcp.git", "datadog-mcp"],
     "env": {
       "DD_API_KEY": "'"${DD_API_KEY}"'",
       "DD_APP_KEY": "'"${DD_APP_KEY}"'",

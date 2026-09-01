@@ -31,7 +31,7 @@ case "${1:-}" in
     --off)
         port="${2:?--off needs a port}"
         # Mirror of the serve form below, so teardown removes what we added.
-        tailscale serve --https="$port" off 2>/dev/null \
+        sudo tailscale serve --https="$port" off 2>/dev/null \
             || die "could not stop serving :$port"
         echo "stopped serving :$port"
         exit 0 ;;
@@ -51,8 +51,10 @@ case "$listening" in
         # Loopback-bound: needs tailscale serve. Use an explicit --https listener
         # rather than the bare form, which would replace the root mapping that
         # fronts opencode web and break phone access with no signal.
-        tailscale serve --bg --https="$port" "http://127.0.0.1:$port" >/dev/null 2>&1 \
-            || die "tailscale serve failed for :$port"
+        # sudo, like the entrypoint: tailscaled denies serve-config changes to
+        # an unprivileged caller and says so in its own error text.
+        sudo tailscale serve --bg --https="$port" "http://127.0.0.1:$port" >/dev/null 2>&1 \
+            || die "tailscale serve failed for :$port (try: sudo tailscale serve --bg --https=$port http://127.0.0.1:$port)"
         echo "https://$h:$port"
         echo "  (loopback service, fronted by tailscale serve — reachable tailnet-wide)"
         ;;

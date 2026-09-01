@@ -90,3 +90,14 @@ servers:
       channels-only" rule is enforced behaviorally via CLAUDE.md, not by the
       allowlist. im:write is currently granted, so DMs are technically possible —
       drop it from the app's scopes if you ever want a hard block.
+
+  datadog:
+    command: uvx --python 3.13 --with 'mcp<1.26' --from git+https://github.com/shelfio/datadog-mcp.git datadog-mcp
+    auth: API + App keys from 1Password (DD_API_KEY, DD_APP_KEY); site us3.datadoghq.com
+    notes: >
+      Both pins are load-bearing. datadog-mcp calls Server.list_tools(), which
+      the MCP SDK dropped after 1.25, so an unpinned uvx resolve installs a
+      version that raises AttributeError at import and the server never
+      connects. The package also requires python >=3.13, so the interpreter is
+      named explicitly rather than left to whatever uv happens to pick.
+      Revisit the pin if upstream migrates to the current SDK API.

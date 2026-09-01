@@ -27,14 +27,24 @@ run() {
     tmux -L "$sock" set-option -g @resurrect-dir "$dir" 2>/dev/null
 
     before="$(tmux -L "$sock" list-windows -t probe 2>/dev/null | grep -c .)"
-    "$HOME/.tmux/plugins/tmux-resurrect/scripts/save.sh" >/dev/null 2>&1 \
-        || check_fail "save.sh exited non-zero"
+
+    # Run the scripts INSIDE the throwaway server. Invoked bare they attach to
+    # whatever server the environment points at — the real one — so they read
+    # its @resurrect-dir, save the live layout instead of the probe, and write
+    # nothing here. The artifacts below are the verdict; run-shell reports its
+    # own exit status, not the script's, so a status check would prove nothing.
+    tmux -L "$sock" run-shell "$HOME/.tmux/plugins/tmux-resurrect/scripts/save.sh" >/dev/null 2>&1
     [ -n "$(find "$dir" -name 'tmux_resurrect_*.txt' 2>/dev/null | head -1)" ] \
         || check_fail "save.sh wrote no state file"
 
     tmux -L "$sock" kill-window -t probe 2>/dev/null
-    "$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh" >/dev/null 2>&1 \
-        || check_fail "restore.sh exited non-zero"
+    tmux -L "$sock" run-shell "$HOME/.tmux/plugins/tmux-resurrect/scripts/restore.sh" >/dev/null 2>&1
+
+    # restore.sh recreates windows asynchronously; poll rather than assume.
+    for _ in $(seq 1 20); do
+        [ "$(tmux -L "$sock" list-windows -t probe 2>/dev/null | grep -c .)" -ge "$before" ] && break
+        sleep 0.25
+    done
 
     # Default high so a failure to read the count fails closed rather than open.
     after="$(tmux -L "$sock" list-windows -t probe 2>/dev/null | grep -c . || echo 99)"

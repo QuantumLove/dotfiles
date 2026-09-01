@@ -1,3 +1,4 @@
+import { isAbsolute, resolve } from "node:path";
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 
 /**
@@ -54,8 +55,20 @@ export default function (pi: ExtensionAPI) {
 				break;
 			case "glob":
 			case "grep":
+				// These take a directory to search under.
 				if (input.path == null) input.path = dir;
 				else return;
+				break;
+			case "read":
+			case "write":
+				// These take a path TO a file, so an absent value is not the
+				// signal — a relative one is. omp resolves it against the
+				// session cwd, which this tool deliberately does not move, so
+				// without rebasing here a relative read misses the file the
+				// agent just changed directory to reach.
+				if (typeof input.path === "string" && input.path && !isAbsolute(input.path)) {
+					input.path = resolve(dir, input.path);
+				} else return;
 				break;
 			default:
 				return;
