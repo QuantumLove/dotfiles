@@ -134,6 +134,11 @@ land in the pass bucket. A skip without a reason is an `error`.
 ```mermaid
 flowchart LR
   U1["U1 runner"] --> U2["U2 migrate doctor"]
+  U2 --> U23["U23 agent config"]
+  U2 --> U24["U24 durability"]
+  U2 --> U25["U25 liveness"]
+  U23 --> U12
+  U24 --> U12
   U1 --> U22["U22 omo model check"]
   U1 --> U3["U3 drift"]
   U1 --> U4["U4 stderr"]
@@ -172,9 +177,16 @@ runner binary is delivered to `~/.local/bin`; the checks it runs are read from t
 This also inherits the existing conventions in `tests/`, which already number assertions against
 acceptance examples and render templates hermetically rather than reading applied output.
 
-**Every check declares a self-test.** A check must state a perturbation of its own input that
-makes it fail, and the runner exercises it. Without this, R2 is an intention with nothing enforcing
-it — which is exactly how `2f07e7c` survived.
+**Every check declares its inputs; the runner verifies them before running it.** A check names the
+files, keys, and commands it reads. A missing declared input is `error`, never a pass. Unlike a
+blanket self-test rule, this works for checks that cannot be perturbed without mutating live state.
+
+**Checks are a pyramid.** Tier 1 asserts presence, tier 2 inspects content (enumerating rather than
+spot-checking), tier 3 exercises behaviour end to end. Most are tier 1 or 2. Tier 3 is reserved and
+argued case by case — the three existing `--deep` checks qualify because every cheap proxy for them
+passed while the thing itself was broken. The agent-model check does not: it is a string mapping,
+and a headless run would need live auth and could not distinguish a wrong model from a degraded
+provider.
 
 **Checks that scan a set declare a minimum cardinality.** A grep across zero files and a grep
 across thirty-seven both exit clean today. Declaring `min` turns a broken glob into a failure.
@@ -223,10 +235,12 @@ does not clobber a runtime write, both sit on the known-divergence list, and the
 key-level invariants — declared model values, `disabledProviders` — rather than file equality.
 Classified `liveness`, so it never gates boot.
 
-**`omp` discovery providers are disabled by default.** omp auto-imports MCP servers from
-`~/.config/opencode/opencode.json`, slash commands from `~/.claude/commands/**`, and custom tools
-from `~/.claude/tools`. Silent inheritance across three harnesses is the same action-at-a-distance
-this plan is removing elsewhere. Config is carried over explicitly instead.
+**`omp` inherits configuration rather than duplicating it.** omp auto-imports MCP servers, slash
+commands, and custom tools from the Claude and OpenCode config it finds. That is already how
+OpenCode surfaces eleven MCP servers from nine declared for Claude plus two of its own, and it is
+the behaviour wanted — the commands are a way of working, not tool-specific. Inheritance stays on.
+The real risk is narrower: a command written against Claude Code may reference a skill or tool omp
+lacks and would fail quietly, so a check reports any inherited item that does not load.
 
 ---
 
@@ -282,12 +296,14 @@ Origin R-IDs are carried verbatim for traceability. Five changed during planning
 **Agent harness**
 
 - R21. `omp` is installed, pinned, and usable in the container alongside `omo`.
-- R22. Forks of `oh-my-pi` and `oh-my-opencode` exist under our control, documented with the
-  existing `VENDORED.md` pattern.
+- R22. `oh-my-pi` and `oh-my-opencode` are pinned to exact versions and documented with the
+  existing `VENDORED.md` pattern. *(Amended: forks deferred — nothing here requires a source patch,
+  and both upstreams merge contributions.)*
 - R23. Every agent's model is declared in committed configuration, including the seven bundled
   agents and the `tiny` role.
 - R24. Declared model selection and fork version resolution are covered by assertions.
-- R35. `omp` does not silently inherit OpenCode or Claude configuration. *(New.)*
+- R35. `omp` inherits MCP servers, commands, and tools rather than redeclaring them, and any
+  inherited item that fails to load there is reported. *(New.)*
 
 **Process**
 
@@ -320,8 +336,10 @@ and per-check self-test.
 **Files:** `private_dot_local/bin/executable_mega-assert`,
 `tests/checks/manifest.tsv`, `tests/checks/lib.sh`, `tests/checks/README.md`,
 `tests/checks/test_runner.sh`
-**Approach:** Each check is a file exposing `run` and `selftest`. The manifest is the registry:
-`id`, `path`, `severity` (`invariant`|`liveness`), `scope` (`host`|`container`|`both`). The runner
+**Approach:** Each check is a file exposing `run` and `selftest`. Each check carries a metadata header the runner parses — `id`, `severity`
+(`invariant`|`liveness`), `scope` (`host`|`container`|`both`), `tier` (1-3), `boot_gate`, and its
+declared inputs — so there is no separate table to keep in sync. The manifest is the registry of
+ids. The runner
 cross-checks manifest against implementations in both directions and fails on either mismatch.
 Corpus-scanning checks declare `min_corpus` and report `scanned N (min M)`. Resolve the check corpus via `chezmoi source-path` with a
 `MEGA_ASSERT_CHECKS_DIR` override, never a hardcoded `$HOME` path — `$HOME` differs between host
@@ -342,8 +360,7 @@ logging convention.
 - A check returning `skip` with no reason string is reported `error`.
 - Covers R4. A corpus check declaring `min_corpus=30` that scans 0 files fails and reports the
   count.
-- Every registered check's `selftest` makes its own `run` fail; a check whose selftest passes is
-  itself a failure.
+- A check whose declared input path or key is absent reports `error` before `run` executes.
 - Covers R3. A `liveness` check failing does not change the exit code; an `invariant` check failing
   does.
 - Scope filtering: running with `--scope host` reports container-only checks as skipped with
@@ -354,8 +371,9 @@ logging convention.
 `mega-assert` on a clean machine reports a nonzero registered count and zero errors.
 
 ### U2. Migrate mega-doctor onto the runner
-**Goal:** `mega-doctor`'s checks become registered checks; `mega-doctor` becomes a wrapper that
-preserves its flags and exit contract.
+**Goal:** Presence-tier checks migrated and the `IN_CONTAINER` gate replaced by manifest scope.
+Three sibling units follow; splitting keeps each approval reviewable, since the 39 checks carry 19
+fail-open defects that cluster by section.
 **Requirements:** R1, R2, R3
 **Dependencies:** U1
 **Files:** `private_dot_local/bin/executable_mega-doctor`, `tests/checks/*.sh`,
@@ -363,9 +381,11 @@ preserves its flags and exit contract.
 **Approach:** Port each existing check to a registered check, assigning severity deliberately —
 binaries and config invariants block, network probes and MCP connectivity warn. Fix the three known
 defects while porting rather than carrying them: the `2>/dev/null || echo 0` fallback, the
-substring model match, and the missing-key warn. Replace the `IN_CONTAINER` gate with manifest
-`scope`, so host runs report skips instead of silence. `mega-doctor` keeps `--quick`, `--no-mcp`,
-`--deep`, `-h`, and `[ $FAIL -eq 0 ]`.
+substring model match, and the missing-key warn. Replace the `IN_CONTAINER` gate with manifest `scope`: of the 30 checks
+behind it only 10 are genuinely container-only, so 20 silently never run on the host today and this
+roughly doubles host coverage — gated on replacing the GNU-only `stat -L -c`. Six checks are
+retired rather than migrated. `mega-doctor` keeps `--quick`, `--no-mcp`, `--deep`, `-h`, and
+`[ $FAIL -eq 0 ]`.
 **Patterns to follow:** `private_dot_local/bin/executable_mega-doctor:34-37` output vocabulary;
 keep the `hdr` section grouping in the wrapper's rendering.
 **Test scenarios:**
@@ -384,6 +404,51 @@ keep the `hdr` section grouping in the wrapper's rendering.
   agents, closing the same fail-open shape at the third surface.
 **Verification:** The check count before and after migration is accounted for — every former
 `ok`/`warn`/`bad` line maps to a registered id or is explicitly retired in the commit body.
+
+### U23. Agent-config invariant checks
+**Goal:** The OpenCode and Claude config section migrated, with its five fail-open defects fixed.
+**Requirements:** R1, R2, R3
+**Dependencies:** U2
+**Files:** `tests/checks/`, `tests/checks/manifest.tsv`
+**Approach:** The highest concentration of defects, including one that is live: the stray-model
+deny-list `test("sonnet|opus-5$")` matches none of the values actually in `omo.jsonc`
+(`haiku-4-5`, `gpt-5-nano`, `fable-5`), so it passes on exactly the drift it exists to catch.
+Reclassify the model checks from `warn` to `invariant`.
+**Test scenarios:**
+- The stray-model check fails against the current live config, which it passes today.
+- Covers R2. A malformed `omo.jsonc` reports `error` rather than zero strays.
+- A model value that is a superstring of the expected one fails.
+**Verification:** Every defect listed for this section in the classification is closed.
+
+### U24. Durability and secrets checks
+**Goal:** The durability, secrets, and mounts sections migrated, with their eight fail-open defects
+fixed.
+**Requirements:** R1, R2, R3
+**Dependencies:** U2
+**Files:** `tests/checks/`, `tests/checks/manifest.tsv`
+**Approach:** Includes two verified bugs: `ssh-add -l | wc -l` counts "1 key(s)" for an empty agent
+because the no-identities message goes to stdout, and the tmux version glob `3.[5-9]*|[4-9].*`
+rejects 3.10. Retains the three existing tier-3 resurrect checks — they earn it because every cheap
+proxy passed while restore was broken.
+**Test scenarios:**
+- An empty ssh agent fails the key check rather than reporting one key.
+- tmux 3.10 satisfies the version check.
+- Covers R3. A missing optional secret warns; a missing required secret fails.
+**Verification:** Both verified bugs reproduce before the change and are closed after.
+
+### U25. Liveness checks and the wrapper
+**Goal:** Network and service probes migrated as `liveness`; `mega-doctor` reduced to a caller.
+**Requirements:** R1, R3
+**Dependencies:** U2
+**Files:** `private_dot_local/bin/executable_mega-doctor`, `tests/checks/`
+**Approach:** Four checks currently marked `bad` are really liveness — opencode-web, tailscale
+serve, tailscale backend, and the docker daemon. Left as they are, any one would stop the container
+booting on a transient blip once U12 lands. Deliberately last in Phase 1, and not a prerequisite
+for U12.
+**Test scenarios:**
+- Covers R3. Each of the four reclassified checks failing leaves the exit code zero.
+- `mega-doctor --quick`, `--no-mcp`, `--deep` and `-h` behave as before.
+**Verification:** A network-down run reports failures without a nonzero exit.
 
 ### U3. Applied-versus-source drift check
 **Goal:** Detect config that has drifted from its chezmoi source, without false positives from
@@ -658,7 +723,7 @@ hot-patch's hardcoded path.
 ### U12. Make boot assertions blocking
 **Goal:** A failing invariant stops the boot instead of printing and continuing.
 **Requirements:** R3, R5
-**Dependencies:** U2, U9, U10
+**Dependencies:** U2, U23, U24, U9, U10
 **Files:** `mega-container/entrypoint.sh`, `mega-container/executable_rebuild.sh`,
 `private_dot_config/supercronic/crontab`, `private_Library/LaunchAgents/`
 **Approach:** Change `entrypoint.sh:399` from `mega-doctor --quick || echo` to a hard failure, and
@@ -666,7 +731,9 @@ move the gate *before* the `=== Bootstrap Complete ===` marker at line 393 —
 `executable_rebuild.sh` greps for that marker to decide the container is up, so gating after it
 makes rebuild believe a crash-looping container booted. Three safeguards belong to this unit, not
 to follow-ups. The boot gate is a named manifest subset (`boot_gate: yes|no`) rather than "all
-invariants", defaulting new checks to `no`, so a check added in Phase 4 or 5 cannot become
+invariants" — five checks qualify (core binaries, required secrets, omo config parses, omo agent
+models, the `~/code` volume), notably not sshd, which is the recovery path. New checks default to
+`no`, so a check added in Phase 4 or 5 cannot become
 boot-blocking by accident. An explicit `MEGA_ASSERT_BYPASS=1` escape is honoured by the entrypoint
 and logged loudly, documented in `mega-container/TROUBLESHOOTING.md` — without it,
 `restart: "on-failure:5"` plus an entrypoint that exits before `exec "$@"` means sshd never starts
@@ -716,43 +783,47 @@ standalone binary, but extensions are evaluated by Bun in-process.
 silent inheritance.
 **Requirements:** R23, R35
 **Dependencies:** U13
-**Files:** `private_dot_omp/agent/config.yml`, `private_dot_omp/agent/mcp.json.tmpl`,
-`private_dot_omp/agent/agents/`
+**Files:** `private_dot_omp/agent/config.yml`, `private_dot_omp/agent/agents/`
 **Approach:** Declare `modelRoles` with concrete selectors and put role aliases in
 `task.agentModelOverrides`. Coverage means the seven bundled agents — `scout`, `designer`,
 `reviewer`, `security-reviewer`, `librarian`, `task`, `sonic` — plus the `tiny` role, which drives
-session titles and memory on every turn and is easy to miss. Set `disabledProviders` to stop omp auto-importing OpenCode MCP
-servers, Claude commands, and Claude tools, and port the wanted MCP servers and skills across
-explicitly instead. Any MCP server needing a credential is delivered through a template that reads
-1Password at apply time, matching `modify_dot_claude.json.tmpl` — no literal secret is committed.
+session titles and memory on every turn and is easy to miss. Leave discovery providers enabled so omp picks up the existing MCP servers,
+commands, and tools rather than redeclaring them — no third MCP list, no hand-porting, no new
+secret-bearing template. Verify what actually arrives: MCP servers and commands inherit natively;
+whether skills do is unconfirmed, and if they do not, `resources_discover` is the mechanism and
+needs a live test.
 **Patterns to follow:** `sjawhar/dotfiles:omp/config.yml` for the role and override split;
 `private_dot_claude/mcp-servers.yaml` for the current MCP server set.
 **Test scenarios:**
 - Covers R23. Every bundled agent and every custom agent resolves to a declared model, asserted by
   a check that enumerates agents rather than spot-checking.
 - The `tiny` role is declared explicitly.
-- Covers R35. With `disabledProviders` set, omp's effective MCP server list matches
-  `private_dot_omp/agent/mcp.json` and does not include entries only present in the OpenCode config.
-- Slash commands available in omp are the ported set, not the Claude command directory.
+- Covers R35. omp reports all eleven MCP servers, matching OpenCode, with none redeclared in omp's
+  own config.
+- Covers R35. An inherited command referencing a skill or tool omp lacks is reported, not silent.
+- Skills inherit from the Claude skills directory, or `resources_discover` is confirmed as the
+  mechanism needed instead.
+- Slash commands available in omp include those in the Claude command directory.
 - A model alias that does not resolve makes the check fail.
 **Verification:** `omp` reports the intended model for a dispatched subagent of each type.
 
 ### U15. Forks of oh-my-pi and oh-my-openagent
-**Goal:** Both agents run from forks we control, documented and pinned.
+**Goal:** Both agents pinned to exact upstream versions, documented.
 **Requirements:** R22
 **Dependencies:** none
 **Files:** `docs/vendored/oh-my-pi.md`, `docs/vendored/oh-my-openagent.md`,
 `mega-container/dot_config/mise/config.toml`, `mega-container/Dockerfile`
 **Approach:** Follow the existing `VENDORED.md` pattern — pinned source repo, licence, version,
 commit, vendored date, enumerated local changes, a verify command, and a numbered upgrade
-procedure. The pinning mechanism differs per agent: the oh-my-pi fork pins via the mise
-`github:` backend, but `oh-my-openagent` is installed by `npm install -g` at
+procedure. The pinning mechanism differs per agent: oh-my-pi pins via the mise `github:`
+backend as `{ version = "18.0.11", exe = "omp", matching = "linux-x64" }`, following the existing
+`github:sjawhar/time-tracker` precedent; `oh-my-openagent` is installed by `npm install -g` at
 `mega-container/Dockerfile:194` because mise's npm backend skips the postinstall scripts these
-packages need — so that fork pins to an exact version on the Dockerfile line instead. State how
-each fork's release artifact is produced and verified before install (built from the pinned commit,
-checksum recorded) and who can push to the fork repos; provenance without verification is a pin,
-not a control. Keep the release build minimal; the maintenance cost is the standing cost accepted
-in the origin document.
+packages need, so it pins on that line instead. Record a checksum per pinned artifact — provenance
+without verification is a pin, not a control. No fork is created: an inventory found nothing here
+needing a source patch, every wanted behaviour is expressible through config or the extension API,
+and both upstreams merge contributions. Fork when something upstream will not take actually exists;
+the guard policy's exempt list gains the fork slug at that point.
 **Patterns to follow:**
 `private_dot_config/opencode/plugins/opencode-dir/VENDORED.md`.
 **Test scenarios:**
@@ -934,45 +1005,24 @@ Added during planning:
 
 ## Open Questions
 
-**Raised in review — decide before the affected unit starts**
+Everything raised in planning and review has been resolved. What remains is empirical — three
+things that cannot be settled by reading, only by running, each with a defined probe and a known
+fallback so none of them blocks its unit.
 
-- Force-push is now unrestricted in the exempt repos. The rule was removed because pushes to
-  protected branches are denied anyway, but `dotfiles` and `glove80` are exempt from that denial
-  and have no GitHub branch protection, so an agent force-pushing chezmoi `main` has nothing
-  stopping it. Retaining the agent-layer force deny for those two repos is the narrow fix; the cost
-  is that "exactly one definition" becomes "one definition for rules 1-3, force-push agent-layer
-  only". Affects U8.
-- Whether the self-test rule survives, given its justification changed. An alternative that catches
-  the same defect: each check declares the paths and commands it reads, and the runner reports
-  `error` when a declared input is missing. That works for checks which cannot be perturbed without
-  mutating live state — `chezmoi verify`, `tmux list-keys`, tailnet reachability — where a blanket
-  self-test requirement has no clean answer. Affects U1.
-- Whether either fork carries a patch yet. Neither is named, and a fork with no local changes is a
-  pin with a merge chore attached, against upstreams releasing roughly daily. Pinning upstream tags
-  and writing the `docs/vendored/` entries against upstream commits gets the reproducibility
-  benefit now; the fork branch can wait until the first patch upstream will not take actually
-  exists. Affects U15.
-- Whether omp's MCP servers are hand-copied or derived. Explicit beats inherited, but a third
-  hand-maintained MCP declaration means adding a server edits three files, and the failure mode is
-  one harness silently missing a tool. Templating omp's from the existing source, or asserting the
-  three agree, avoids it. Affects U14 and sits against R20's single-source principle.
-- Whether U2 is one approval gate or several. It migrates roughly forty checks, each needing a
-  severity call and a self-test, behind a single approve/reject — coarser than every other unit,
-  and in tension with R32.
-
-**Deferred to implementation**
-
-- Whether the `tests/checks` manifest is TSV or a directory-per-check convention — decide once the
-  first six checks exist and the ergonomics are visible.
-- Which mise asset the `github:` backend selects for omp on glibc Debian, and whether `exe = "omp"`
-  is required. The in-repo pattern is
-  `"github:sjawhar/time-tracker" = { version = ..., exe = "tt", matching = "musl" }`.
-- Whether omp's `/move` can be triggered from an extension via `sendUserMessage`, which would
-  simplify U17 — untested, and the documented tool-interception path works regardless.
-- Whether `resources_discover` fires on upstream omp; the docs say it is never invoked while
-  sjawhar ships an extension depending on it.
-
----
+- **Can an extension trigger omp's `/move`?** `/move` relocates the session and `chdir`s the
+  process, which is strictly better than redirecting tool arguments — but there is no documented
+  extension API to invoke it. In U17, try `pi.sendUserMessage("/move <path>")` first; if the
+  process cwd follows, the extension shrinks to a few lines. If not, build the documented
+  `tool_call` interception, which is the plan either way.
+- **Do skills inherit into omp?** MCP servers, commands, and tools do. Skills are unconfirmed. In
+  U14, start omp and check whether a known skill is listed. If they do not inherit,
+  `resources_discover` is the mechanism — and upstream's docs claim that event is never fired while
+  sjawhar ships an extension depending on it, so that contradiction needs a live test before
+  relying on it.
+- **Which asset does mise select for omp on glibc Debian?** The pin is specified as
+  `{ version = "18.0.11", exe = "omp", matching = "linux-x64" }` — `matching` excludes the musl
+  asset, whose name contains `linux-musl-x64`. Confirm the shim resolves to `omp` at U13; the
+  existing `github:sjawhar/time-tracker` pin is the working precedent.
 
 ## Sources / Research
 
