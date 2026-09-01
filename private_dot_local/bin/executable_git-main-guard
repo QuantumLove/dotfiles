@@ -14,6 +14,8 @@
 # Usage:
 #   git-main-guard edit     --path <file>
 #   git-main-guard checkout --command <cmd> [--cwd <dir>]
+#   git-main-guard commit   [--cwd <dir>]
+#   git-main-guard push     --remote <name-or-url> [--cwd <dir>]   # refs on stdin
 #
 # Exit 0 = allow (silent).  Exit 2 = block (human-readable reason on stderr).
 #
@@ -59,11 +61,13 @@ shift || true
 PATH_ARG=""
 CMD_ARG=""
 CWD_ARG="$PWD"
+REMOTE_ARG="origin"
 while [ $# -gt 0 ]; do
     case "$1" in
         --path)    PATH_ARG="${2:-}"; shift 2 || shift ;;
         --command) CMD_ARG="${2:-}";  shift 2 || shift ;;
         --cwd)     CWD_ARG="${2:-}";  shift 2 || shift ;;
+        --remote)  REMOTE_ARG="${2:-}"; shift 2 || shift ;;
         *)         shift ;;
     esac
 done
@@ -275,6 +279,62 @@ EOF
             exit 2
         fi
         exit 0
+        ;;
+
+    commit)
+        # Rule 2. Fires from pre-commit, so the repo is unambiguous — the hook
+        # runs in the repo the commit targets, whatever the caller's cwd was.
+        [ -z "$CWD_ARG" ] && CWD_ARG="$PWD"
+        root="$(git -C "$CWD_ARG" rev-parse --show-toplevel 2>/dev/null || echo "")"
+        [ -z "$root" ] && exit 0
+        has_remote "$root" || exit 0                   # nothing shared to protect
+        repo_is_allowlisted "$root" && exit 0
+        def_br="$(default_branch "$root")"
+        [ -z "$def_br" ] && { guard_log "commit: default branch underivable in $root — allowed"; exit 0; }
+        br="$(current_branch "$root")"
+        [ "$br" = "$def_br" ] || exit 0
+        cat >&2 <<EOF
+Blocked: refusing to commit on '$def_br'.
+  Repo: $root
+
+Branch first, then commit:
+  git checkout -b <branch>
+
+If you mean it: git commit --no-verify
+EOF
+        exit 2
+        ;;
+
+    push)
+        # Rule 3. Ref lines arrive on stdin as:
+        #   <local_ref> <local_sha> <remote_ref> <remote_sha>
+        # remote_ref is authoritative — it is what makes `git push origin
+        # feat:main` a push to main, which no command-string match would catch.
+        [ -z "$CWD_ARG" ] && CWD_ARG="$PWD"
+        root="$(git -C "$CWD_ARG" rev-parse --show-toplevel 2>/dev/null || echo "")"
+        [ -z "$root" ] && exit 0
+        has_remote "$root" || exit 0
+        repo_is_allowlisted "$root" "$REMOTE_ARG" && exit 0
+        def_br="$(default_branch "$root" "$REMOTE_ARG")"
+        [ -z "$def_br" ] && { guard_log "push: default branch underivable for $REMOTE_ARG in $root — allowed"; exit 0; }
+
+        blocked=""
+        # `|| [ -n "$remote_ref" ]` so a final line with no trailing newline is
+        # still processed rather than dropped at EOF.
+        while read -r _local_ref _local_sha remote_ref _remote_sha || [ -n "${remote_ref:-}" ]; do
+            [ -n "${remote_ref:-}" ] || continue
+            [ "$remote_ref" = "refs/heads/$def_br" ] && blocked="$remote_ref"
+        done
+        [ -z "$blocked" ] && exit 0
+        cat >&2 <<EOF
+Blocked: refusing to push to '$def_br'.
+  Repo:   $root
+  Remote: $REMOTE_ARG
+  Ref:    $blocked
+
+Push a branch and open a PR. If you mean it: git push --no-verify
+EOF
+        exit 2
         ;;
 
     *)

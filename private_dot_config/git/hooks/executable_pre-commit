@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Rule 2: no commit on the default branch, except in exempt repos.
+# Thin adapter — the policy lives in git-main-guard, which every enforcement
+# point shares.
+set -uo pipefail
+. "$(dirname "$0")/_chain.sh"
+
+"$HOME/.local/bin/git-main-guard" commit --cwd "$PWD" || exit $?
+chain_repo_hook pre-commit "$@"

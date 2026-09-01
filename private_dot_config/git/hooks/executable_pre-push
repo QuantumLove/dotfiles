@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Rule 3: no push to the default branch, except in exempt repos.
+# git passes the remote name (or a bare URL for an anonymous push) as $1 and the
+# ref lines on stdin; both are forwarded so the engine can decide on the ref
+# actually being updated rather than on the command string.
+set -uo pipefail
+. "$(dirname "$0")/_chain.sh"
+
+remote="${1:-origin}"
+refs="$(cat)"
+
+# printf '%s\n', not '%s': command substitution strips the trailing newline, and
+# a final line without one leaves `while read` at EOF with the loop body never
+# entered — the ref would sail through unexamined.
+printf '%s\n' "$refs" | "$HOME/.local/bin/git-main-guard" push --remote "$remote" --cwd "$PWD" || exit $?
+printf '%s\n' "$refs" | chain_repo_hook pre-push "$@"
