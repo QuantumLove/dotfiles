@@ -241,9 +241,9 @@ target also gives up chezmoi's current self-heal-on-apply behaviour, which is th
 model check must block rather than warn.
 
 **`omp` inherits configuration rather than duplicating it.** omp auto-imports MCP servers, slash
-commands, and custom tools from the Claude and OpenCode config it finds. That is already how
-OpenCode surfaces eleven MCP servers from nine declared for Claude plus two of its own, and it is
-the behaviour wanted — the commands are a way of working, not tool-specific. Inheritance stays on.
+commands, and custom tools from the Claude and OpenCode config it finds. Nine distinct servers are declared for Claude and OpenCode redeclares two of
+them, so the union is nine — inheritance means omp sees those nine without a third list. The
+commands are a way of working, not tool-specific. Inheritance stays on.
 The real risk is narrower: a command written against Claude Code may reference a skill or tool omp
 lacks and would fail quietly, so a check reports any inherited item that does not load.
 
@@ -680,7 +680,9 @@ nothing fails instead of passing, and a repo cloned yesterday is covered without
 step. Scope them `both` so they run in the container, since the chezmoi repo is
 read-only there and cannot itself exercise AE10.
 
-Three further checks close the gaps the control triple cannot see. **Coverage:** walk known
+These stay in one unit despite U2 being split: U2's checks span unrelated config domains, whereas
+all of U9's substantiate a single property — that the guard is live — so approving them together is
+approving one claim. Three further checks close the gaps the control triple cannot see. **Coverage:** walk known
 checkouts and ask the engine which path it would take for each; a repo that would be allowed
 because its identity or default branch is underivable is a failure, not a log line — fail-open is
 defensible only while it is monitored, and a `git init` repo with a manually added remote has no
@@ -836,8 +838,8 @@ needs a live test.
 - Covers R23. Every bundled agent and every custom agent resolves to a declared model, asserted by
   a check that enumerates agents rather than spot-checking.
 - The `tiny` role is declared explicitly.
-- Covers R35. omp reports all eleven MCP servers, matching OpenCode, with none redeclared in omp's
-  own config.
+- Covers R35. omp reports the nine distinct MCP servers discovered from `~/.claude.json` and
+  `~/.config/opencode/opencode.json`, with none redeclared in omp's own config.
 - Covers R35. A command referencing `mcp__linear__list_issues` is reported when omp exposes that
   tool under a different name — the command loads cleanly, so load-time checking would miss it.
   Six command templates reference 17 such names today; the scan declares `min_corpus` at the
@@ -984,7 +986,9 @@ URL.
 **Files:** `dot_tmux.conf`, `private_dot_config/opencode/plugins/opencode-dir/index.ts`,
 `private_dot_omp/agent/extensions/cwd-publish.ts`, `private_dot_claude/hooks/`
 **Approach:** Agents publish their working directory to a pane-scoped tmux option; the binding
-prefers it and falls back to `pane_current_path` when unset. Each harness publishes with a one-line
+prefers it and falls back to `pane_current_path` when unset. All three publishers ship — partial
+coverage was considered and rejected, since the point is that the path is correct whichever harness
+is running. Each harness publishes with a one-line
 `tmux set -p` and clears on exit. In omp, use the `session_start` / `session_switch` /
 `session_branch` triad, guard against subagent events which fire process-wide, and use
 `ctx.setInterval` rather than a raw timer, since a raw timer that throws tears down the session.
@@ -1040,9 +1044,9 @@ Added during planning:
   hook, so the default branch can advance locally in a work repo. The push is still blocked, so
   nothing reaches the remote.
 - **Porting Claude Code's `permissions.deny` rules to OpenCode and omp.** Inheritance carries
-  tools, not guardrails: the destructive-Bash denylist and the `mcp__slack-read__*` write-blocks
-  that close the read/write token split exist only in `modify_settings.json`, and OpenCode has no
-  equivalent today either. Named here so the gap is visible rather than assumed closed.
+  tools, not guardrails — the destructive-Bash denylist and the `mcp__slack-read__*` write-blocks
+  live only in `modify_settings.json`. Deliberately not ported: those rules stay where they are,
+  and OpenCode and omp run without them.
 - **Forking `oh-my-pi` and `oh-my-opencode`.** Deferred — an inventory found nothing needing a
   source patch and both upstreams merge contributions. Fork when upstream will not take a needed
   change.
@@ -1056,6 +1060,11 @@ Added during planning:
 
 ## Risks & Dependencies
 
+- **Boot-gate recovery requires a Mac terminal.** A failed gate exits the entrypoint before
+  `exec "$@"`, so sshd never starts and `restart: "on-failure:5"` stops after five attempts.
+  Recovery is `MEGA_ASSERT_BYPASS=1` via the host Docker CLI — not reachable from a phone or
+  another machine. Accepted: the alternative, letting sshd start and marking the container
+  unhealthy, was considered and rejected as more machinery than the failure rate justifies.
 - **Making assertions blocking will fail boots that pass today.** `entrypoint.sh:399` currently
   swallows a failing doctor. U12 is sequenced after the invariant set is trustworthy, and liveness
   checks are excluded from the gate.
