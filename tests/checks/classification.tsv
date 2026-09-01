@@ -13,9 +13,10 @@
 # id	section	line	severity	tier	scope	boot_gate	disp	unit	defect
 bin-core-present	Binaries	46-48	invariant	1	both	yes	migrate	U2	-
 bin-container-tools-present	Container tools	52-54	invariant	1	container	no	migrate	U2	-
-claude-version-matches-pin	Claude Code	59	invariant	2	both	no	replaced	U23	unconditional-ok
+claude-version-matches-pin	Claude Code	59	invariant	2	container	no	replaced	U23	unconditional-ok
 claude-plugins-match-declaration	Claude Code	60-61	invariant	2	both	no	migrate	U23	warns-on-count
-opencode-version-matches-pin	OpenCode	66	invariant	2	both	no	replaced	U23	unconditional-ok
+opencode-version-matches-pin	OpenCode	66	invariant	2	container	no	replaced	U23	unconditional-ok
+mise-tools-match-pins	OpenCode	new	invariant	2	container	no	migrate	U23	-
 omo-config-present	OpenCode	67-69,86	invariant	1	both	yes	migrate	U2	absence-not-error
 omo-sisyphus-model	OpenCode	70-78	invariant	2	both	-	replaced	U22	warn-not-fail
 omo-stray-models	OpenCode	79-83	invariant	2	both	-	replaced	U22	denylist-not-enumeration

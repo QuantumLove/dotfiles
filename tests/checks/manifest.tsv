@@ -4,7 +4,7 @@
 # here with no implementation fails, and an implementation not listed here fails.
 # Neither a deleted check nor an unregistered one can pass quietly.
 #
-# @min_checks 10
+# @min_checks 12
 #
 # The floor rises as checks migrate, so a run that registers fewer than expected
 # stops being a clean run.
@@ -20,3 +20,5 @@ aws-dir-mounted
 kube-dir-mounted
 tmux-resurrect-installed
 code-volume-mounted
+claude-plugins-match-declaration
+mise-tools-match-pins
