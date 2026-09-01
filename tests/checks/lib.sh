@@ -37,8 +37,14 @@ check_scanned() { printf 'scanned\t%s\n' "${1:-0}"; }
 file_age_minutes() {
     local f="$1" mtime now
     [ -e "$f" ] || return 1
-    mtime="$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null)" || return 1
-    [ -n "$mtime" ] || return 1
+    # Validate the OUTPUT, not the exit status. GNU `stat -f %m <file>` SUCCEEDS
+    # and prints filesystem statistics rather than a timestamp, so an
+    # exit-status fallback never fires and the caller gets multi-line garbage.
+    # Trying BSD-first and trusting `||` was the same class of portability bug
+    # as the GNU-only `stat -L -c` this helper replaced.
+    mtime="$(stat -c %Y "$f" 2>/dev/null)"
+    case "${mtime:-}" in ''|*[!0-9]*) mtime="$(stat -f %m "$f" 2>/dev/null)" ;; esac
+    case "${mtime:-}" in ''|*[!0-9]*) return 1 ;; esac
     now="$(date +%s)"
     printf '%s' $(( (now - mtime) / 60 ))
 }
