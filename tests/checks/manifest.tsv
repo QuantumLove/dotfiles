@@ -4,7 +4,7 @@
 # here with no implementation fails, and an implementation not listed here fails.
 # Neither a deleted check nor an unregistered one can pass quietly.
 #
-# @min_checks 40
+# @min_checks 41
 #
 # The floor rises as checks migrate, so a run that registers fewer than expected
 # stops being a clean run.
@@ -51,3 +51,4 @@ no-silenced-supervision
 chezmoi-drift
 marketplaces-agree
 tmux-bindings-load
+pins-documented

@@ -191,7 +191,7 @@ COPY --chown=rafaelcarvalho:rafaelcarvalho .config/mise/config.toml .config/mise
 # postinstall scripts, and both opencode-ai and @anthropic-ai/claude-code rely on
 # postinstall to download their platform-native binaries. npm install -g runs them.
 RUN mise trust -a && mise install && \
-    npm install -g yarn opencode-ai @anthropic-ai/claude-code oh-my-openagent @googleworkspace/cli && \
+    npm install -g yarn opencode-ai @anthropic-ai/claude-code oh-my-openagent@4.19.4 @googleworkspace/cli && \
     oh-my-openagent install --no-tui --claude=yes --gemini=no --copilot=no
 
 COPY --chown=rafaelcarvalho:rafaelcarvalho entrypoint.sh /usr/local/bin/
