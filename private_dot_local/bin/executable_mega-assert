@@ -6,6 +6,7 @@
 #   mega-assert --list          # registry only, run nothing
 #   mega-assert --boot-gate     # only checks that should stop a boot
 #   mega-assert --deep          # include tier-3 behavioural checks
+#   mega-assert --report        # also write the status file other things read
 #   mega-assert --scope host    # force a scope instead of detecting
 #   mega-assert --severity invariant
 #   mega-assert -h
@@ -21,12 +22,13 @@ export PATH
 if [ -t 1 ]; then G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; Z=$'\033[0m'
 else G=""; Y=""; R=""; D=""; Z=""; fi
 
-LIST_ONLY=0; BOOT_GATE=0; DEEP=0; WANT_SCOPE=""; WANT_SEVERITY=""
+LIST_ONLY=0; BOOT_GATE=0; DEEP=0; REPORT=1; WANT_SCOPE=""; WANT_SEVERITY=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --list)      LIST_ONLY=1 ;;
         --boot-gate) BOOT_GATE=1 ;;
         --deep)      DEEP=1 ;;
+        --report)    REPORT=1 ;;
         --scope)     WANT_SCOPE="${2:-}"; shift ;;
         --severity)  WANT_SEVERITY="${2:-}"; shift ;;
         -h|--help)   sed -n '2,14p' "$0"; exit 0 ;;
@@ -206,6 +208,41 @@ done
 echo
 echo "${D}$REGISTERED registered · $RAN ran · $PASS passed · $FAIL failed · $SKIP skipped · $ERROR errored${Z}"
 [ "$registry_errors" -gt 0 ] && echo "${R}$registry_errors registry error(s)${Z}"
+
+# --- status file -------------------------------------------------------------
+# Written on every run. The container boots regardless of the verdict — the box
+# has to stay reachable to be debuggable — so the verdict has to land somewhere
+# durable that the healthcheck, the login banner and the tmux status line can
+# all read. A failure that only ever existed in stdout is a failure nobody sees.
+if [ "$REPORT" -eq 1 ]; then
+    STATE_DIR="$HOME/.local/state/mega-assert"
+    mkdir -p "$STATE_DIR" 2>/dev/null
+    {
+        printf '{\n'
+        printf '  "ok": %s,\n' "$([ "$INVARIANT_BAD" -eq 0 ] && [ "$registry_errors" -eq 0 ] && echo true || echo false)"
+        printf '  "at": "%s",\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        printf '  "scope": "%s",\n' "$SCOPE"
+        printf '  "registered": %s, "ran": %s, "passed": %s, "failed": %s, "skipped": %s, "errored": %s,\n' \
+               "$REGISTERED" "$RAN" "$PASS" "$FAIL" "$SKIP" "$ERROR"
+        printf '  "failures": ['
+        local_first=1
+        for note in ${FAILED_NOTES+"${FAILED_NOTES[@]}"} ${ERROR_NOTES+"${ERROR_NOTES[@]}"}; do
+            [ "$local_first" -eq 1 ] || printf ', '
+            printf '"%s"' "$(printf '%s' "$note" | sed 's/"/\\"/g')"
+            local_first=0
+        done
+        printf ']\n}\n'
+    } > "$STATE_DIR/status.json" 2>/dev/null
+
+    {
+        printf 'mega-assert %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        printf '%s registered · %s ran · %s passed · %s failed · %s skipped · %s errored\n\n' \
+               "$REGISTERED" "$RAN" "$PASS" "$FAIL" "$SKIP" "$ERROR"
+        for note in ${FAILED_NOTES+"${FAILED_NOTES[@]}"}; do printf 'FAIL  %s\n' "$note"; done
+        for note in ${ERROR_NOTES+"${ERROR_NOTES[@]}"}; do printf 'ERROR %s\n' "$note"; done
+        for note in ${SKIPPED_NOTES+"${SKIPPED_NOTES[@]}"}; do printf 'skip  %s\n' "$note"; done
+    } > "$STATE_DIR/last-run.txt" 2>/dev/null
+fi
 
 if [ "$registry_errors" -gt 0 ] || [ "$INVARIANT_BAD" -eq 1 ]; then exit 1; fi
 exit 0

@@ -300,6 +300,37 @@ fi
 echo "✓ chezmoi applied"
 
 # 10e. Start OpenCode web (UI + API on one port, behind tailscale serve)
+# ---------------------------------------------------------------------------
+# Correctness gate
+#
+# Runs before the agent surfaces, and never stops the boot. A container that
+# refuses to start is a container you cannot ssh into to fix, and the recovery
+# would need a terminal on the Mac — which defeats reaching this box from
+# anywhere. So the box always comes up and always stays reachable.
+#
+# What it does instead is refuse to be silently wrong: the verdict is written to
+# a status file, the healthcheck reads it, the login banner shows it, and the
+# agent surfaces below stay down while an invariant is failing. Reachable and
+# obviously degraded beats unreachable.
+# ---------------------------------------------------------------------------
+BOOT_GATE_OK=1
+if "$HOME/.local/bin/mega-assert" --boot-gate --report; then
+  echo "✓ boot invariants hold"
+else
+  BOOT_GATE_OK=0
+  echo ""
+  echo "########################################################################"
+  echo "#  BOOT INVARIANTS FAILING — agent surfaces held back                  #"
+  echo "#  Details:  cat ~/.local/state/mega-assert/last-run.txt               #"
+  echo "#  Re-run:   mega-assert --boot-gate                                   #"
+  echo "#  Override: MEGA_ASSERT_FORCE_SURFACES=1 in the environment           #"
+  echo "########################################################################"
+  echo ""
+fi
+
+if [ "$BOOT_GATE_OK" -eq 0 ] && [ "${MEGA_ASSERT_FORCE_SURFACES:-0}" != "1" ]; then
+  echo "Skipping opencode web — boot invariants are failing."
+else
 echo "Starting opencode web..."
 mkdir -p "$HOME/.local/state"
 nohup opencode web --hostname 127.0.0.1 --port 4096 --log-level INFO \
@@ -321,6 +352,7 @@ if ! sudo tailscale serve --bg http://127.0.0.1:4096; then
   exit 1
 fi
 echo "✓ opencode web reachable at https://$TS_HOST"
+fi
 
 # 11b. Start supercronic for durability saves (supervised — tini reaps but won't restart)
 mkdir -p "$HOME/.local/state"
@@ -379,12 +411,8 @@ echo "✓ sqlite3 + column ready"
 
 echo "=== Bootstrap Complete ==="
 
-# 15. Run mega-doctor (quick mode — no slow MCP/AWS probes)
-# Non-fatal: warnings don't block container start, only printed for visibility.
-if [ -x "$HOME/.local/bin/mega-doctor" ]; then
-  echo
-  "$HOME/.local/bin/mega-doctor" --quick || echo "⚠️  mega-doctor reported issues — run 'mega-doctor' for full check"
-fi
+# 15. Full report for the log. The gate above already decided; this is detail.
+"$HOME/.local/bin/mega-doctor" || echo "⚠️  see ~/.local/state/mega-assert/last-run.txt"
 
 # Execute the main command
 exec "$@"
