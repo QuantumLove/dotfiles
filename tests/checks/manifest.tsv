@@ -4,9 +4,10 @@
 # here with no implementation fails, and an implementation not listed here fails.
 # Neither a deleted check nor an unregistered one can pass quietly.
 #
-# @min_checks 0
+# @min_checks 1
 #
-# The floor is 0 while the registry is empty. U2 raises it as the mega-doctor
-# checks migrate, so a run that registers nothing stops being a clean run.
+# The floor rises as checks migrate, so a run that registers fewer than expected
+# stops being a clean run.
 #
 # id
+omo-agent-models
