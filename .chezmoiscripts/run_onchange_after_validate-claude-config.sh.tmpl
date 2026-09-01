@@ -76,17 +76,29 @@ echo "✅ $AGENT_COUNT agents, $COMMAND_COUNT commands"
 # ----------------------------------------
 # VALIDATE: Frontmatter (fast check)
 # ----------------------------------------
-# Agents need both name: and description:
-INVALID_AGENTS=$(grep -L "^name:" ~/.claude/agents/*.md 2>/dev/null | wc -l | tr -d ' ')
-if [ "$INVALID_AGENTS" -gt 0 ]; then
-    warn "$INVALID_AGENTS agent(s) missing 'name:' frontmatter"
-fi
+# A zero corpus and a clean corpus both used to exit quietly here: if the glob
+# matched nothing, grep errored into /dev/null, wc counted 0, and no warning
+# fired — so "0 agents, 0 commands" read exactly like a healthy install. Assert
+# the corpus is non-empty before trusting a zero.
+validate_frontmatter() { # <label> <dir>
+    local label="$1" dir="$2" total invalid
+    if [ ! -d "$dir" ]; then
+        warn "$label directory missing: $dir"
+        return
+    fi
+    total=$(find "$dir" -name "*.md" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$total" -eq 0 ]; then
+        warn "no $label files found in $dir — expected at least one"
+        return
+    fi
+    invalid=$(grep -L "^name:" "$dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$invalid" -gt 0 ]; then
+        warn "$invalid of $total $label(s) missing 'name:' frontmatter"
+    fi
+}
 
-# Commands need name:
-INVALID_COMMANDS=$(grep -L "^name:" ~/.claude/commands/*.md 2>/dev/null | wc -l | tr -d ' ')
-if [ "$INVALID_COMMANDS" -gt 0 ]; then
-    warn "$INVALID_COMMANDS command(s) missing 'name:' frontmatter"
-fi
+validate_frontmatter agent   "$HOME/.claude/agents"
+validate_frontmatter command "$HOME/.claude/commands"
 
 # ----------------------------------------
 # OPTIONAL: Quick checks (non-blocking)
