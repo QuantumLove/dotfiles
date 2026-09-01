@@ -25,26 +25,43 @@ run() {
     local conf="$src/dot_tmux.conf"
     [ -r "$conf" ] || check_error "missing $conf"
 
-    local registered; registered="$(tmux list-keys 2>/dev/null)" \
-        || check_error "tmux list-keys failed — no server to ask"
+    local raw
+    raw="$(tmux list-keys -T prefix 2>/dev/null)" || check_error "tmux list-keys failed"
+    [ -n "$raw" ] || check_error "tmux reported no prefix bindings"
 
-    local declared=() key missing=()
-    # Keys bound in the prefix table, however the bind line is spelled.
-    while IFS= read -r key; do
-        [ -n "$key" ] && declared+=("$key")
-    done < <(grep -E '^bind(-key)?[[:space:]]' "$conf" \
+    # Two things make the key column awkward to read:
+    #   -r (repeat) bindings insert a field, shifting the key one to the right
+    #   tmux escapes \\ and prefixes " # $ % ' ; { } ~ with a backslash
+    # Strip the command prefix by pattern rather than counting fields, then
+    # unescape, so a bound key is never reported missing.
+    local registered=""
+    while IFS= read -r line; do
+        local rest key
+        rest="${line#bind-key}"
+        rest="${rest#"${rest%%[![:space:]]*}"}"          # ltrim
+        rest="${rest#-r}"; rest="${rest#"${rest%%[![:space:]]*}"}"
+        rest="${rest#-T}"; rest="${rest#"${rest%%[![:space:]]*}"}"
+        rest="${rest#prefix}"; rest="${rest#"${rest%%[![:space:]]*}"}"
+        key="${rest%%[[:space:]]*}"
+        case "$key" in
+            '\\\\') key='\' ;;                           # escaped backslash
+            '\'?)   key="${key#\\}" ;;                   # \" \# \$ \% \' \; \{ \} \~
+        esac
+        [ -n "$key" ] && registered+="$key"$'\n'
+    done <<< "$raw"
+    registered="$(printf '%s' "$registered" | sort -u)"
+
+    local declared
+    declared="$(grep -E '^bind(-key)?[[:space:]]' "$conf" \
              | sed -E 's/^bind(-key)?[[:space:]]+//; s/^-r[[:space:]]+//; s/^-T[[:space:]]+prefix[[:space:]]+//' \
-             | awk '{print $1}' | tr -d "'\"" | sort -u)
+             | awk '{print $1}' | sed "s/^'\(.*\)'$/\1/" | tr -d '"' | sort -u)"
+    [ -n "$declared" ] || check_error "no bind lines found in $conf"
 
-    [ ${#declared[@]} -gt 0 ] || check_error "no bind lines found in $conf"
-    check_scanned "${#declared[@]}"
+    local n; n="$(printf '%s\n' "$declared" | grep -c .)"
+    check_scanned "$n"
 
-    for key in "${declared[@]}"; do
-        printf '%s\n' "$registered" | grep -qE "bind-key[^\n]*[[:space:]]${key//\\/\\\\}([[:space:]]|$)" \
-            || missing+=("$key")
-    done
-
-    [ ${#missing[@]} -eq 0 ] && check_pass "${#declared[@]} bindings registered"
-    check_fail "declared but not registered: ${missing[*]}"
+    local missing; missing="$(comm -23 <(printf '%s\n' "$declared") <(printf '%s\n' "$registered") | tr '\n' ' ')"
+    [ -z "${missing// /}" ] && check_pass "$n bindings registered"
+    check_fail "declared but not registered: $missing"
 }
 run
