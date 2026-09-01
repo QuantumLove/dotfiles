@@ -17,7 +17,8 @@
 #
 # Exit 0 = allow (silent).  Exit 2 = block (human-readable reason on stderr).
 #
-# Session bypass:  export ALLOW_MAIN_EDITS=1   (CLAUDE_ALLOW_MAIN_EDITS=1 also honored)
+# There is no environment bypass. `--no-verify` is the sanctioned escape hatch
+# for the git-hook rules; the primary-worktree rule has none by design.
 #
 # Known scope (by design, not bugs): file protection covers the Edit/Write
 # tools, not arbitrary shell writes (sed -i, redirection). The checkout guard
@@ -27,13 +28,30 @@
 
 set -uo pipefail
 
-# Personal repos where committing straight to main is expected. Matched by the
-# origin remote's owner/repo slug (case-insensitive), so it works regardless of
-# clone path or remote URL form.
-ALLOW_REMOTES=(
-    "QuantumLove/dotfiles"
-    "QuantumLove/glove80"
-)
+# The policy lives in one file that every enforcement point reads — the git
+# hooks and the per-harness adapters alike. Identity is a remote slug, so a
+# clone at any path resolves the same way.
+POLICY_FILE="${GIT_GUARD_POLICY:-$HOME/.config/git-guard/policy.json}"
+GUARD_LOG="$HOME/.local/state/git-guard.log"
+
+guard_log() { # <reason>
+    mkdir -p "$(dirname "$GUARD_LOG")" 2>/dev/null
+    printf '[%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$1" >> "$GUARD_LOG" 2>/dev/null
+}
+
+# A missing policy is not an allow: it means the guard is disarmed, which the
+# assertion suite has to be able to see. Exit 3 is distinct from both allow (0)
+# and block (2) so callers can tell the difference.
+if [ ! -r "$POLICY_FILE" ]; then
+    guard_log "policy file unreadable: $POLICY_FILE"
+    echo "git-main-guard: policy file unreadable: $POLICY_FILE" >&2
+    exit 3
+fi
+
+ALLOW_REMOTES=()
+while IFS= read -r _slug; do
+    [ -n "$_slug" ] && ALLOW_REMOTES+=("$_slug")
+done < <(jq -r '.exempt_remotes[]?' "$POLICY_FILE" 2>/dev/null)
 
 MODE="${1:-}"
 shift || true
@@ -50,10 +68,9 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Session-level bypass.
-if [ "${ALLOW_MAIN_EDITS:-}" = "1" ] || [ "${CLAUDE_ALLOW_MAIN_EDITS:-}" = "1" ]; then
-    exit 0
-fi
+# No environment bypass. ALLOW_MAIN_EDITS and CLAUDE_ALLOW_MAIN_EDITS are
+# retired: a variable that disables the guard everywhere, set once during a
+# frustrating session and left, is how enforcement quietly decays.
 
 # --- helpers ----------------------------------------------------------------
 
@@ -74,19 +91,32 @@ normalize_remote() { # <url> -> owner/repo (lowercased); host-agnostic
     lower "$owner/$repo"
 }
 
-repo_is_allowlisted() { # <repo_root>
-    local root="$1"
-    case "$root" in
-        "$HOME/.local/share/chezmoi"|"$HOME/.local/share/chezmoi"/*) return 0 ;;
-    esac
+repo_is_allowlisted() { # <repo_root> [remote_name]
+    # Identity comes from the remote being operated on, not a hardcoded origin
+    # and not the filesystem path. `git push fork main` in a repo whose origin
+    # is exempt must not inherit that exemption.
+    local root="$1" remote="${2:-origin}"
     local url slug a
-    url="$(git -C "$root" remote get-url origin 2>/dev/null || echo "")"
+    url="$(git -C "$root" remote get-url "$remote" 2>/dev/null || echo "")"
     [ -z "$url" ] && return 1
     slug="$(normalize_remote "$url")"
-    for a in "${ALLOW_REMOTES[@]}"; do
-        [ "$slug" = "$(lower "$a")" ] && return 0
+    for a in "${ALLOW_REMOTES[@]-}"; do
+        [ -n "$a" ] && [ "$slug" = "$(lower "$a")" ] && return 0
     done
     return 1
+}
+
+default_branch() { # <repo_root> [remote_name] — empty when underivable
+    # Offline only. `git ls-remote` would be authoritative but puts a network
+    # round-trip on every commit, which breaks committing without a network.
+    local root="$1" remote="${2:-origin}" ref
+    ref="$(git -C "$root" symbolic-ref --short -q "refs/remotes/$remote/HEAD" 2>/dev/null || echo "")"
+    [ -n "$ref" ] && { printf '%s' "${ref#"$remote"/}"; return 0; }
+    printf ''
+}
+
+has_remote() { # <repo_root>
+    [ -n "$(git -C "$1" remote 2>/dev/null | head -1)" ]
 }
 
 is_primary_worktree() { # <dir> — true iff dir belongs to the main checkout
@@ -201,8 +231,7 @@ Blocked: refusing to edit files in the primary (main) checkout.
 The primary checkout must stay on main and stay clean. Use a worktree:
   /setup-work <linear-id-or-description>
 
-Scratch/gitignored paths (e.g. .omo/) are exempt. Bypass for this session:
-  export ALLOW_MAIN_EDITS=1
+Scratch/gitignored paths (e.g. .omo/) are exempt — only tracked files block.
 EOF
             exit 2
         fi
@@ -221,10 +250,16 @@ EOF
         repo_is_allowlisted "$root" && exit 0
         is_primary_worktree "$root" || exit 0          # only guard the main checkout
         br="$(current_branch "$root")"
-        case "$br" in
-            main|master) ;;
-            *) exit 0 ;;                               # off main (or detached) -> allow recovery
-        esac
+        def_br="$(default_branch "$root")"
+        if [ -z "$def_br" ]; then
+            has_remote "$root" && guard_log "checkout: default branch underivable in $root — allowed"
+            exit 0                                     # fail open, per the accident model
+        fi
+        # A detached HEAD is still the primary worktree being moved, so it is
+        # evaluated rather than waved through.
+        if [ -n "$br" ] && [ "$br" != "$def_br" ]; then
+            exit 0                                     # already off default -> allow recovery
+        fi
 
         if command_moves_head "$CMD_ARG" "$root"; then
             cat >&2 <<EOF
@@ -235,8 +270,7 @@ Blocked: refusing to switch the primary (main) checkout off '$br'.
 The primary checkout must always stay on main — feature work goes in a worktree:
   /setup-work <branch-or-linear-id>
 
-Bypass for this session:
-  export ALLOW_MAIN_EDITS=1
+This rule has no bypass; move the work to a worktree.
 EOF
             exit 2
         fi
