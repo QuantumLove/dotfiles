@@ -26,8 +26,13 @@ hooks (`tool.execute.before`, `shell.env`, `experimental.chat.system.transform`)
 
 ## Local changes vs upstream
 
-All changes are clearly commented in the source with "REMOVED in this vendored copy":
+Removals are commented "REMOVED in this vendored copy"; additions are commented
+"LOCAL ADDITION (not upstream)".
 
+- **`index.ts` — tmux cwd publishing added.** `publishCwdToTmux()` writes the new directory to
+  the pane-scoped tmux option `@agent_cwd` on every `applyMove()`. The `prefix o` binding prefers
+  that option over `pane_current_path`, which goes stale as soon as a session moves because a child
+  process cannot chdir its parent. Best-effort and silent outside tmux.
 - **`lib.ts` — Sentry removed.** `SENTRY_DSN`, the envelope builder, the `fetch()` to
   `*.ingest.us.sentry.io`, and the version-reader it used are gone. `reportError()` is now a no-op
   (kept and still exported so the catch blocks compile; errors still surface as opencode toasts).

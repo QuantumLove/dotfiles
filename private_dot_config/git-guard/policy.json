@@ -29,7 +29,7 @@
     "so an unshipped surface is not a standing failure and a shipped one cannot",
     "quietly stop loading."
   ],
-  "enforced_surfaces": ["claude"],
+  "enforced_surfaces": ["claude", "opencode", "omp"],
 
   "rules": {
     "primary_worktree_stays_on_default": true,

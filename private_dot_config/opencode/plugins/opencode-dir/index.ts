@@ -8,6 +8,7 @@
 // `cd` tool — see the `tool:` block below. Nothing here makes network calls.
 // ---------------------------------------------------------------------------
 
+import { execFileSync } from "node:child_process"
 import { tool, type Plugin } from "@opencode-ai/plugin"
 import { mkdirSync, appendFileSync } from "fs"
 import {
@@ -41,12 +42,26 @@ const dirOverrides: Map<string, Override> = loadOverrides(OVERRIDES_FILE)
 // Apply a session move: run execMove, then record + persist the override so the
 // redirect hooks below (tool.execute.before / shell.env / system.transform) act
 // on it. Shared by the /cd & /mv commands and the agent-callable `cd` tool.
+// LOCAL ADDITION (not upstream): publish the new directory to a pane-scoped
+// tmux option so `prefix o` copies where the agent actually is. A child process
+// cannot chdir its parent, so tmux's pane_current_path goes stale the moment a
+// session moves and the binding would otherwise copy where the shell was.
+// Best-effort: outside tmux, or with the server gone, this is a no-op.
+function publishCwdToTmux(dir: string): void {
+  const pane = process.env.TMUX_PANE
+  if (!pane) return
+  try {
+    execFileSync("tmux", ["set-option", "-p", "-t", pane, "@agent_cwd", dir], { stdio: "ignore" })
+  } catch {}
+}
+
 function applyMove(sessionID: string, targetPath: string, rewrite: boolean): ExecResult {
   const exec = execMove(sessionID, targetPath, rewrite)
   if (exec.oldDir && exec.newDir) {
     log("storing override", { sessionID, oldDir: exec.oldDir, newDir: exec.newDir })
     dirOverrides.set(sessionID, { oldDir: exec.oldDir, newDir: exec.newDir })
     persistOverrides(OVERRIDES_FILE, dirOverrides)
+    publishCwdToTmux(exec.newDir)
   }
   return exec
 }
