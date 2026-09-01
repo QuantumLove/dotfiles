@@ -1,0 +1,12 @@
+# mega-assert check registry — one id per line.
+#
+# The runner cross-checks this against the check files in both directions: an id
+# here with no implementation fails, and an implementation not listed here fails.
+# Neither a deleted check nor an unregistered one can pass quietly.
+#
+# @min_checks 0
+#
+# The floor is 0 while the registry is empty. U2 raises it as the mega-doctor
+# checks migrate, so a run that registers nothing stops being a clean run.
+#
+# id

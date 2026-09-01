@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# mega-assert — run the environment's correctness checks.
+#
+# Usage:
+#   mega-assert                 # every check applicable to this host
+#   mega-assert --list          # registry only, run nothing
+#   mega-assert --boot-gate     # only checks that should stop a boot
+#   mega-assert --scope host    # force a scope instead of detecting
+#   mega-assert --severity invariant
+#   mega-assert -h
+#
+# Exit is nonzero when an invariant check fails or errors. Liveness failures are
+# reported and counted but never change the exit code, so a transient network
+# blip cannot stop a boot.
+set -uo pipefail
+
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH
+
+if [ -t 1 ]; then G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[31m'; D=$'\033[2m'; Z=$'\033[0m'
+else G=""; Y=""; R=""; D=""; Z=""; fi
+
+LIST_ONLY=0; BOOT_GATE=0; WANT_SCOPE=""; WANT_SEVERITY=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --list)      LIST_ONLY=1 ;;
+        --boot-gate) BOOT_GATE=1 ;;
+        --scope)     WANT_SCOPE="${2:-}"; shift ;;
+        --severity)  WANT_SEVERITY="${2:-}"; shift ;;
+        -h|--help)   sed -n '2,14p' "$0"; exit 0 ;;
+        *) echo "unknown option: $1" >&2; exit 2 ;;
+    esac
+    shift
+done
+
+# --- locate the checks -------------------------------------------------------
+# Checks live in the chezmoi source tree (tests/ is chezmoiignored, so they are
+# never applied to $HOME). Resolve via chezmoi rather than a hardcoded path:
+# $HOME differs between host and container, and baking an absolute path in is
+# the identity mistake the guard work exists to remove.
+resolve_checks_dir() {
+    if [ -n "${MEGA_ASSERT_CHECKS_DIR:-}" ]; then
+        printf '%s' "$MEGA_ASSERT_CHECKS_DIR"; return
+    fi
+    local src
+    src="$(chezmoi source-path 2>/dev/null)" || src=""
+    [ -n "$src" ] && { printf '%s/tests/checks' "$src"; return; }
+    printf '%s/.local/share/chezmoi/tests/checks' "$HOME"
+}
+CHECKS_DIR="$(resolve_checks_dir)"
+MANIFEST="$CHECKS_DIR/manifest.tsv"
+
+[ -d "$CHECKS_DIR" ] || { echo "${R}✗${Z} checks directory not found: $CHECKS_DIR" >&2; exit 2; }
+[ -r "$MANIFEST" ]   || { echo "${R}✗${Z} manifest not readable: $MANIFEST" >&2; exit 2; }
+
+# --- scope -------------------------------------------------------------------
+detect_scope() {
+    if [ -f /.dockerenv ] || grep -qE '(docker|containerd|kubepods)' /proc/1/cgroup 2>/dev/null
+    then printf 'container'; else printf 'host'; fi
+}
+SCOPE="${WANT_SCOPE:-$(detect_scope)}"
+
+# --- header parsing ----------------------------------------------------------
+# Reads `# @key value` lines from the top of a check file.
+# -E throughout: BSD sed does not support \+ in a basic regex, and this runs on
+# both a macOS host and a Debian container.
+hdr() { sed -n -E 's/^# @'"$2"'[[:space:]]+//p' "$1" | head -1; }
+hdr_all() { sed -n -E 's/^# @'"$2"'[[:space:]]+//p' "$1"; }
+
+MIN_CHECKS="$(sed -n -E 's/^# @min_checks[[:space:]]+//p' "$MANIFEST" | head -1)"
+MIN_CHECKS="${MIN_CHECKS:-1}"
+
+# manifest ids (skip comments and blanks)
+manifest_ids() { grep -vE '^[[:space:]]*(#|$)' "$MANIFEST" | awk '{print $1}'; }
+
+# implementation files
+impl_files() { find "$CHECKS_DIR" -maxdepth 1 -name 'check_*.sh' -type f | sort; }
+
+# --- registry cross-check ----------------------------------------------------
+# Both directions. A manifest entry with no file means a check was deleted; a
+# file with no manifest entry means one was added without being registered.
+declare -a REG_IDS=() REG_FILES=()
+registry_errors=0
+while IFS= read -r id; do
+    [ -n "$id" ] || continue
+    found=""
+    while IFS= read -r f; do
+        [ "$(hdr "$f" id)" = "$id" ] && { found="$f"; break; }
+    done < <(impl_files)
+    if [ -z "$found" ]; then
+        echo "${R}✗${Z} manifest id '$id' has no implementation"; registry_errors=$((registry_errors+1))
+    else
+        REG_IDS+=("$id"); REG_FILES+=("$found")
+    fi
+done < <(manifest_ids)
+
+while IFS= read -r f; do
+    fid="$(hdr "$f" id)"
+    if [ -z "$fid" ]; then
+        echo "${R}✗${Z} $(basename "$f") declares no @id"; registry_errors=$((registry_errors+1)); continue
+    fi
+    manifest_ids | grep -qxF "$fid" || {
+        echo "${R}✗${Z} $(basename "$f") (@id $fid) is not in the manifest"; registry_errors=$((registry_errors+1))
+    }
+done < <(impl_files)
+
+REGISTERED=${#REG_IDS[@]}
+
+if [ "$LIST_ONLY" -eq 1 ]; then
+    printf '%-28s %-10s %-10s %-5s %s\n' ID SEVERITY SCOPE TIER BOOT
+    for i in "${!REG_IDS[@]}"; do
+        f="${REG_FILES[$i]}"
+        printf '%-28s %-10s %-10s %-5s %s\n' \
+            "${REG_IDS[$i]}" "$(hdr "$f" severity)" "$(hdr "$f" scope)" \
+            "$(hdr "$f" tier)" "$(hdr "$f" boot_gate)"
+    done
+    echo
+    echo "${D}$REGISTERED registered · checks dir: $CHECKS_DIR${Z}"
+    exit $(( registry_errors > 0 ? 1 : 0 ))
+fi
+
+# A run that registers nothing is not a clean run.
+if [ "$REGISTERED" -lt "$MIN_CHECKS" ]; then
+    echo "${R}✗${Z} only $REGISTERED checks registered, manifest declares a floor of $MIN_CHECKS" >&2
+    exit 2
+fi
+
+# --- declared-input verification --------------------------------------------
+# Resolved before `run` is invoked. A check whose input is gone reports error,
+# never pass — this is what catches a check pointing at something deleted.
+inputs_ok() {
+    local f="$1" spec kind val
+    while IFS= read -r spec; do
+        [ -n "$spec" ] || continue
+        kind="${spec%%:*}"; val="${spec#*:}"
+        val="${val//\{\{HOME\}\}/$HOME}"
+        case "$kind" in
+            file) [ -e "$val" ] || { printf 'missing file: %s' "$val"; return 1; } ;;
+            cmd)  command -v "$val" >/dev/null 2>&1 || { printf 'missing command: %s' "$val"; return 1; } ;;
+            *)    printf 'unknown input kind: %s' "$kind"; return 1 ;;
+        esac
+    done < <(hdr_all "$f" input)
+    return 0
+}
+
+# --- run ---------------------------------------------------------------------
+PASS=0; FAIL=0; SKIP=0; ERROR=0; RAN=0
+declare -a SKIPPED_NOTES=() FAILED_NOTES=() ERROR_NOTES=()
+INVARIANT_BAD=0
+
+for i in "${!REG_IDS[@]}"; do
+    id="${REG_IDS[$i]}"; f="${REG_FILES[$i]}"
+    sev="$(hdr "$f" severity)"; scp="$(hdr "$f" scope)"; bg="$(hdr "$f" boot_gate)"
+    min_corpus="$(hdr "$f" min_corpus)"
+
+    [ "$BOOT_GATE" -eq 1 ] && [ "$bg" != "yes" ] && continue
+    if [ -n "$WANT_SEVERITY" ] && [ "$sev" != "$WANT_SEVERITY" ]; then continue; fi
+    if [ "$scp" != "both" ] && [ "$scp" != "$SCOPE" ]; then
+        SKIP=$((SKIP+1)); SKIPPED_NOTES+=("$id — ${scp}-only, running on $SCOPE"); continue
+    fi
+
+    if ! reason="$(inputs_ok "$f")"; then
+        ERROR=$((ERROR+1)); ERROR_NOTES+=("$id — $reason")
+        [ "$sev" = "invariant" ] && INVARIANT_BAD=1
+        echo "${R}✗${Z} $id ${D}— $reason${Z}"
+        continue
+    fi
+
+    out="$(bash "$f" 2>&1)"; rc=$?
+    RAN=$((RAN+1))
+    note="$(printf '%s' "$out" | awk -F'\t' '$1=="pass"||$1=="fail"||$1=="error"||$1=="skip"{print $2}' | tail -1)"
+    scanned="$(printf '%s' "$out" | awk -F'\t' '$1=="scanned"{print $2}' | tail -1)"
+
+    # A corpus check that scanned too little is a failure regardless of verdict.
+    if [ -n "$min_corpus" ] && [ "$rc" -eq 0 ]; then
+        if [ -z "$scanned" ]; then
+            rc=2; note="declares @min_corpus but never called check_scanned"
+        elif [ "$scanned" -lt "$min_corpus" ]; then
+            rc=1; note="scanned $scanned, below declared minimum $min_corpus"
+        fi
+    fi
+
+    case "$rc" in
+        0) PASS=$((PASS+1));  echo "${G}✓${Z} $id${note:+ ${D}— $note${Z}}" ;;
+        1) FAIL=$((FAIL+1));  FAILED_NOTES+=("$id — $note")
+           [ "$sev" = "invariant" ] && INVARIANT_BAD=1
+           echo "${R}✗${Z} $id ${D}— ${note:-failed}${Z}" ;;
+        3) SKIP=$((SKIP+1));  SKIPPED_NOTES+=("$id — ${note:-no reason}")
+           echo "${Y}·${Z} $id ${D}— skipped: ${note:-no reason}${Z}" ;;
+        *) ERROR=$((ERROR+1)); ERROR_NOTES+=("$id — ${note:-could not evaluate}")
+           [ "$sev" = "invariant" ] && INVARIANT_BAD=1
+           echo "${R}✗${Z} $id ${D}— error: ${note:-could not evaluate}${Z}" ;;
+    esac
+done
+
+# --- report ------------------------------------------------------------------
+# Reports what ran AND what did not. A summary that only counts passes cannot
+# distinguish a check that was skipped from one that no longer exists.
+echo
+echo "${D}$REGISTERED registered · $RAN ran · $PASS passed · $FAIL failed · $SKIP skipped · $ERROR errored${Z}"
+[ "$registry_errors" -gt 0 ] && echo "${R}$registry_errors registry error(s)${Z}"
+
+if [ "$registry_errors" -gt 0 ] || [ "$INVARIANT_BAD" -eq 1 ]; then exit 1; fi
+exit 0
