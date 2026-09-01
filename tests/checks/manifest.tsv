@@ -4,7 +4,7 @@
 # here with no implementation fails, and an implementation not listed here fails.
 # Neither a deleted check nor an unregistered one can pass quietly.
 #
-# @min_checks 23
+# @min_checks 30
 #
 # The floor rises as checks migrate, so a run that registers fewer than expected
 # stops being a clean run.
@@ -34,3 +34,10 @@ opencode-snapshot-recent
 secrets-required-present
 secrets-optional-present
 resurrect-roundtrips
+docker-daemon-responds
+tailscale-backend-running
+opencode-web-responding
+aws-credentials-valid
+sshd-running
+tailscale-serve-configured
+mcp-servers-connected
