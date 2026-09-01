@@ -14,7 +14,15 @@ mkdir -p "$OC_REGISTRY" 2>/dev/null
 oc() {
     case "${1:-}" in
         ps) shift; _oc_ps "$@"; return ;;
+        # `oc sessions list` used to fall through to the real binary, where the
+        # subcommand does not exist — upstream's is `session list`, singular.
+        # Both spellings now reach the local sqlite view, which is also the only
+        # one that spans projects.
         history) shift; _oc_sessions "$@"; return ;;
+        sessions|session)
+            shift
+            [ "${1:-}" = "list" ] && shift
+            _oc_sessions "$@"; return ;;
     esac
     # Opt-out
     if [ "${OPENCODE_NO_SERVE:-}" = "1" ]; then
@@ -120,7 +128,7 @@ _oc_sessions() {
 		FROM session s
 		WHERE parent_id IS NULL
 		  AND time_updated >= $cutoff_ms
-		ORDER BY time_created DESC
+		ORDER BY dir ASC, time_created DESC
 	SQL
     if [ "$json" = true ]; then
         sqlite3 -json "$db" "$query"
@@ -131,9 +139,19 @@ _oc_sessions() {
             echo "No sessions in the last ${hours}h"
             return
         fi
-        {
-            printf 'ID\tDIR\tTITLE\tCREATED\tUPDATED\tMSGS\n'
-            echo "$result"
-        } | column -t -s $'\t'
+        # Grouped by project. The query was always global — no directory
+        # filter — so the cross-project view existed; what was missing was any
+        # way to read it, because a flat list interleaves every repo.
+        local current_dir="" line dir rest
+        while IFS= read -r line; do
+            dir="$(printf '%s' "$line" | cut -f2)"
+            rest="$(printf '%s' "$line" | cut -f1,3-)"
+            if [ "$dir" != "$current_dir" ]; then
+                [ -n "$current_dir" ] && printf '\n'
+                printf '%s\n' "$dir"
+                current_dir="$dir"
+            fi
+            printf '  %s\n' "$rest"
+        done <<< "$result" | column -t -s $'\t'
     fi
 }

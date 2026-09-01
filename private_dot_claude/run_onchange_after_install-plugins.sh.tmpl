@@ -38,25 +38,5 @@ if [ -f "$MARKETPLACES_FILE" ] && command -v jq &> /dev/null; then
     fi
 fi
 
-# Ensure marketplaces are registered (idempotent safety net)
-echo "Registering plugin marketplaces..."
-claude plugin marketplace add anthropics/claude-plugins-official 2>&1 || true
-claude plugin marketplace add EveryInc/compound-engineering-plugin 2>&1 || true
-claude plugin marketplace add obra/superpowers-marketplace 2>&1 || true
-claude plugin marketplace add METR/claude-code 2>&1 || true
-claude plugin marketplace add warpdotdev/claude-code-warp 2>&1 || true
-
-echo "Installing Claude Code plugins..."
-
-# Read plugin list and install each one
-while IFS= read -r plugin || [ -n "$plugin" ]; do
-    # Skip empty lines and comments
-    [[ -z "$plugin" || "$plugin" =~ ^# ]] && continue
-
-    echo "  Installing: $plugin"
-    if ! claude plugin install "$plugin"; then
-      echo "  ⚠️  Failed to install $plugin (may already be installed or marketplace unavailable)"
-    fi
-done < "{{ .chezmoi.sourceDir }}/private_dot_claude/plugin-list.txt"
-
-echo "Plugin installation complete"
+# One implementation, shared with /hot-patch.
+"$HOME/.local/bin/claude-plugin-sync" || echo "⚠️  some plugins failed to install"

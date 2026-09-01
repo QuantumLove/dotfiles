@@ -1,0 +1,10 @@
+# Claude plugin marketplaces. One per line.
+#
+# Single source: the installer and /hot-patch both read this file, and a check
+# asserts settings.json's extraKnownMarketplaces agrees with it. Declaring the
+# same list in two places is how one of them silently goes stale.
+anthropics/claude-plugins-official
+EveryInc/compound-engineering-plugin
+obra/superpowers-marketplace
+METR/claude-code
+warpdotdev/claude-code-warp

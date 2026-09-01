@@ -99,14 +99,7 @@ echo "✓ Mise tools updated"
 ```bash
 echo ""
 echo "=== Updating Claude plugins ==="
-PLUGIN_LIST="$HOME/.local/share/chezmoi/private_dot_claude/plugin-list.txt"
-if [ -f "$PLUGIN_LIST" ]; then
-    while IFS= read -r plugin || [ -n "$plugin" ]; do
-        [[ -z "$plugin" || "$plugin" =~ ^# ]] && continue
-        claude plugin install "$plugin" 2>/dev/null || true
-    done < "$PLUGIN_LIST"
-fi
-echo "✓ Plugins updated"
+claude-plugin-sync
 ```
 
 ### Step 6: Summary

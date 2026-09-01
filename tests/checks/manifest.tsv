@@ -4,7 +4,7 @@
 # here with no implementation fails, and an implementation not listed here fails.
 # Neither a deleted check nor an unregistered one can pass quietly.
 #
-# @min_checks 38
+# @min_checks 39
 #
 # The floor rises as checks migrate, so a run that registers fewer than expected
 # stops being a clean run.
@@ -49,3 +49,4 @@ adapters-live
 bypass-not-distributed
 no-silenced-supervision
 chezmoi-drift
+marketplaces-agree
