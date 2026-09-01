@@ -24,6 +24,10 @@ run() {
         [ -n "$r" ] || continue
         n=$((n + 1))
         local eff; eff="$(git -C "$r" config --get core.hooksPath 2>/dev/null || echo "")"
+        # git returns the raw config value, so a `~/...` setting never string-
+        # matches an expanded $HOME path. git expands it itself at use time;
+        # comparing the literal reported every covered repo as uncovered.
+        case "$eff" in "~/"*) eff="$HOME/${eff#\~/}" ;; esac
         case "$eff" in
             "$want") ;;
             "")      bad+=("$(basename "$r"):unset") ;;
