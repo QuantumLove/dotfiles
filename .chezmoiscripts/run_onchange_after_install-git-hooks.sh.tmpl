@@ -14,7 +14,13 @@
 set -euo pipefail
 
 HOOK_DIR="$HOME/.config/git/hooks"
-[ -d "$HOOK_DIR" ] || exit 0
+# Not a silent exit: if the directory is missing the guard hooks were not
+# applied, and quietly succeeding here would leave the shims absent while
+# reporting nothing.
+if [ ! -d "$HOOK_DIR" ]; then
+    echo "⚠️  $HOOK_DIR does not exist — guard hooks were not applied; no shims written" >&2
+    exit 1
+fi
 
 # Client-side hooks git may invoke. pre-commit and pre-push are ours and are
 # deliberately absent from this list.

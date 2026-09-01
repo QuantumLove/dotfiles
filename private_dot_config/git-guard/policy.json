@@ -21,7 +21,7 @@
     "the hooks are installed but deliberately inactive, and a check that fails by",
     "design every run is one nobody reads."
   ],
-  "enforcement_active": false,
+  "enforcement_active": true,
 
   "_enforced_surfaces": [
     "Agent surfaces expected to carry the rule-1 adapter. Add a surface here",
