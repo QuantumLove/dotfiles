@@ -4,3 +4,4 @@
 .claude/commands/tf-apply.md
 .claude/agents/dev4-deployment-manager.md
 .claude/skills/worktree
+.claude/hooks/allow-chezmoi-push.sh
