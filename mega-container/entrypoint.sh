@@ -116,96 +116,85 @@ if ! op account get &>/dev/null; then
 fi
 echo "✓ 1Password connected"
 
-echo "export OP_SERVICE_ACCOUNT_TOKEN='$OP_SERVICE_ACCOUNT_TOKEN'" >> ~/.secrets_env
+# ---------------------------------------------------------------------------
+# Secrets
+#
+# Every secret is declared with a class. `required` aborts the boot; `optional`
+# warns and continues with the feature it gates disabled. Previously the class
+# was implicit in whether a given block happened to call exit 1, and the
+# troubleshooting doc disagreed with the code about which secrets were which.
+#
+# op's stderr is kept rather than sent to /dev/null. Without it every failure
+# reads "Failed to fetch X" whether the cause was an expired token, no network,
+# a renamed vault item, or a missing field — and those need different fixes.
+# ---------------------------------------------------------------------------
 
-# 6. FAIL FAST: Fetch Anthropic API key from 1Password
-echo "Fetching Anthropic API key from 1Password..."
-ANTHROPIC_API_KEY=$(op read "op://Development/Anthropic API Key/credential" 2>/dev/null)
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-  echo "ERROR: Failed to fetch Anthropic API Key from 1Password"
-  echo "Ensure 'Anthropic API Key' exists in the Development vault with a 'credential' field"
-  exit 1
-fi
-# Export for current process and persist for SSH login shells
-export ANTHROPIC_API_KEY
-echo "export ANTHROPIC_API_KEY='$ANTHROPIC_API_KEY'" >> ~/.secrets_env
-echo "✓ Anthropic API key ready"
+# Create with restrictive permissions BEFORE the first secret lands in it. The
+# previous ordering chmod'ed only after five secrets had already been written
+# under the default umask.
+install -m 600 /dev/null ~/.secrets_env
 
-# 6b. FAIL FAST: Fetch OpenAI API key from 1Password
-echo "Fetching OpenAI API key from 1Password..."
-OPENAI_API_KEY=$(op read "op://Development/OpenAI API Key/credential" 2>/dev/null)
-if [ -z "$OPENAI_API_KEY" ]; then
-  echo "ERROR: Failed to fetch OpenAI API Key from 1Password"
-  echo "Ensure 'OpenAI API Key' exists in the Development vault with a 'credential' field"
-  exit 1
-fi
-export OPENAI_API_KEY
-echo "export OPENAI_API_KEY='$OPENAI_API_KEY'" >> ~/.secrets_env
-echo "✓ OpenAI API key ready"
+secret_env() { printf "export %s='%s'\n" "$1" "$2" >> ~/.secrets_env; }
 
-# 6c. FAIL FAST: Fetch Google Gemini API key from 1Password
-echo "Fetching Google Gemini API key from 1Password..."
-GEMINI_API_KEY=$(op read "op://Development/Google Gemini API Key/credential" 2>/dev/null)
-if [ -z "$GEMINI_API_KEY" ]; then
-  echo "ERROR: Failed to fetch Google Gemini API Key from 1Password"
-  echo "Ensure 'Google Gemini API Key' exists in the Development vault with a 'credential' field"
-  exit 1
-fi
-export GEMINI_API_KEY
-echo "export GEMINI_API_KEY='$GEMINI_API_KEY'" >> ~/.secrets_env
-echo "✓ Google Gemini API key ready"
+# fetch_secret <env-var> <op-path> <required|optional> <what-it-gates>
+fetch_secret() {
+  local var="$1" path="$2" class="$3" gates="$4"
+  local value err rc=0
+  err="$(mktemp)"
+  # `if !` rather than a bare assignment: the entrypoint runs under `set -e`, so
+  # a failing command substitution aborts the script immediately and every line
+  # of error handling below becomes unreachable. The diagnostic has to survive
+  # the failure it is describing.
+  if ! value="$(op read "$path" 2>"$err")"; then rc=1; fi
 
-# 7. FAIL FAST: Fetch GitHub token from 1Password
-echo "Fetching GitHub token from 1Password..."
-GH_TOKEN=$(op read "op://Development/GitHub Classic PAT/credential" 2>/dev/null)
-if [ -z "$GH_TOKEN" ]; then
-  echo "ERROR: Failed to fetch GitHub Classic PAT from 1Password"
-  echo "Ensure 'GitHub Classic PAT' exists in the Development vault with a 'credential' field"
-  exit 1
-fi
-export GH_TOKEN
-echo "export GH_TOKEN='$GH_TOKEN'" >> ~/.secrets_env
-echo "✓ GitHub token ready"
+  if [ $rc -ne 0 ] || [ -z "$value" ]; then
+    local reason; reason="$(tr -d '\n' < "$err" | head -c 200)"
+    rm -f "$err"
+    if [ "$class" = required ]; then
+      echo "ERROR: required secret $var could not be read from $path" >&2
+      echo "       reason: ${reason:-op produced no output}" >&2
+      exit 1
+    fi
+    echo "⚠️  optional secret $var unavailable — $gates disabled"
+    echo "    reason: ${reason:-op produced no output}"
+    return 1
+  fi
+  rm -f "$err"
 
-# 7b. FAIL FAST: Fetch Datadog keys from 1Password (for MCP server and agents)
-echo "Fetching Datadog keys from 1Password..."
-DD_API_KEY=$(op read "op://Development/Datadog API Key/credential" 2>/dev/null)
-if [ -z "$DD_API_KEY" ]; then
-  echo "ERROR: Failed to fetch Datadog API Key from 1Password"
-  echo "Ensure 'Datadog API Key' exists in the Development vault with a 'credential' field"
-  exit 1
-fi
-DD_APP_KEY=$(op read "op://Development/Datadog App Key/credential" 2>/dev/null)
-if [ -z "$DD_APP_KEY" ]; then
-  echo "ERROR: Failed to fetch Datadog App Key from 1Password"
-  echo "Ensure 'Datadog App Key' exists in the Development vault with a 'credential' field"
-  exit 1
-fi
-export DD_API_KEY DD_APP_KEY
-echo "export DD_API_KEY='$DD_API_KEY'" >> ~/.secrets_env
-echo "export DD_APP_KEY='$DD_APP_KEY'" >> ~/.secrets_env
-# DD_SITE for MCP/general use, DD_HOST for Pulumi provider (full URL format)
-echo "export DD_SITE='us3.datadoghq.com'" >> ~/.secrets_env
-echo "export DD_HOST='https://api.us3.datadoghq.com'" >> ~/.secrets_env
-# Pulumi Datadog provider expects DATADOG_* naming convention
-export DATADOG_API_KEY="$DD_API_KEY" DATADOG_APP_KEY="$DD_APP_KEY" DATADOG_API_URL="https://api.us3.datadoghq.com"
-echo "export DATADOG_API_KEY='$DATADOG_API_KEY'" >> ~/.secrets_env
-echo "export DATADOG_APP_KEY='$DATADOG_APP_KEY'" >> ~/.secrets_env
-echo "export DATADOG_API_URL='$DATADOG_API_URL'" >> ~/.secrets_env
-chmod 600 ~/.secrets_env
-echo "✓ Datadog keys ready"
+  printf -v "$var" '%s' "$value"
+  export "${var?}"
+  secret_env "$var" "$value"
+  echo "✓ $var"
+  return 0
+}
 
-# GWS (Google Workspace CLI) credentials — soft-fail, not required for boot
-GWS_CREDENTIALS_JSON=$(op read "op://Development/GWS Credentials JSON/notesPlain" 2>/dev/null || echo "")
-if [ -n "$GWS_CREDENTIALS_JSON" ]; then
+secret_env OP_SERVICE_ACCOUNT_TOKEN "$OP_SERVICE_ACCOUNT_TOKEN"
+
+fetch_secret ANTHROPIC_API_KEY "op://Development/Anthropic API Key/credential"     required "Claude Code"
+fetch_secret OPENAI_API_KEY    "op://Development/OpenAI API Key/credential"        required "OpenAI models"
+fetch_secret GEMINI_API_KEY    "op://Development/Google Gemini API Key/credential" required "Gemini models"
+fetch_secret GH_TOKEN          "op://Development/GitHub Classic PAT/credential"    required "GitHub access"
+fetch_secret DD_API_KEY        "op://Development/Datadog API Key/credential"       required "Datadog"
+fetch_secret DD_APP_KEY        "op://Development/Datadog App Key/credential"       required "Datadog"
+
+# Pulumi's Datadog provider expects DATADOG_* naming.
+export DATADOG_API_KEY="$DD_API_KEY" DATADOG_APP_KEY="$DD_APP_KEY" \
+       DATADOG_API_URL="https://api.us3.datadoghq.com"
+secret_env DD_SITE          "us3.datadoghq.com"
+secret_env DD_HOST          "https://api.us3.datadoghq.com"
+secret_env DATADOG_API_KEY  "$DATADOG_API_KEY"
+secret_env DATADOG_APP_KEY  "$DATADOG_APP_KEY"
+secret_env DATADOG_API_URL  "$DATADOG_API_URL"
+
+# Optional: a missing one disables a feature, it does not stop the boot.
+if fetch_secret GWS_CREDENTIALS_JSON "op://Development/GWS Credentials JSON/notesPlain" \
+     optional "morning-triage and Gmail access"; then
   mkdir -p ~/.config/gws
+  install -m 600 /dev/null ~/.config/gws/credentials.json
   printf '%s' "$GWS_CREDENTIALS_JSON" > ~/.config/gws/credentials.json
-  chmod 600 ~/.config/gws/credentials.json
-  echo "export GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE='$HOME/.config/gws/credentials.json'" >> ~/.secrets_env
-  echo "✓ GWS credentials ready"
-else
-  echo "⚠️  GWS credentials not found in 1Password (morning-triage will not work)"
+  secret_env GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE "$HOME/.config/gws/credentials.json"
 fi
+
 
 # 8. Login to Docker Hub and dhi.io (METR registry, same creds)
 echo "Logging into Docker registries..."
@@ -289,16 +278,14 @@ if [ ! -f "$HOME/.config/chezmoi/chezmoi.toml" ]; then
   else
     chezmoi init --ssh QuantumLove
   fi
-  if [ $? -ne 0 ]; then
-    echo "ERROR: chezmoi init failed"
-    exit 1
-  fi
 fi
-chezmoi apply --force
-if [ $? -ne 0 ]; then
-  echo "ERROR: chezmoi apply failed"
+# `if [ $? -ne 0 ]` after a command is unreachable under `set -e`: a non-zero
+# exit aborts the script before the test runs, so the diagnostic never printed
+# and the boot died with a bare exit code. Trap the failure instead.
+chezmoi apply --force || {
+  echo "ERROR: chezmoi apply failed — dotfiles were not applied" >&2
   exit 1
-fi
+}
 # Ensure secrets env file is sourced by login shells (after chezmoi may have overwritten .bash_profile)
 if [ -f "$HOME/.secrets_env" ] && ! grep -q "secrets_env" "$HOME/.bash_profile" 2>/dev/null; then
   echo '[ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"' >> "$HOME/.bash_profile"
