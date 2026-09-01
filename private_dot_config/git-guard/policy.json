@@ -15,6 +15,22 @@
     "QuantumLove/glove80"
   ],
 
+  "_enforcement_active": [
+    "Flip to true when core.hooksPath is set in dot_gitconfig.tmpl. While false,",
+    "the reachability and coverage checks skip with a reason rather than failing:",
+    "the hooks are installed but deliberately inactive, and a check that fails by",
+    "design every run is one nobody reads."
+  ],
+  "enforcement_active": false,
+
+  "_enforced_surfaces": [
+    "Agent surfaces expected to carry the rule-1 adapter. Add a surface here",
+    "when its adapter ships; the adapters-live check asserts exactly this list,",
+    "so an unshipped surface is not a standing failure and a shipped one cannot",
+    "quietly stop loading."
+  ],
+  "enforced_surfaces": ["claude"],
+
   "rules": {
     "primary_worktree_stays_on_default": true,
     "no_edit_tracked_in_primary_worktree": true,

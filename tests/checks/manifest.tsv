@@ -4,7 +4,7 @@
 # here with no implementation fails, and an implementation not listed here fails.
 # Neither a deleted check nor an unregistered one can pass quietly.
 #
-# @min_checks 30
+# @min_checks 35
 #
 # The floor rises as checks migrate, so a run that registers fewer than expected
 # stops being a clean run.
@@ -41,3 +41,8 @@ aws-credentials-valid
 sshd-running
 tailscale-serve-configured
 mcp-servers-connected
+guard-controls
+hooks-reachable
+guard-coverage
+branch-divergence
+adapters-live

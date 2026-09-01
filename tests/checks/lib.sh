@@ -48,3 +48,29 @@ file_age_minutes() {
 version_ge() {
     [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -1)" = "$2" ]
 }
+
+# repo_corpus — every git repo the guard should cover, by discovery rather than
+# an enrollment list. A repo cloned yesterday is covered without any registration
+# step, which is the failure mode a hand-maintained list has: a repo missing from
+# the list cannot be reported as uncovered.
+repo_corpus() {
+    local root
+    for root in "${DEV_CODE_DIR:-$HOME/code}"/*; do
+        [ -d "$root/.git" ] && printf '%s\n' "$root"
+        # linked worktrees live one level down
+        [ -d "$root/.worktrees" ] && for w in "$root/.worktrees"/*; do
+            [ -e "$w/.git" ] && printf '%s\n' "$w"
+        done
+    done 2>/dev/null
+    local src; src="$(chezmoi source-path 2>/dev/null)" || src=""
+    [ -n "$src" ] && [ -d "$src/.git" ] && printf '%s\n' "$src"
+    return 0
+}
+
+# guard_enforcement_active — reads the policy flag; false means the hooks are
+# installed but core.hooksPath is deliberately not set yet.
+guard_enforcement_active() {
+    local pol="${GIT_GUARD_POLICY:-$HOME/.config/git-guard/policy.json}"
+    [ -r "$pol" ] || return 1
+    [ "$(jq -r '.enforcement_active // false' "$pol" 2>/dev/null)" = "true" ]
+}
