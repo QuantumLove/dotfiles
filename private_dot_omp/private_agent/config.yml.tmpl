@@ -29,6 +29,29 @@ modelRoles:
   # spends real money quietly.
   tiny: anthropic/claude-haiku-4-5
 
+# Tool approval, split by machine because the two are used differently.
+#
+# Container: yolo. It is where agent work runs unattended, and a prompt nobody
+# is sitting in front of is just a stall. The accident actually worth stopping
+# there — an agent editing tracked files in a primary checkout — is caught by
+# the git-main-guard adapter rather than by an approval prompt, which is the
+# better place for it: the guard knows what the file is, the prompt only knows
+# that something wants to run.
+#
+# Host: write. Same tiers as Claude Code's --permission-mode=auto — reads and
+# workspace edits pass, anything executing code stops and asks. This is the
+# machine with the real keychain, the real AWS session and no container
+# boundary, and it is used interactively, so there is someone there to answer.
+#
+# omp's own tiers (docs/approval-mode.md):
+#   always-ask  auto: read                prompts: write, exec
+#   write       auto: read, write         prompts: exec
+#   yolo        auto: read, write, exec   prompts: nothing
+#
+# --auto-approve and --yolo force yolo for a session either way.
+tools:
+  approvalMode: {{ if eq .chezmoi.os "darwin" }}write{{ else }}yolo{{ end }}
+
 retry:
   modelFallback: true
   fallbackChains:
