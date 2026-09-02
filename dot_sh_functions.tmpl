@@ -158,3 +158,31 @@ cpwd() {
     printf '\033]52;c;%s\007' "$(printf '%s' "$p" | base64 | tr -d '\n')"
     echo "→ clipboard: $p"
 }
+
+# Claude Code against METR's middleman proxy, billed to METR's Anthropic account.
+# Usage: cyber [claude args...]
+#
+# Deliberately interactive and foreground-only. These tokens cost METR real
+# money and the grant came with "don't leave it unattended", so this must not
+# become the default for cron, supercronic, /loop, or anything in the container
+# that outlives your attention. Everything else stays on the subscription path.
+#
+# The subshell keeps the credential swap out of your shell: ANTHROPIC_API_KEY is
+# unset so the helper is the only credential source, and Claude Code re-runs the
+# helper every 15 min because the Okta JWT expires. HAWK_API_URL and the login
+# live in ~/.config/hawk-cli, which is bind-mounted into the container, so this
+# behaves the same in both places.
+#
+# HAWK_VERSION_CHECK=warn: hawk warns on CLI/server drift and by default would
+# rather prompt. Nothing is attached to answer a prompt inside an API key
+# helper. The warning goes to stderr, so it cannot corrupt the token on stdout.
+cyber() {
+    (
+        unset ANTHROPIC_API_KEY
+        export ANTHROPIC_BASE_URL=https://middleman.prd.metr.org/anthropic
+        export CLAUDE_CODE_API_KEY_HELPER_TTL_MS=900000
+        export HAWK_VERSION_CHECK=warn
+        claude --permission-mode=auto --model="claude-opus-5-cvp" \
+            --settings '{"apiKeyHelper":"hawk auth access-token"}' "$@"
+    )
+}
