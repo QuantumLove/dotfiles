@@ -199,8 +199,13 @@ RUN mise trust -a && mise install && \
 # (apiKeyHelper shells out to `hawk auth access-token`). Installed with uv per
 # METR's install docs — mise has no backend that handles the [cli] extra. The
 # interpreter is named explicitly because hawk requires >=3.13 and this should
-# not silently break when the mise python pin moves. ~/.config/hawk-cli is
-# bind-mounted from the host, so the Okta login is shared and not repeated here.
+# not silently break when the mise python pin moves.
+#
+# Only HAWK_API_URL is shared: ~/.config/hawk-cli is bind-mounted, but hawk keeps
+# credentials in a keyring, and the backend differs per platform — Keychain on the
+# host, a keyrings.alt file at ~/.local/share/python_keyring here. So `hawk login`
+# is per-machine, and because that path is in the container's writable layer
+# rather than a volume, a rebuild loses it and you log in again.
 
 COPY --chown=rafaelcarvalho:rafaelcarvalho entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh

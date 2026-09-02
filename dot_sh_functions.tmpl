@@ -169,9 +169,10 @@ cpwd() {
 #
 # The subshell keeps the credential swap out of your shell: ANTHROPIC_API_KEY is
 # unset so the helper is the only credential source, and Claude Code re-runs the
-# helper every 15 min because the Okta JWT expires. HAWK_API_URL and the login
-# live in ~/.config/hawk-cli, which is bind-mounted into the container, so this
-# behaves the same in both places.
+# helper every 15 min because the Okta JWT expires. HAWK_API_URL lives in
+# ~/.config/hawk-cli and is shared with the container by the bind mount, but the
+# login is not: hawk stores credentials in a per-platform keyring, so `hawk login`
+# is run once per machine.
 #
 # HAWK_VERSION_CHECK=warn: hawk warns on CLI/server drift and by default would
 # rather prompt. Nothing is attached to answer a prompt inside an API key
