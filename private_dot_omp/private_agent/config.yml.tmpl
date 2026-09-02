@@ -15,7 +15,11 @@
 modelRoles:
   # Concrete selectors live here; aliases live in agentModelOverrides below.
   # Keeping the two apart means a tier change is one edit, not fifteen.
-  default: anthropic/claude-opus-5-fast
+  # gpt-5.4 via the plain openai provider (the personal key in .secrets_env),
+  # not middleman — cyberpi is the middleman path and scopes itself to a
+  # subshell. Note reviewer and security-reviewer resolve to @default below, so
+  # this sets them too; that is already how the container has been running.
+  default: openai/gpt-5.4:high
   plan: anthropic/claude-fable-5
   smol: anthropic/claude-haiku-4-5
   slow: anthropic/claude-fable-5
