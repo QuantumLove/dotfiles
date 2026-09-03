@@ -1,0 +1,18 @@
+# Host-side mise. Deliberately minimal: the container's toolchain lives in
+# mega-container/dot_config/mise/config.toml and is the authority for everything
+# that runs in there. This file exists so a few agent CLIs also work on the Mac.
+
+[tools]
+# omp's npm entrypoint is a bun script, so bun is a hard runtime dependency on
+# the host the same way it is in the container.
+bun = "latest"
+
+# omp itself comes from npm here, not from this file. The GitHub release is a
+# bun-compiled single binary and macOS SIGKILLs it on this machine despite a
+# valid Developer ID signature, so the host uses:
+#   npm install -g @oh-my-pi/pi-coding-agent@18.0.11
+# pinned to the same version mise installs in the container, because "latest" on
+# one side silently puts the two environments on different agents.
+
+[settings]
+experimental = true

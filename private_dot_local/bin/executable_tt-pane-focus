@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Feed a tmux pane-focus event to the time tracker. Invoked from the four focus
+# hooks in ~/.tmux.conf.
+#
+# Silent and always-succeeding by contract. tmux surfaces both the output and
+# the exit status of a `run-shell` hook to the attached client, so a tool that
+# starts failing here repaints an error over the session on every focus change
+# — and focus changes are constant. Losing a time entry is cheap; a terminal
+# that can't be read is not. Everything goes to the log, nothing to tmux.
+set -u
+
+log_dir="$HOME/.local/state/time-tracker"
+mkdir -p "$log_dir" 2>/dev/null || exit 0
+
+# Not `command -v tt`: tt is a mise shim, so the file stays present and
+# executable even when mise can no longer resolve a version for it. Only
+# running it tells you whether it works, so run it and swallow the outcome.
+tt ingest pane-focus \
+    --pane "${1-}" --cwd "${2-}" --session "${3-}" --window "${4-}" \
+    >>"$log_dir/hook.log" 2>&1
+
+exit 0

@@ -1,0 +1,55 @@
+# mega-doctor → mega-assert migration classification.
+#
+# Approving U2 means approving this table: it is where the severity, tier, scope
+# and boot-gate calls for all 39 existing checks are visible in one place.
+# U23/U24/U25 implement rows against it rather than re-deciding per section.
+#
+# severity  invariant = config declares X and X is true (blocks)
+#           liveness  = a service responds right now (warns, never gates boot)
+# tier      1 presence · 2 content · 3 behaviour
+# boot_gate yes only where continuing to boot is worse than failing to boot
+# disp      migrate | retire | replaced
+#
+# id	section	line	severity	tier	scope	boot_gate	disp	unit	defect
+bin-core-present	Binaries	46-48	invariant	1	both	yes	migrate	U2	-
+bin-container-tools-present	Container tools	52-54	invariant	1	container	no	migrate	U2	-
+claude-version-matches-pin	Claude Code	59	invariant	2	container	no	replaced	U23	unconditional-ok
+claude-plugins-match-declaration	Claude Code	60-61	invariant	2	both	no	migrate	U23	warns-on-count
+opencode-version-matches-pin	OpenCode	66	invariant	2	container	no	replaced	U23	unconditional-ok
+mise-tools-match-pins	OpenCode	new	invariant	2	container	no	migrate	U23	-
+mise-shims-resolve	OpenCode	new	invariant	1	container	yes	migrate	U23	shim-present-not-resolvable
+omo-config-present	OpenCode	67-69,86	invariant	1	both	yes	migrate	U2	absence-not-error
+omo-sisyphus-model	OpenCode	70-78	invariant	2	both	-	replaced	U22	warn-not-fail
+omo-stray-models	OpenCode	79-83	invariant	2	both	-	replaced	U22	denylist-not-enumeration
+omo-agent-models	OpenCode	new	invariant	2	both	yes	migrate	U22	-
+opencode-legacy-configs-absent	OpenCode	89-93	invariant	1	container	no	migrate	U2	warn-not-fail
+secrets-required-present	Secrets in env	98-100	invariant	1	container	yes	migrate	U24	-
+secrets-optional-present	Secrets in env	102-104	invariant	1	container	no	migrate	U24	warn-not-skip
+docker-socket-mounted	Mounts & services	107	invariant	1	both	no	migrate	U2	conflated-with-daemon
+docker-daemon-responds	Mounts & services	107	liveness	2	both	no	migrate	U25	bad-not-liveness
+aws-dir-mounted	Mounts & services	108	invariant	1	both	no	migrate	U2	-
+kube-dir-mounted	Mounts & services	109	invariant	1	both	no	migrate	U2	-
+code-volume-mounted	Mounts & services	110	invariant	1	container	yes	migrate	U2	count-is-decorative
+sshd-running	Mounts & services	111	liveness	1	container	no	migrate	U25	-
+tailscale-backend-running	Mounts & services	112-115	liveness	2	both	no	migrate	U25	bad-not-liveness
+tmux-version-min	Durability	119-123	invariant	2	both	no	migrate	U24	glob-rejects-3.10
+supercronic-running	Durability	124	liveness	1	container	no	migrate	U24	pgrep-f-overmatches
+supercronic-crontab-declares-jobs	Durability	125	invariant	2	both	no	migrate	U24	presence-not-content
+tmux-resurrect-installed	Durability	126	invariant	1	container	no	migrate	U2	-
+sh-functions-ws-helpers	Durability	127	invariant	2	both	no	migrate	U24	missing-file-warns
+tmux-save-recent	Durability	128-134	liveness	2	both	no	migrate	U24	gnu-stat-only
+supercronic-single-instance	Durability	136-139	liveness	1	container	-	retire	U24	folded-into-running
+tmux-boot-restore-wired	Durability	140-144	invariant	2	container	no	migrate	U24	two-anded-causes
+tmux-restore-in-place	Durability	145	invariant	2	both	no	migrate	U24	missing-file-warns
+tmux-save-tmpdir-pinned	Durability	146	invariant	2	both	no	migrate	U24	missing-file-warns
+opencode-snapshot-recent	Durability	147-153	liveness	2	both	no	migrate	U24	gnu-stat-only
+opencode-web-responding	OpenCode web	157-161	liveness	2	container	no	migrate	U25	bad-not-liveness
+tailscale-serve-configured	OpenCode web	162-165,172	liveness	2	container	no	migrate	U25	jq-failure-misattributed
+tailscale-url-reachable	OpenCode web	166-170	liveness	2	container	no	migrate	U25	quick-skip-unreported
+aws-credentials-valid	External auth	178-184	liveness	2	both	no	migrate	U25	-
+kubectl-context-set	External auth	185-188	liveness	1	both	-	retire	U25	nothing-declared
+ssh-agent-keys-loaded	External auth	189-194	liveness	2	both	no	migrate	U24	empty-agent-counts-one
+mcp-servers-connected	MCP probe	197-218	liveness	3	both	no	migrate	U25	counter-without-line
+resurrect-save-writes	Durability round-trip	224-230	invariant	3	both	no	migrate	U24	-
+resurrect-restore-roundtrips	Durability round-trip	231-235	invariant	3	both	no	migrate	U24	-
+resurrect-scripts-present	Durability round-trip	224,238	invariant	1	both	-	retire	U24	becomes-precondition

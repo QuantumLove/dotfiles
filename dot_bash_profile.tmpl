@@ -2,3 +2,9 @@
 # All configuration lives in .bashrc (which handles both interactive and non-interactive)
 
 [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"
+
+# Secrets are fetched at container boot into a file chezmoi does not manage.
+# Sourcing it from the source template rather than appending at boot keeps this
+# file byte-identical to what chezmoi expects — an appended line reads as drift
+# forever after, and makes every later `chezmoi apply` stop to ask about it.
+[ -f "$HOME/.secrets_env" ] && . "$HOME/.secrets_env"

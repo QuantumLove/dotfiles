@@ -158,3 +158,150 @@ cpwd() {
     printf '\033]52;c;%s\007' "$(printf '%s' "$p" | base64 | tr -d '\n')"
     echo "→ clipboard: $p"
 }
+
+# Claude Code against METR's middleman proxy, billed to METR's Anthropic account.
+# Usage: cyber [claude args...]
+#
+# Deliberately interactive and foreground-only. These tokens cost METR real
+# money and the grant came with "don't leave it unattended", so this must not
+# become the default for cron, supercronic, /loop, or anything in the container
+# that outlives your attention. Everything else stays on the subscription path.
+#
+# The subshell keeps the credential swap out of your shell: ANTHROPIC_API_KEY is
+# unset so the helper is the only credential source, and Claude Code re-runs the
+# helper every 15 min because the Okta JWT expires. HAWK_API_URL lives in
+# ~/.config/hawk-cli and is shared with the container by the bind mount, but the
+# login is not: hawk stores credentials in a per-platform keyring, so `hawk login`
+# is run once per machine.
+#
+# HAWK_VERSION_CHECK=warn: hawk warns on CLI/server drift and by default would
+# rather prompt. Nothing is attached to answer a prompt inside an API key
+# helper. The warning goes to stderr, so it cannot corrupt the token on stdout.
+cyber() {
+    (
+        unset ANTHROPIC_API_KEY
+        export ANTHROPIC_BASE_URL=https://middleman.prd.metr.org/anthropic
+        export CLAUDE_CODE_API_KEY_HELPER_TTL_MS=900000
+        export HAWK_VERSION_CHECK=warn
+        claude --permission-mode=auto --model="claude-opus-5-cvp" \
+            --settings '{"apiKeyHelper":"hawk auth access-token"}' "$@"
+    )
+}
+
+# ---------------------------------------------------------------------------
+# omp (oh-my-pi) against METR's middleman. The OpenAI-side sibling of `cyber`.
+#
+# Usage: cyberpi [omp args...]                  # vetted default model
+#        cyberpi --model openai/gpt-5.4 ...     # any vetted model
+#        cyberpi --daybreak ...                 # NOT YET WIRED — prints the steps
+#
+# Why the `openai` provider slot and not a provider called "middleman": middleman
+# speaks the OpenAI wire protocol at /openai/v1, and omp dispatches on the wire
+# API rather than the provider label, so the slot is the right shape. Giving it a
+# distinct provider id would mean patching omp's catalog and registry (see
+# upstream docs/adding-a-provider.md) — a fork, not configuration. omp has no
+# config-level provider settings at all: providers.openai.baseURL and .apiKey
+# are both rejected as unknown keys, so env vars are the only lever.
+#
+# The redirect therefore lives and dies inside this subshell, and that scoping
+# is load-bearing rather than tidiness. A real OPENAI_API_KEY is already in the
+# login environment from .secrets_env, and OPENAI_BASE_URL is a single global
+# switch every OpenAI client reads. Exporting either one persistently crosses
+# two credentials with two endpoints: the METR token reaching api.openai.com, or
+# the OpenAI key reaching middleman, depending on which var wins. Inside the
+# subshell both are set together and neither escapes.
+#
+# Deny-by-default, not a denylist. The model to stay away from is Daybreak, and
+# its identifier is not known yet — so no denylist could match it. An allowlist
+# can: anything not vetted below is refused, which means a dangerous model that
+# nobody has named yet is already unreachable by accident.
+#
+# Scope of the guard, honestly: this checks the model at launch. Switching with
+# /model inside a running session does not pass through here. Closing that needs
+# omp's `enabledModels` config, which is global rather than per-invocation — see
+# the note in cyberpi --daybreak.
+CYBERPI_VETTED_MODELS="gpt-5.2 gpt-5.4 gpt-5.5 gpt-5.6-sol gpt-5.6-luna gpt-5.6-terra gpt-5.3-codex o3 o4-mini"
+CYBERPI_DEFAULT_MODEL="openai/gpt-5.2"
+
+# PLACEHOLDER. Set this once access lands; `cyberpi --daybreak` prints the full
+# procedure. Left empty on purpose so the flag fails loudly instead of quietly
+# resolving to something else.
+CYBERPI_DAYBREAK_MODEL=""
+
+cyberpi() {
+    local model="" want_daybreak=0 prev="" a bare
+
+    for a in "$@"; do
+        case "$prev" in --model|-m) model="$a" ;; esac
+        case "$a" in
+            --model=*) model="${a#--model=}" ;;
+            --daybreak) want_daybreak=1 ;;
+        esac
+        prev="$a"
+    done
+
+    if [ "$want_daybreak" -eq 1 ]; then
+        if [ -z "$CYBERPI_DAYBREAK_MODEL" ]; then
+            cat >&2 <<'HOWTO'
+cyberpi: Daybreak is not wired up yet. To finish it:
+
+  1. Get the exact model identifier from whoever granted access. It is not
+     discoverable: /permitted_models returns 1617 models for you and none match
+     daybreak/dawn/dusk. middleman models carry both a public_name and a
+     danger_name behind an are_details_secret flag, so the codename can be
+     deliberately hidden. Do not guess — a wrong string bills a real request.
+  2. Confirm it is actually in your grant:
+       T=$(hawk auth access-token)
+       curl -s -X POST -H 'Content-Type: application/json' -d "{\"api_key\":\"$T\"}" \
+         https://middleman.prd.metr.org/permitted_models | grep -i <name>
+  3. Set CYBERPI_DAYBREAK_MODEL in ~/.local/share/chezmoi/dot_sh_functions.tmpl
+     to "openai/<name>", then chezmoi apply.
+  4. Strip --daybreak from "$@" before it reaches omp (it is not an omp flag).
+     The loop above only reads the args; nothing removes it yet.
+  5. Decide whether it should stay out of CYBERPI_VETTED_MODELS. Keeping it out
+     means it is reachable only via this flag, which is the point.
+
+  No API choice is needed: middleman implements both /chat/completions and
+  /responses under /openai/v1, so whichever wire format omp emits is served.
+
+  To also block it mid-session (/model switching bypasses this wrapper), set
+  omp's `enabledModels` to the vetted list. That setting is global, not
+  per-invocation, so it is a deliberate decision rather than a default here.
+HOWTO
+            return 1
+        fi
+        model="$CYBERPI_DAYBREAK_MODEL"
+    fi
+
+    [ -z "$model" ] && model="$CYBERPI_DEFAULT_MODEL"
+
+    # Compare on the bare name so openai/gpt-5.2 and gpt-5.2 both resolve.
+    bare="${model#*/}"
+    case " $CYBERPI_VETTED_MODELS " in
+        *" $bare "*) ;;
+        *)
+            if [ "${CYBERPI_ALLOW_UNVETTED:-0}" != "1" ]; then
+                echo "cyberpi: '$model' is not in CYBERPI_VETTED_MODELS." >&2
+                echo "  Vetted: $CYBERPI_VETTED_MODELS" >&2
+                echo "  Override for a one-off with CYBERPI_ALLOW_UNVETTED=1." >&2
+                return 1
+            fi
+            ;;
+    esac
+
+    (
+        export HAWK_VERSION_CHECK=warn
+        OPENAI_API_KEY="$(hawk auth access-token)" || {
+            echo "cyberpi: no METR token — run 'hawk login'." >&2
+            exit 1
+        }
+        export OPENAI_API_KEY
+        export OPENAI_BASE_URL=https://middleman.prd.metr.org/openai/v1
+
+        # Only inject --model when the caller did not pass one, or omp sees it twice.
+        case " $* " in
+            *" --model "*|*" -m "*|*" --model="*) omp "$@" ;;
+            *) omp --model "$model" "$@" ;;
+        esac
+    )
+}

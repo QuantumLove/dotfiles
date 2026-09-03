@@ -2,8 +2,18 @@
 # Warp handles themes, completions, and most shell features
 # This file only loads our custom shell functions
 
-# Add ~/bin to PATH
-export PATH="$HOME/bin:$PATH"
+# Match .bashrc: uv, pipx and friends install tool shims into ~/.local/bin, and
+# leaving it off meant anything installed that way (hawk, and so the cyber
+# wrapper) worked in the container's bash but not in Warp's zsh.
+export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
+
+# Mise (tool version manager) — mirrors .bashrc. Without this, Warp's zsh has no
+# mise shims and tools installed there (omp) simply are not found, which is the
+# same gap that hid ~/.local/bin.
+if [ -d "$HOME/.local/share/mise" ]; then
+  export PATH="$HOME/.local/share/mise/shims:$PATH"
+  eval "$(mise activate zsh 2>/dev/null)"
+fi
 
 # Load shared custom functions for Warp
 [ -f "$HOME/.sh_functions" ] && . "$HOME/.sh_functions"

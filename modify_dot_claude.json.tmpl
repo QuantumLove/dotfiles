@@ -27,18 +27,50 @@ if ! op account get &>/dev/null; then
     exit 1
 fi
 
-# 1Password is working - load secrets
-LINEAR_API_KEY="${LINEAR_API_KEY:-$(op read "op://Development/Linear MCP API Key/credential")}"
-SENTRY_ACCESS_TOKEN="${SENTRY_ACCESS_TOKEN:-$(op read "op://Development/Sentry MCP API Key/credential")}"
-GITHUB_PERSONAL_ACCESS_TOKEN="${GITHUB_PERSONAL_ACCESS_TOKEN:-$(op read "op://Development/GitHub Personal Access Token/credential")}"
-TOGGL_API_KEY="${TOGGL_API_KEY:-$(op read "op://Development/Toggl API Key/credential")}"
-SLACK_MCP_XOXP_TOKEN="${SLACK_MCP_XOXP_TOKEN:-$(op read "op://Development/Slack User OAuth Token/credential")}"
-SLACK_MCP_XOXB_TOKEN="${SLACK_MCP_XOXB_TOKEN:-$(op read "op://Development/Slack Bot OAuth Token/credential")}"
-DD_API_KEY="${DD_API_KEY:-$(op read "op://Development/Datadog API Key/credential")}"
-DD_APP_KEY="${DD_APP_KEY:-$(op read "op://Development/Datadog App Key/credential")}"
+# 1Password is working - load secrets.
+#
+# Every read below used to be unguarded under `set -euo pipefail`, so a single
+# renamed or missing vault item aborted this script, which aborted `chezmoi
+# apply`, which aborted the container boot. One absent MCP credential should
+# disable one MCP server, not stop the machine from starting.
+#
+# A missing token is reported by name and leaves that server unconfigured; the
+# mcp-servers-connected check is what surfaces it afterwards.
+MISSING_TOKENS=()
+# Assigns via printf -v rather than returning on stdout. A $(read_token ...)
+# form runs the function in a subshell, so MISSING_TOKENS+= there never reaches
+# the parent and the warning below is permanently empty — the failure report
+# would have been silently unreachable.
+read_token() { # <env-var> <op-path> <server>
+    local var="$1" path="$2" server="$3" value
+    [ -n "${!var:-}" ] && return 0
+    if ! value="$(op read "$path" 2>/dev/null)" || [ -z "$value" ]; then
+        MISSING_TOKENS+=("$server")
+        printf -v "$var" '%s' ''
+        return 0
+    fi
+    printf -v "$var" '%s' "$value"
+}
+
+read_token LINEAR_API_KEY               "op://Development/Linear MCP API Key/credential"          linear
+read_token SENTRY_ACCESS_TOKEN          "op://Development/Sentry MCP API Key/credential"          sentry
+read_token GITHUB_PERSONAL_ACCESS_TOKEN "op://Development/GitHub Personal Access Token/credential" github
+read_token TOGGL_API_KEY                "op://Development/Toggl API Key/credential"               toggl
+read_token SLACK_MCP_XOXP_TOKEN         "op://Development/Slack User OAuth Token/credential"      slack-read
+read_token SLACK_MCP_XOXB_TOKEN         "op://Development/Slack Bot OAuth Token/credential"       slack-write
+read_token DD_API_KEY                   "op://Development/Datadog API Key/credential"             datadog
+read_token DD_APP_KEY                   "op://Development/Datadog App Key/credential"             datadog
+
+if [ ${#MISSING_TOKENS[@]} -gt 0 ]; then
+    echo "⚠️  MCP credentials unavailable — these servers will not connect: ${MISSING_TOKENS[*]}" >&2
+fi
 
 # Define our MCP servers (source of truth)
 mcp_servers='{{ include "private_dot_claude/mcp-servers.yaml" | sha256sum }}'
+# datadog pins its mcp SDK: datadog-mcp calls Server.list_tools(), which the SDK
+# dropped after 1.25, so an unpinned uvx resolve installs a version that crashes
+# the server at import. It also needs python >=3.13, which the pin makes explicit
+# rather than leaving to whatever uv picks.
 desired_servers='{
   "linear": {
     "type": "stdio",
@@ -108,7 +140,7 @@ desired_servers='{
   "datadog": {
     "type": "stdio",
     "command": "uvx",
-    "args": ["--from", "git+https://github.com/shelfio/datadog-mcp.git", "datadog-mcp"],
+    "args": ["--python", "3.13", "--with", "mcp<1.26", "--from", "git+https://github.com/shelfio/datadog-mcp.git", "datadog-mcp"],
     "env": {
       "DD_API_KEY": "'"${DD_API_KEY}"'",
       "DD_APP_KEY": "'"${DD_APP_KEY}"'",

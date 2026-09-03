@@ -1,0 +1,47 @@
+{
+  "_comment": [
+    "The single definition of the branch policy. Every enforcement point reads",
+    "this file: the pre-commit and pre-push hooks, and the per-harness adapters",
+    "that enforce the primary-worktree rule (Claude Code, OpenCode, omp).",
+    "",
+    "Identity is a git remote slug, never a filesystem path — a clone at a",
+    "different path is the same repo, and a path match cannot tell them apart.",
+    "",
+    "Editing this file changes behaviour everywhere at once. That is the point."
+  ],
+
+  "exempt_remotes": [
+    "QuantumLove/dotfiles",
+    "QuantumLove/glove80"
+  ],
+
+  "_enforcement_active": [
+    "Flip to true when core.hooksPath is set in dot_gitconfig.tmpl. While false,",
+    "the reachability and coverage checks skip with a reason rather than failing:",
+    "the hooks are installed but deliberately inactive, and a check that fails by",
+    "design every run is one nobody reads."
+  ],
+  "enforcement_active": true,
+
+  "_enforced_surfaces": [
+    "Agent surfaces expected to carry the rule-1 adapter. Add a surface here",
+    "when its adapter ships; the adapters-live check asserts exactly this list,",
+    "so an unshipped surface is not a standing failure and a shipped one cannot",
+    "quietly stop loading."
+  ],
+  "enforced_surfaces": ["claude", "opencode", "omp"],
+
+  "rules": {
+    "primary_worktree_stays_on_default": true,
+    "no_edit_tracked_in_primary_worktree": true,
+    "no_commit_on_default_branch": true,
+    "no_push_to_default_branch": true
+  },
+
+  "_fail_mode": [
+    "Accident prevention, not a security boundary. When the guard cannot tell",
+    "what a repo is, it allows and logs the reason: blocking on ambiguity",
+    "teaches agents to reach for --no-verify, which disables it everywhere.",
+    "A repo with no remote has nothing shared to protect and is unguarded."
+  ]
+}

@@ -60,9 +60,27 @@ A required 1Password item doesn't exist in the Development vault.
    - Create the missing item in 1Password (Development vault)
    - Or make the secret optional in `modify_dot_claude.json.tmpl` (add `2>/dev/null || echo ""`)
 
-**Currently Optional Secrets** (soft-fail at boot, surfaced as warnings by `mega-doctor`):
-- `Slack User Token` — Slack MCP disabled if missing
-- `GWS Credentials JSON` — morning-triage / Gmail access disabled if missing
+**Secret classification** (declared in `entrypoint.sh`, not inferred):
+
+| Secret | Class | Gates |
+|---|---|---|
+| `OP_SERVICE_ACCOUNT_TOKEN` | required | everything — checked before any fetch |
+| `ANTHROPIC_API_KEY` | required | Claude Code |
+| `OPENAI_API_KEY` | required | OpenAI models |
+| `GEMINI_API_KEY` | required | Gemini models |
+| `GH_TOKEN` | required | GitHub access |
+| `DD_API_KEY` / `DD_APP_KEY` | required | Datadog |
+| Docker Hub credentials | required | registry pulls |
+| `GWS Credentials JSON` | optional | morning-triage, Gmail |
+
+A required secret aborts the boot and names both the secret and `op`'s own
+reason — an expired token, no network, and a renamed vault item need different
+fixes and used to be indistinguishable. An optional one warns, names the feature
+it disables, and boot continues.
+
+Earlier revisions of this document listed the Slack token as optional. It was
+not: every read in `modify_dot_claude.json.tmpl` runs under `set -euo pipefail`,
+so a missing one aborted `chezmoi apply` and with it the boot.
 
 ---
 

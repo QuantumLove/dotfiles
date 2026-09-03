@@ -182,7 +182,7 @@ WORKDIR /home/rafaelcarvalho
 
 ENV MISE_DATA_DIR="/home/rafaelcarvalho/.local/share/mise" \
     MISE_CONFIG_DIR="/home/rafaelcarvalho/.config/mise" \
-    PATH="/home/rafaelcarvalho/.local/share/mise/shims:$PATH" \
+    PATH="/home/rafaelcarvalho/.local/bin:/home/rafaelcarvalho/.local/share/mise/shims:$PATH" \
     MISE_YES=true
 
 COPY --chown=rafaelcarvalho:rafaelcarvalho .config/mise/config.toml .config/mise/
@@ -191,8 +191,21 @@ COPY --chown=rafaelcarvalho:rafaelcarvalho .config/mise/config.toml .config/mise
 # postinstall scripts, and both opencode-ai and @anthropic-ai/claude-code rely on
 # postinstall to download their platform-native binaries. npm install -g runs them.
 RUN mise trust -a && mise install && \
-    npm install -g yarn opencode-ai @anthropic-ai/claude-code oh-my-openagent @googleworkspace/cli && \
-    oh-my-openagent install --no-tui --claude=yes --gemini=no --copilot=no
+    npm install -g yarn opencode-ai @anthropic-ai/claude-code oh-my-openagent@4.19.4 @googleworkspace/cli && \
+    oh-my-openagent install --no-tui --claude=yes --gemini=no --copilot=no && \
+    uv tool install --python 3.13 "hawk[cli]"
+
+# hawk: METR's eval CLI, and the token source for the `cyber` Claude Code wrapper
+# (apiKeyHelper shells out to `hawk auth access-token`). Installed with uv per
+# METR's install docs — mise has no backend that handles the [cli] extra. The
+# interpreter is named explicitly because hawk requires >=3.13 and this should
+# not silently break when the mise python pin moves.
+#
+# Only HAWK_API_URL is shared: ~/.config/hawk-cli is bind-mounted, but hawk keeps
+# credentials in a keyring, and the backend differs per platform — Keychain on the
+# host, a keyrings.alt file at ~/.local/share/python_keyring here. So `hawk login`
+# is per-machine, and because that path is in the container's writable layer
+# rather than a volume, a rebuild loses it and you log in again.
 
 COPY --chown=rafaelcarvalho:rafaelcarvalho entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh

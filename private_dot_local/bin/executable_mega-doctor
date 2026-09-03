@@ -1,246 +1,35 @@
 #!/usr/bin/env bash
-# mega-doctor — comprehensive health check for the mega-container (and host).
+# mega-doctor — health and correctness report for the mega-container.
 #
 # Usage:
-#   mega-doctor            # full check (~10-20s, includes MCP probe)
-#   mega-doctor --quick    # skip network/MCP probes (~1s) — used by entrypoint
-#   mega-doctor --no-mcp   # skip only the slow MCP probe
-#   mega-doctor --deep     # also run a durability save->restore round-trip
+#   mega-doctor              # everything except the slow behavioural checks
+#   mega-doctor --quick      # same, minus anything that waits on the network
+#   mega-doctor --deep       # include tier-3 behavioural checks
+#   mega-doctor --no-mcp     # accepted for compatibility; the MCP probe is
+#                            # tier 3 and already excluded unless --deep
+#   mega-doctor -h
 #
-# Exit code: 0 if all critical checks pass, non-zero otherwise.
-
+# The checks themselves live in mega-assert. This is the name the entrypoint and
+# rebuild.sh call, so it keeps its flags and its exit contract: zero unless an
+# invariant check failed. A failing liveness check is reported and never changes
+# the exit code — a dead web UI must not stop the container starting.
 set -uo pipefail
 
-QUICK=0
-NO_MCP=0
-DEEP=0
-for arg in "$@"; do
-  case "$arg" in
-    --quick) QUICK=1; NO_MCP=1 ;;
-    --no-mcp) NO_MCP=1 ;;
-    --deep) DEEP=1 ;;
-    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
-  esac
+ASSERT="$HOME/.local/bin/mega-assert"
+
+args=()
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --quick)   args+=(--severity invariant) ;;   # skip the network probes
+        --deep)    args+=(--deep) ;;
+        --no-mcp)  ;;                                # no-op: mcp probe is tier 3
+        -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+        *)         args+=("$1") ;;
+    esac
+    shift
 done
 
-# Colors (only if stdout is a TTY)
-if [ -t 1 ]; then
-  G=$'\033[32m'; R=$'\033[31m'; Y=$'\033[33m'; D=$'\033[2m'; Z=$'\033[0m'
-else
-  G=""; R=""; Y=""; D=""; Z=""
-fi
+# Checked after parsing so -h works on a machine where mega-assert is absent.
+[ -x "$ASSERT" ] || { echo "mega-doctor: mega-assert not found at $ASSERT" >&2; exit 2; }
 
-PASS=0; FAIL=0; WARN=0
-ok()   { echo "${G}✓${Z} $1"; PASS=$((PASS+1)); }
-bad()  { echo "${R}✗${Z} $1${2:+ ${D}— $2${Z}}"; FAIL=$((FAIL+1)); }
-warn() { echo "${Y}⚠${Z} $1${2:+ ${D}— $2${Z}}"; WARN=$((WARN+1)); }
-hdr()  { echo; echo "${D}── $1 ──${Z}"; }
-
-# Detect environment
-IN_CONTAINER=0
-if [ -f /.dockerenv ] || grep -qE '(docker|containerd|kubepods)' /proc/1/cgroup 2>/dev/null; then
-  IN_CONTAINER=1
-fi
-
-hdr "Binaries"
-for bin in claude opencode chezmoi mise git tmux jq op; do
-  command -v "$bin" >/dev/null 2>&1 && ok "$bin: $(command -v "$bin")" || bad "$bin missing"
-done
-
-if [ $IN_CONTAINER -eq 1 ]; then
-  hdr "Container tools"
-  for bin in helm gh pulumi docker aws kubectl tflint gitleaks age sops bun tailscale; do
-    command -v "$bin" >/dev/null 2>&1 && ok "$bin" || bad "$bin missing"
-  done
-fi
-
-hdr "Claude Code"
-if command -v claude >/dev/null 2>&1; then
-  ok "version: $(claude --version 2>/dev/null | head -1)"
-  PLUGIN_COUNT=$(claude plugin list 2>/dev/null | grep -c '^  ❯' || echo 0)
-  [ "$PLUGIN_COUNT" -ge 1 ] && ok "$PLUGIN_COUNT plugin(s) installed" || warn "no plugins installed"
-fi
-
-hdr "OpenCode"
-if command -v opencode >/dev/null 2>&1; then
-  ok "version: $(opencode --version 2>/dev/null)"
-  OC_CONFIG="$HOME/.omo/omo.jsonc"
-  if [ -f "$OC_CONFIG" ]; then
-    ok "active config: $OC_CONFIG"
-    if command -v jq >/dev/null 2>&1; then
-      # omo.jsonc is JSON-with-comments; strip // lines before jq
-      OPUS_MODEL=$(sed 's|^[[:space:]]*//.*$||' "$OC_CONFIG" \
-        | jq -r '."[opencode]".agents.sisyphus.model // "?"')
-      if [[ "$OPUS_MODEL" == *"opus-5-fast"* ]]; then
-        ok "Opus model: $OPUS_MODEL"
-      else
-        warn "Opus model: $OPUS_MODEL" "expected claude-opus-5-fast"
-      fi
-      STRAY=$(sed 's|^[[:space:]]*//.*$||' "$OC_CONFIG" \
-        | jq -r '[."[opencode]" | .. | .model? // empty]
-                 | map(select(test("sonnet|opus-5$"))) | length' 2>/dev/null || echo 0)
-      [ "${STRAY:-0}" -eq 0 ] && ok "no sonnet/non-fast opus entries" \
-        || warn "$STRAY agent(s) on sonnet or non-fast opus"
-    fi
-  else
-    bad "OpenCode config missing" "$OC_CONFIG"
-  fi
-  # Deprecated configs — presence re-triggers omo migration on every boot
-  for legacy in oh-my-opencode.json oh-my-openagent.json; do
-    if [ -f "$HOME/.config/opencode/$legacy" ]; then
-      warn "legacy $legacy present" "remove to avoid confusion"
-    fi
-  done
-fi
-
-if [ $IN_CONTAINER -eq 1 ]; then
-  hdr "Secrets in env"
-  for v in OP_SERVICE_ACCOUNT_TOKEN ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY GH_TOKEN DD_API_KEY DD_APP_KEY; do
-    if [ -n "${!v:-}" ]; then ok "$v set"; else bad "$v missing"; fi
-  done
-  # Soft-fail items
-  for v in GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE; do
-    if [ -n "${!v:-}" ]; then ok "$v set"; else warn "$v not set" "soft-fail; some skills disabled"; fi
-  done
-
-  hdr "Mounts & services"
-  [ -S /var/run/docker.sock ] && docker ps >/dev/null 2>&1 && ok "docker socket passthrough" || bad "docker socket"
-  [ -d "$HOME/.aws" ] && ok "~/.aws mount" || bad "~/.aws mount"
-  [ -d "$HOME/.kube" ] && ok "~/.kube mount" || bad "~/.kube mount"
-  [ -d "$HOME/code" ] && ok "~/code volume ($(ls "$HOME/code" 2>/dev/null | wc -l | tr -d ' ') entries)" || bad "~/code volume"
-  pgrep sshd >/dev/null && ok "sshd running" || bad "sshd not running"
-  if command -v tailscale >/dev/null 2>&1; then
-    TS_STATE=$(tailscale status --json 2>/dev/null | jq -r '.BackendState // "Unknown"')
-    [ "$TS_STATE" = "Running" ] && ok "tailscale: $TS_STATE" || bad "tailscale: $TS_STATE"
-  fi
-
-  # Durability (tmux) — read-only checks; never touches live sessions
-  hdr "Durability (tmux)"
-  TMUX_VER=$(tmux -V 2>/dev/null | awk '{print $2}')
-  case "$TMUX_VER" in
-    3.[5-9]*|[4-9].*) ok "tmux $TMUX_VER (>= 3.5)" ;;
-    *) warn "tmux $TMUX_VER" "resurrect restore can crash below 3.5" ;;
-  esac
-  pgrep -f supercronic >/dev/null && ok "supercronic running" || warn "supercronic not running" "scheduled tmux saves won't fire"
-  [ -f "$HOME/.config/supercronic/crontab" ] && ok "supercronic crontab present" || warn "supercronic crontab missing"
-  [ -d "$HOME/.tmux/plugins/tmux-resurrect" ] && ok "tmux-resurrect installed" || warn "tmux-resurrect not installed" "restore unavailable"
-  grep -q '^ws()' "$HOME/.sh_functions" 2>/dev/null && ok "ws/wsl session helpers deployed" || warn "ws helpers missing"
-  RDIR="$HOME/.local/share/tmux-snapshots/resurrect"
-  if [ -f "$RDIR/last" ]; then
-    AGE=$(( ( $(date +%s) - $(stat -L -c %Y "$RDIR/last" 2>/dev/null || echo 0) ) / 60 ))
-    [ "$AGE" -lt 60 ] && ok "last tmux save ${AGE}m ago" || warn "last tmux save ${AGE}m ago" "stale — saves may not be firing"
-  else
-    warn "no tmux save yet" "appears after first work session + save tick"
-  fi
-  # Additions from the durability/auto-restore work
-  if pgrep -x supercronic >/dev/null; then
-    SC_N=$(pgrep -x supercronic | wc -l | tr -d ' ')
-    [ "$SC_N" -eq 1 ] && ok "supercronic: single instance" || warn "supercronic: $SC_N instances" "duplicates double-run cron → save races"
-  fi
-  if [ -x "$HOME/.local/bin/tmux-boot-restore" ] && grep -q tmux-boot-restore /usr/local/bin/entrypoint.sh 2>/dev/null; then
-    ok "boot-restore wired (auto-restore on boot)"
-  else
-    warn "boot-restore not wired" "a rebuild won't auto-restore sessions"
-  fi
-  grep -q -- "--in-place" "$HOME/.local/bin/tmux-restore" 2>/dev/null && ok "opencode in-place resume available" || warn "tmux-restore --in-place missing"
-  grep -q TMUX_TMPDIR "$HOME/.local/bin/tmux-save" 2>/dev/null && ok "durability scripts pin TMUX_TMPDIR (socket consistency)" || warn "TMUX_TMPDIR not pinned" "cron/boot may hit the wrong socket"
-  SNAP="$HOME/.local/share/tmux-snapshots/snapshot.json"
-  if [ -f "$SNAP" ]; then
-    SAGE=$(( ( $(date +%s) - $(stat -L -c %Y "$SNAP" 2>/dev/null || echo 0) ) / 60 ))
-    [ "$SAGE" -lt 60 ] && ok "last opencode snapshot ${SAGE}m ago" || warn "last opencode snapshot ${SAGE}m ago" "stale"
-  else
-    warn "no opencode snapshot yet"
-  fi
-
-  # OpenCode web (container-only feature)
-  hdr "OpenCode web"
-  if curl -sf http://127.0.0.1:4096/ >/dev/null 2>&1; then
-    ok "opencode web responding on :4096"
-  else
-    bad "opencode web not responding on :4096" "tail ~/.local/state/opencode-web.log"
-  fi
-  if [ $QUICK -eq 0 ] && command -v tailscale >/dev/null 2>&1; then
-    if tailscale serve status 2>/dev/null | grep -q "http://127.0.0.1:4096"; then
-      TS_URL="https://$(tailscale status --json | jq -r '.Self.DNSName // .Self.HostName' | sed 's/\.$//')"
-      ok "tailscale serve → $TS_URL"
-      if curl -sfk --max-time 5 "$TS_URL/" >/dev/null 2>&1; then
-        ok "$TS_URL reachable"
-      else
-        warn "$TS_URL not reachable from inside container" "may still work from your tailnet"
-      fi
-    else
-      bad "tailscale serve not configured for :4096"
-    fi
-  fi
-
-  if [ $QUICK -eq 0 ]; then
-    hdr "External auth (slow)"
-    if command -v aws >/dev/null 2>&1; then
-      if aws sts get-caller-identity >/dev/null 2>&1; then
-        ok "AWS: $(aws sts get-caller-identity --query Arn --output text 2>/dev/null)"
-      else
-        warn "AWS: not logged in" "run: aws-sso-login"
-      fi
-    fi
-    if command -v kubectl >/dev/null 2>&1; then
-      KCTX=$(kubectl config current-context 2>/dev/null || echo "")
-      [ -n "$KCTX" ] && ok "kubectl context: $KCTX" || warn "no current kubectl context"
-    fi
-    if [ -n "${SSH_AUTH_SOCK:-}" ] && [ -S "$SSH_AUTH_SOCK" ]; then
-      KEYS=$(ssh-add -l 2>/dev/null | wc -l | tr -d ' ')
-      [ "$KEYS" -gt 0 ] && ok "ssh-agent: $KEYS key(s)" || warn "ssh-agent: 0 keys"
-    else
-      warn "ssh-agent not available"
-    fi
-  fi
-
-  if [ $NO_MCP -eq 0 ] && command -v claude >/dev/null 2>&1; then
-    hdr "MCP servers (probe)"
-    # Probe up to twice: the first `claude mcp list` after boot often catches
-    # servers mid-startup and reports transient "Failed to connect". A single
-    # retry removes most of that flakiness without masking a real outage.
-    for attempt in 1 2; do
-      MCP_OUT=$(timeout 30 claude mcp list 2>/dev/null || true)
-      # Match by status word, not by unicode glyph — claude mcp list uses ✔/✘ (U+2714/U+2718)
-      # and has flipped between glyphs across versions. Word-matching is stable.
-      # `grep -c || true` (not `|| echo 0`) — grep -c already prints "0" on no match;
-      # adding `echo 0` produced "0\n0" and broke the numeric test downstream.
-      CONNECTED=$(echo "$MCP_OUT" | grep -cE 'Connected$' || true)
-      FAILED=$(echo "$MCP_OUT" | grep -cE 'Failed to connect' || true)
-      { [ "${FAILED:-0}" -eq 0 ] || [ "$attempt" -eq 2 ]; } && break
-      sleep 3
-    done
-    [ "${CONNECTED:-0}" -gt 0 ] && ok "$CONNECTED MCP server(s) connected" || warn "0 MCP servers connected"
-    if [ "${FAILED:-0}" -gt 0 ]; then
-      echo "$MCP_OUT" | grep -E 'Failed to connect' | sed "s/^/  $R✗$Z /"
-      WARN=$((WARN+FAILED))
-    fi
-  fi
-
-  if [ $DEEP -eq 1 ]; then
-    hdr "Durability round-trip (--deep)"
-    DS="__deepcheck"; DRDIR="$(mktemp -d)"
-    RSH="$HOME/.tmux/plugins/tmux-resurrect/scripts"
-    if [ -x "$RSH/save.sh" ] && [ -x "$RSH/restore.sh" ]; then
-      tmux -L "$DS" kill-server 2>/dev/null
-      tmux -L "$DS" new-session -d -s probe \; set -g @resurrect-dir "$DRDIR" 2>/dev/null
-      tmux -L "$DS" new-window 2>/dev/null
-      WB=$(tmux -L "$DS" list-windows 2>/dev/null | wc -l | tr -d ' ')
-      tmux -L "$DS" run-shell "$RSH/save.sh" 2>/dev/null; sleep 1
-      [ -e "$DRDIR/last" ] && ok "resurrect save writes a file" || bad "resurrect save produced nothing"
-      tmux -L "$DS" kill-server 2>/dev/null
-      tmux -L "$DS" new-session -d -s probe \; set -g @resurrect-dir "$DRDIR" 2>/dev/null
-      tmux -L "$DS" run-shell "$RSH/restore.sh" 2>/dev/null; sleep 2
-      WA=$(tmux -L "$DS" list-windows 2>/dev/null | wc -l | tr -d ' ')
-      [ "${WA:-0}" -ge "${WB:-99}" ] && ok "resurrect restore round-trips (${WA} windows)" || bad "restore round-trip lost windows (${WA}/${WB})"
-      tmux -L "$DS" kill-server 2>/dev/null
-    else
-      warn "resurrect scripts missing — skipping round-trip"
-    fi
-    rm -rf "$DRDIR"
-  fi
-fi
-
-hdr "Summary"
-echo "${G}$PASS passed${Z}, ${Y}$WARN warning(s)${Z}, ${R}$FAIL failed${Z}"
-[ $FAIL -eq 0 ]
+exec "$ASSERT" ${args+"${args[@]}"}

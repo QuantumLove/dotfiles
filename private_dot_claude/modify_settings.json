@@ -136,10 +136,6 @@ desired="$(cat <<'JSON'
       "mcp__slack-read__usergroups_create",
       "mcp__slack-read__usergroups_update",
       "mcp__slack-read__usergroups_users_update",
-      "Bash(git push origin main*)",
-      "Bash(git push origin master*)",
-      "Bash(git push --force*)",
-      "Bash(git push -f *)",
       "Bash(gh pr merge*)",
       "Bash(*curl*proofeditor.ai*)",
       "Bash(*wget*proofeditor.ai*)",
@@ -179,12 +175,6 @@ desired="$(cat <<'JSON'
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/guard-no-main-checkout.sh",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/allow-chezmoi-push.sh",
-            "if": "Bash(git push*)",
             "timeout": 5
           }
         ]

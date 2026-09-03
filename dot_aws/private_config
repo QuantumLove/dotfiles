@@ -110,3 +110,10 @@ sso_session = metr
 sso_account_id = 783954203694
 sso_role_name = ProductionAdmin
 region = us-west-2
+
+[profile production-device]
+sso_start_url = https://d-9067f7db71.awsapps.com/start/#
+sso_region = us-east-1
+sso_account_id = 328726945407
+sso_role_name = ProductionAdmin
+region = us-west-2

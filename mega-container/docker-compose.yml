@@ -35,7 +35,12 @@ services:
        - ~/.local/share/chezmoi:/home/rafaelcarvalho/.local/share/chezmoi:ro
     restart: "on-failure:5"  # Max 5 restart attempts, then stops (prevents crash-loops)
     healthcheck:
-      test: ["CMD-SHELL", "tailscale status --json >/dev/null && pgrep sshd >/dev/null && pgrep -f supercronic >/dev/null && curl -sf http://127.0.0.1:4096/ >/dev/null && claude --version >/dev/null && opencode --version >/dev/null"]
+      # Includes the correctness verdict, so a container that booted with a
+      # failing invariant reads as unhealthy in `docker ps` from the Mac —
+      # without needing to log in to find out. opencode web is deliberately
+      # not probed here: it is held back on a failed gate by design, and
+      # probing it would report the symptom rather than the cause.
+      test: ["CMD-SHELL", "tailscale status --json >/dev/null && pgrep sshd >/dev/null && pgrep -f supercronic >/dev/null && claude --version >/dev/null && grep -q '\"ok\": true' \"$$HOME/.local/state/mega-assert/status.json\""]
       interval: 30s
       timeout: 5s
       retries: 3

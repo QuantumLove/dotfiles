@@ -2,6 +2,11 @@
 Brewfile
 Library/LaunchAgents/com.rafael.proof-tunnel.plist
 Library/LaunchAgents/com.rafael.cheatsheet.plist
+# Host-only mise config. The container seeds the *same* target path from
+# mega-container/dot_config/mise/config.toml in its Dockerfile, so applying this
+# there replaces the whole container toolchain with the Mac's two-line one and
+# every mise shim stops resolving.
+.config/mise/config.toml
 {{ end }}
 tests
 docs

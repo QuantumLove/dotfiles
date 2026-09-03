@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# claude-plugin-sync — register marketplaces and install every declared plugin.
+#
+# Usage:  claude-plugin-sync [--quiet]
+#
+# One implementation, called by both the chezmoi run_onchange installer and
+# /hot-patch. They previously carried near-identical loops that had already
+# diverged: hot-patch swallowed failures with `2>/dev/null || true` and silently
+# no-opped when the list was missing, so "✓ Plugins updated" printed whether or
+# not anything had been installed.
+set -uo pipefail
+
+QUIET=0
+[ "${1:-}" = "--quiet" ] && QUIET=1
+say() { [ "$QUIET" -eq 1 ] || echo "$@"; }
+
+SRC="${CHEZMOI_SOURCE_DIR:-$(chezmoi source-path 2>/dev/null)}"
+[ -n "$SRC" ] || { echo "claude-plugin-sync: cannot resolve the chezmoi source" >&2; exit 2; }
+
+MARKETPLACES="$SRC/private_dot_claude/marketplace-list.txt"
+PLUGINS="$SRC/private_dot_claude/plugin-list.txt"
+
+for f in "$MARKETPLACES" "$PLUGINS"; do
+    [ -r "$f" ] || { echo "claude-plugin-sync: missing $f" >&2; exit 2; }
+done
+
+say "Registering marketplaces..."
+while IFS= read -r m; do
+    case "$m" in ''|\#*) continue ;; esac
+    claude plugin marketplace add "$m" >/dev/null 2>&1 \
+        || say "  ⚠️  could not register $m"
+done < "$MARKETPLACES"
+
+say "Installing plugins..."
+failed=0 total=0
+while IFS= read -r p; do
+    case "$p" in ''|\#*) continue ;; esac
+    total=$((total + 1))
+    # Report failures. The version this replaces discarded them, so a plugin
+    # that never installed looked identical to one that did.
+    if ! claude plugin install "$p" >/dev/null 2>&1; then
+        say "  ⚠️  failed: $p"; failed=$((failed + 1))
+    fi
+done < "$PLUGINS"
+
+[ "$total" -gt 0 ] || { echo "claude-plugin-sync: plugin list is empty" >&2; exit 1; }
+say "$((total - failed))/$total plugins installed"
+[ "$failed" -eq 0 ]

@@ -105,8 +105,16 @@ ensure() {
   # Runs every minute. Discarding output here hides a persistent failure (missing
   # proof-sdk, broken deps) forever; overwrite rather than append so a per-minute
   # failure can't grow the log without bound.
-  { date -u '+%Y-%m-%dT%H:%M:%SZ ensure: Proof down, starting'; start; } \
-    >"$STATE_DIR/ensure.log" 2>&1
+  # setsid: the servers are long-lived children, so without a new session they
+  # keep this cron job alive indefinitely. supercronic then refuses to start
+  # another ensure ("job is still running") and the watchdog fires exactly once
+  # per container lifetime — it would never restart anything after the first
+  # time, which is the opposite of what a watchdog is for.
+  setsid --fork bash -c '
+    { date -u "+%Y-%m-%dT%H:%M:%SZ ensure: Proof down, starting"
+      "$0" start
+    } >"$1/ensure.log" 2>&1
+  ' "$0" "$STATE_DIR" </dev/null >/dev/null 2>&1
 }
 
 case "${1:-start}" in

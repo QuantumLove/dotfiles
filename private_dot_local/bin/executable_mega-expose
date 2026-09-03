@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# mega-expose — reach a container port from the Mac.
+#
+# Usage:
+#   mega-expose <port>          # print the reachable URL, serving it if needed
+#   mega-expose --list          # what is currently exposed
+#   mega-expose --off <port>    # stop exposing
+#   mega-expose -h
+#
+# Tailscale runs inside this container rather than as a sidecar, so the
+# container is its own tailnet node. A service already bound to 0.0.0.0 needs
+# nothing at all — it is reachable at raf-dev:<port> today. Only loopback-bound
+# services need help, and `tailscale serve` provides it without any SSH
+# forwarding.
+#
+# Anything exposed this way is reachable by every device on the tailnet, not
+# only the Mac. That is usually what you want and occasionally not, so it is
+# stated rather than assumed.
+set -uo pipefail
+
+PATH="$HOME/.local/share/mise/shims:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+die() { echo "mega-expose: $*" >&2; exit 1; }
+host() { tailscale status --json 2>/dev/null | jq -r '.Self.DNSName // empty' | sed 's/\.$//'; }
+
+case "${1:-}" in
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --list)
+        tailscale serve status 2>/dev/null || echo "nothing served"
+        exit 0 ;;
+    --off)
+        port="${2:?--off needs a port}"
+        # Mirror of the serve form below, so teardown removes what we added.
+        sudo tailscale serve --https="$port" off 2>/dev/null \
+            || die "could not stop serving :$port"
+        echo "stopped serving :$port"
+        exit 0 ;;
+esac
+
+port="${1:?usage: mega-expose <port>}"
+[ -n "${port//[0-9]/}" ] && die "'$port' is not a port number"
+
+h="$(host)"; [ -n "$h" ] || die "not on the tailnet — is tailscaled running?"
+
+# What is actually listening, and on which interface?
+listening="$(ss -ltn 2>/dev/null | awk -v p=":$port" '$4 ~ p {print $4}' | head -1)"
+[ -n "$listening" ] || die "nothing is listening on :$port"
+
+case "$listening" in
+    127.0.0.1:*|\[::1\]:*)
+        # Loopback-bound: needs tailscale serve. Use an explicit --https listener
+        # rather than the bare form, which would replace the root mapping that
+        # fronts opencode web and break phone access with no signal.
+        # sudo, like the entrypoint: tailscaled denies serve-config changes to
+        # an unprivileged caller and says so in its own error text.
+        sudo tailscale serve --bg --https="$port" "http://127.0.0.1:$port" >/dev/null 2>&1 \
+            || die "tailscale serve failed for :$port (try: sudo tailscale serve --bg --https=$port http://127.0.0.1:$port)"
+        echo "https://$h:$port"
+        echo "  (loopback service, fronted by tailscale serve — reachable tailnet-wide)"
+        ;;
+    *)
+        # Already on a routable interface: the tailnet reaches it directly.
+        echo "http://$h:$port"
+        echo "  (already bound beyond loopback — no serve mapping needed)"
+        ;;
+esac

@@ -1,0 +1,4 @@
+# Shared by host and mega-container: ~/.config/hawk-cli is bind-mounted, so this
+# is written once and read in both. Only the endpoint lives here — hawk keeps
+# credentials in a per-platform keyring, so `hawk login` is still per-machine.
+HAWK_API_URL=https://api.hawk.prd.metr.org

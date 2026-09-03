@@ -1,0 +1,78 @@
+# omp (oh-my-pi) configuration.
+#
+# Every agent resolves to a model declared here. Nothing is left to inherit the
+# parent's active model, because "whatever the parent happened to be using" is
+# how the omo drift went unnoticed for three sessions: the agents nobody looked
+# at were the ones that were wrong.
+#
+# Discovery providers are deliberately NOT disabled. omp imports MCP servers,
+# slash commands and custom tools from the Claude and OpenCode config it finds,
+# which is wanted — the commands are a way of working, not tool-specific, and
+# one list beats three. The risk that remains is narrower: a command written
+# against Claude Code may reference a tool omp exposes under another name, which
+# the inherited-item check reports rather than the inheritance being turned off.
+
+modelRoles:
+  # Concrete selectors live here; aliases live in agentModelOverrides below.
+  # Keeping the two apart means a tier change is one edit, not fifteen.
+  # gpt-5.4 via the plain openai provider (the personal key in .secrets_env),
+  # not middleman — cyberpi is the middleman path and scopes itself to a
+  # subshell. Note reviewer and security-reviewer resolve to @default below, so
+  # this sets them too; that is already how the container has been running.
+  default: openai/gpt-5.4:high
+  plan: anthropic/claude-fable-5
+  smol: anthropic/claude-haiku-4-5
+  slow: anthropic/claude-fable-5
+  task: anthropic/claude-opus-5-fast
+  vision: anthropic/claude-opus-5-fast
+  designer: anthropic/claude-opus-5-fast
+  commit: anthropic/claude-haiku-4-5
+  advisor: anthropic/claude-haiku-4-5
+  # `tiny` drives session titles, memory writes and auto-thinking classification
+  # on every turn. Unset it falls through to @smol, which is easy to miss and
+  # spends real money quietly.
+  tiny: anthropic/claude-haiku-4-5
+
+# Tool approval, split by machine because the two are used differently.
+#
+# Container: yolo. It is where agent work runs unattended, and a prompt nobody
+# is sitting in front of is just a stall. The accident actually worth stopping
+# there — an agent editing tracked files in a primary checkout — is caught by
+# the git-main-guard adapter rather than by an approval prompt, which is the
+# better place for it: the guard knows what the file is, the prompt only knows
+# that something wants to run.
+#
+# Host: write. Same tiers as Claude Code's --permission-mode=auto — reads and
+# workspace edits pass, anything executing code stops and asks. This is the
+# machine with the real keychain, the real AWS session and no container
+# boundary, and it is used interactively, so there is someone there to answer.
+#
+# omp's own tiers (docs/approval-mode.md):
+#   always-ask  auto: read                prompts: write, exec
+#   write       auto: read, write         prompts: exec
+#   yolo        auto: read, write, exec   prompts: nothing
+#
+# --auto-approve and --yolo force yolo for a session either way.
+tools:
+  approvalMode: {{ if eq .chezmoi.os "darwin" }}write{{ else }}yolo{{ end }}
+
+retry:
+  modelFallback: true
+  fallbackChains:
+    default:
+      - anthropic/claude-opus-5
+      - anthropic/claude-haiku-4-5
+
+task:
+  maxRecursionDepth: 3
+  agentModelOverrides:
+    # The seven agents omp ships with. Anything absent from this map and without
+    # a frontmatter model inherits the parent's active model — so the list has to
+    # be exhaustive, not illustrative.
+    scout: "@smol"
+    librarian: "@smol"
+    task: "@task"
+    sonic: "@smol"
+    reviewer: "@default"
+    security-reviewer: "@default"
+    designer: "@designer"

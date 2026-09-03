@@ -126,3 +126,14 @@ if [ -f /.dockerenv ]; then
   [ -d "$HOME/code/hawk" ] && [ "$PWD" = "$HOME" ] && cd "$HOME/code/hawk"
 fi
 {{- end }}
+
+# --- environment correctness ------------------------------------------------
+# Shown on every interactive login. The box boots even when an invariant is
+# failing, on purpose — it has to stay reachable to be fixable — so the verdict
+# has to arrive somewhere you cannot miss. This is that place.
+if [ -n "${PS1:-}" ] && [ -r "$HOME/.local/state/mega-assert/status.json" ]; then
+    if ! grep -q '"ok": true' "$HOME/.local/state/mega-assert/status.json" 2>/dev/null; then
+        printf '\033[31m✗ environment invariants failing\033[0m — %s\n' \
+               "cat ~/.local/state/mega-assert/last-run.txt"
+    fi
+fi

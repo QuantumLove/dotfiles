@@ -2,6 +2,18 @@
 	email = quantumlove42@gmail.com
 	name = Rafael
 
+[core]
+	# Branch policy for every actor at once — this shell, Claude Code, OpenCode,
+	# omp. The hooks chain to a repo's own hooks so husky and the pre-commit
+	# framework keep working, and passthrough shims cover the hook names we do
+	# not implement, since hooksPath replaces the whole directory rather than
+	# individual files.
+	#
+	# A repo-local core.hooksPath still wins over this one. That is not
+	# preventable, so it is monitored: the hooks-reachable check walks every
+	# known repo and reports any that does not resolve here.
+	hooksPath = ~/.config/git/hooks
+
 [init]
 	defaultBranch = main
 

@@ -1,0 +1,56 @@
+# mega-assert check registry — one id per line.
+#
+# The runner cross-checks this against the check files in both directions: an id
+# here with no implementation fails, and an implementation not listed here fails.
+# Neither a deleted check nor an unregistered one can pass quietly.
+#
+# @min_checks 42
+#
+# The floor rises as checks migrate, so a run that registers fewer than expected
+# stops being a clean run.
+#
+# id
+omo-agent-models
+bin-core-present
+bin-container-tools-present
+omo-config-present
+opencode-legacy-configs-absent
+docker-socket-mounted
+aws-dir-mounted
+kube-dir-mounted
+tmux-resurrect-installed
+code-volume-mounted
+claude-plugins-match-declaration
+mise-tools-match-pins
+mise-shims-resolve
+ssh-agent-keys-loaded
+tmux-version-min
+supercronic-running
+supercronic-crontab-declares-jobs
+sh-functions-ws-helpers
+tmux-restore-in-place
+tmux-save-tmpdir-pinned
+tmux-save-recent
+opencode-snapshot-recent
+secrets-required-present
+secrets-optional-present
+resurrect-roundtrips
+docker-daemon-responds
+tailscale-backend-running
+opencode-web-responding
+aws-credentials-valid
+sshd-running
+tailscale-serve-configured
+mcp-servers-connected
+guard-controls
+hooks-reachable
+guard-coverage
+branch-divergence
+adapters-live
+bypass-not-distributed
+no-silenced-supervision
+chezmoi-drift
+marketplaces-agree
+tmux-bindings-load
+pins-documented
+omp-agent-models
