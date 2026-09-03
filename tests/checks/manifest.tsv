@@ -22,6 +22,7 @@ tmux-resurrect-installed
 code-volume-mounted
 claude-plugins-match-declaration
 mise-tools-match-pins
+mise-shims-resolve
 ssh-agent-keys-loaded
 tmux-version-min
 supercronic-running
