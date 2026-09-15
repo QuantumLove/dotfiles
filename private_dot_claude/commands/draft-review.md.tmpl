@@ -1,0 +1,174 @@
+---
+description: Shapes code-review findings that already exist into a GitHub pull request review — anchored inline comments plus a body — and prints it for approval before anything is submitted. Use when findings exist in the conversation and a PR review needs writing. Not for finding the problems in the first place.
+argument-hint: "[PR number, or blank for the current branch's PR]"
+allowed-tools: Bash(gh pr view *) Bash(gh pr diff *) Bash(git diff *) Bash(jq *) Read Grep
+---
+
+# /draft-review — shape findings into a PR review
+
+The findings already exist somewhere in this conversation — from an earlier review pass,
+notes I pasted, or things we worked out together. Shape them and print them. Don't hunt
+for new problems, and don't submit anything until I say to.
+
+Throughout: **I** is me, the human. Everything else is addressed to you.
+
+## First, which review is this
+
+One question decides the shape of everything below. For each finding, ask: **does it
+survive the author saying "yes, that's exactly what I meant to build"?**
+
+- **Yes, it survives** — the goal is settled and the finding is about the code. → short body, findings live inline.
+- **No — the finding *is* that the intent is wrong** — wrong thing to build, approach doesn't hold, the problem it solves isn't the real problem. → long body, few inline comments.
+
+Size doesn't decide this. A rewrite of every line in the file is still a settled-goal
+review if the author's intent was right. If you can't decide, it's settled.
+
+## The output
+
+Print exactly two parts, in this order.
+
+### Part 1 — the body
+
+**Goal settled** — two to four sentences, no headers, no bullets:
+
+1. The verdict — is this close, or does something need to change first.
+2. The one or two things that decide it: the design call, the risky assumption, the thing worth talking about.
+
+It stands on its own as what you'd say to the author in a hallway after reading the PR.
+
+**Goal not settled** — the body carries the review, so make the whole argument: what this
+is actually trying to solve, where the approach stops working, what you'd want answered
+before the code matters. Prose, paragraphs if it needs them, as long as the argument needs
+and not a word past it. Long because there's more to say, never because it's padded.
+
+Close it with what would change your mind, and offer to take it to a call. Naming the
+thing that would move you is a quality bar on the argument, not politeness — if nothing
+would move you, it isn't a review finding.
+
+### Part 2 — the inline comments
+
+Resolve the PR and read the diff before you write a single anchor — `gh pr diff <n>`.
+It prints hunk headers, not line numbers, so count from them. An anchor that isn't a
+line in the diff is rejected at submit time, after I've already approved the wording.
+
+```
+path/to/file.ts:88
+<the problem and its consequence, in one to three sentences>
+```
+
+**Goal settled** — every finding is a comment here.
+**Goal not settled** — only the findings that hold no matter how the premise resolves: a
+security hole, data loss. Line notes on code that may not survive the conversation are
+noise, and they bury the argument you want read.
+
+Every finding gets a line, including findings about something *missing*. Anchor to the
+nearest changed line that should have had it; if that file has no changed lines, the
+nearest hunk in the most related file, and say plainly what's absent. Nothing moves up
+into the body for lack of a home.
+
+Blockers are bare. Anything you're not asking them to change before merge opens with
+`Nit:` or `Optional:` — one word, and only on the ones where you were already declining
+to insist. Otherwise `REQUEST_CHANGES` plus six unlabeled comments reads as six blockers.
+
+## What a comment says
+
+Name the problem and its consequence — what breaks, for whom. `so a per-call override
+never takes effect` is a consequence; `this function merges config` is narration. The
+reader can open the file, so give them the consequence and the line and stop there.
+
+Name a fix outright when one of these holds:
+
+- The fix is a single obvious change — a flipped comparison, a missing `await`. Say it in the same breath, and put it in a ```suggestion block so it's one click to apply.
+- I already told you which solution I want. Then state that one.
+
+Where the fix is a judgment call: the problem, then one sentence per option, naming it.
+Naming them is enough — the author knows the code and picks. If I want the options
+developed, I'll ask.
+
+If you aren't certain something is wrong, ask instead of asserting, and say what would
+settle it. A confident inline comment that turns out to be wrong costs the author more
+than the finding was worth.
+
+Comments are about the code, never about the author.
+
+## Example
+
+Body, goal settled:
+
+> Solid overall — the retry path reads well and the tests cover the interesting cases. The thing I'd want settled before merge is whether the cache is meant to survive a failed refresh; everything else is small.
+
+Comments:
+
+```
+src/api/client.ts:88
+`retries` is read before the config merge, so a per-call override never takes effect.
+
+src/api/cache.ts:34
+A failed refresh clears the entry, so one transient 500 leaves every caller with a cold cache. Serve stale on failure, or fail the read outright — either beats silently going cold.
+
+src/api/client.test.ts:12
+Optional: nothing covers the timeout path, which is the case most likely to regress.
+```
+
+Not the body:
+
+> This PR adds retry logic and caching. I found 3 issues. The main one is in `client.ts` where `retries` is read too early (see inline comment). See also the cache clearing behaviour and the missing timeout test.
+
+That body re-tells the comments. The comments are already on the lines; the body is for
+the part that has no line.
+
+Body, goal not settled — note there's nothing left to say inline:
+
+> I don't think the cache belongs in the client. Every caller now gets caching whether it wants it or not, and the two places that need fresh reads are already reaching past it — that's the shape of a layer in the wrong spot, and it'll get worse as callers multiply.
+>
+> The retry logic is fine and I'd take it on its own. But it's worth deciding whether the caching is a client concern before tuning it, because if it moves out, most of this file changes anyway. What would change my mind is a caller that needs this cache and can't reasonably own it. Happy to talk it through if that's easier than writing it out.
+
+## Submitting
+
+Only when I ask, and only with the event I pick: `APPROVE`, `COMMENT`, or
+`REQUEST_CHANGES`. If I say "post it" without naming one, ask which — never guess. The
+review submits immediately and notifies the author, so the event is my call, not yours.
+
+Use `gh api`, not the GitHub MCP server — I want the exact call sitting in the transcript,
+re-runnable and greppable.
+
+```bash
+PR=123
+EVENT=REQUEST_CHANGES   # APPROVE | COMMENT | REQUEST_CHANGES — never guess this
+
+cat > /tmp/review-body.md <<'MD'
+<Part 1, verbatim>
+MD
+
+# One object per Part 2 comment. body is required; path + line anchor it.
+# line = line number in the HEAD file for side RIGHT (the default),
+# or in the BASE file for side LEFT (a removed line).
+# For a range add startLine (<= line), plus startSide: "LEFT" if side is LEFT.
+cat > /tmp/review-threads.json <<'JSON'
+[{"path":"src/api/client.ts","line":88,"body":"..."},
+ {"path":"src/api/cache.ts","startLine":30,"line":34,"body":"..."}]
+JSON
+
+# APPROVE may have an empty body; COMMENT and REQUEST_CHANGES may not.
+if [ "$EVENT" != "APPROVE" ] && [ ! -s /tmp/review-body.md ]; then
+  echo "$EVENT requires a non-empty body" >&2; exit 1
+fi
+
+PR_ID=$(gh pr view "$PR" --json id -q .id)
+
+set -o pipefail
+jq -n --arg prId "$PR_ID" --arg event "$EVENT" \
+      --rawfile body /tmp/review-body.md \
+      --slurpfile threads /tmp/review-threads.json '{
+  query: "mutation($prId:ID!,$body:String!,$event:PullRequestReviewEvent!,$threads:[DraftPullRequestReviewThread!]) { addPullRequestReview(input:{pullRequestId:$prId,body:$body,event:$event,threads:$threads}) { pullRequestReview { url state } } }",
+  variables: {prId: $prId, body: $body, event: $event, threads: $threads[0]}
+}' | gh api graphql --input -
+```
+
+Body and threads go in one mutation — don't create the threads separately. Write
+`/tmp/review-threads.json` as `[]` when there are no inline comments.
+
+A bad anchor rejects the mutation with `line must be part of the diff`. Fix the anchor
+and re-run; if the retry reports `User can only have one pending review per pull
+request`, delete the leftover pending review first. Anchors aren't pinned to a commit,
+so if the author pushes between your diff read and the submit, re-check them.
